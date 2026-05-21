@@ -41,6 +41,22 @@
 
 ---
 
+## 依赖库说明
+
+| 依赖库 | 版本 | 用途 |
+|--------|------|------|
+| express | ^4.18.2 | Web 框架，提供 HTTP 服务和 API 路由 |
+| adm-zip | ^0.5.10 | ZIP 文件解压缩，支持系统热更新功能 |
+| ffmetadata | ^1.7.0 | 使用 FFmpeg 读写音频文件元数据 |
+| fluent-ffmpeg | ^2.1.3 | FFmpeg 的 Node.js 封装，用于音频处理和格式转换 |
+| iconv-lite | ^0.7.2 | 字符编码转换，解决中文文件名和标签乱码问题 |
+| mp3-parser | ^0.3.0 | MP3 文件底层解析，获取音频帧信息 |
+| multer | ^1.4.5-lts.1 | 处理 multipart/form-data 文件上传 |
+| music-metadata | ^8.1.3 | 音频文件元数据解析，支持多种格式（MP3/FLAC/M4A等） |
+| node-id3 | ^0.2.9 | 读写 MP3 文件的 ID3 标签信息 |
+
+---
+
 ## 快速开始
 
 ### 本地运行

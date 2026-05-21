@@ -175,14 +175,20 @@ if ($releaseCheck) {
     Compress-Archive -Path $allItems.FullName -DestinationPath $zipPath -Force
     Write-Host "Created ZIP: $zipName" -ForegroundColor Green
 
-    # Create Release via API
-    $releaseBody = @{
-        tag_name = $TAG
-        name = "NAS Local Music Player $TAG"
-        body = $releaseNotes
-        draft = $false
-        prerelease = $false
-    } | ConvertTo-Json
+    # Create Release via API with proper UTF-8 encoding
+    # Escape special characters for JSON
+    $escapedNotes = $releaseNotes -replace '\\', '\\' -replace '"', '\"' -replace "`n", '\n' -replace "`r", ''
+    
+    # Build JSON manually to ensure proper UTF-8 encoding
+    $releaseBody = @"
+{
+    "tag_name": "$TAG",
+    "name": "NAS Local Music Player $TAG",
+    "body": "$escapedNotes",
+    "draft": false,
+    "prerelease": false
+}
+"@
 
     # Convert release body to UTF-8 bytes to ensure proper Chinese encoding
     $releaseBodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes($releaseBody)

@@ -2463,16 +2463,82 @@ function setupUpdateFeature() {
         document.addEventListener('DOMContentLoaded', () => {
             console.log('DOMContentLoaded 触发，初始化更新功能');
             initUpdateFeature();
+            loadVersion();
         });
     } else if (document.readyState === 'interactive' || document.readyState === 'complete') {
         console.log('DOM已就绪，立即初始化更新功能');
         initUpdateFeature();
+        loadVersion();
     } else {
         // 作为后备，添加一个短延迟
         setTimeout(() => {
             console.log('延迟初始化更新功能');
             initUpdateFeature();
+            loadVersion();
         }, 500);
+    }
+}
+
+// 加载当前版本信息
+async function loadVersion() {
+    try {
+        const result = await apiRequest('/api/version');
+        if (result.success) {
+            const versionEl = document.getElementById('currentVersion');
+            if (versionEl) {
+                versionEl.textContent = result.version;
+            }
+        }
+    } catch (error) {
+        console.error('加载版本失败:', error);
+    }
+}
+
+// 检查更新
+async function checkUpdate() {
+    const statusMsg = document.getElementById('updateStatusMsg');
+    const btnCheck = document.getElementById('btnCheckUpdate');
+    
+    if (!statusMsg || !btnCheck) {
+        console.error('检查更新元素未找到');
+        return;
+    }
+    
+    // 显示加载状态
+    btnCheck.disabled = true;
+    btnCheck.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 检查中...';
+    statusMsg.className = 'update-status-msg info';
+    statusMsg.style.display = 'block';
+    statusMsg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在检查更新...';
+    
+    try {
+        const result = await apiRequest('/api/check-update');
+        
+        if (result.success) {
+            if (result.hasUpdate) {
+                statusMsg.className = 'update-status-msg warning';
+                statusMsg.innerHTML = `
+                    <div>发现新版本 <strong>${result.latestVersion}</strong>（当前版本：${result.currentVersion}）</div>
+                    <div style="margin-top: 8px; font-size: 12px;">
+                        <a href="${result.downloadUrl}" target="_blank" style="color: #3b82f6; text-decoration: underline;">
+                            <i class="fas fa-download"></i> 前往 GitHub 下载更新
+                        </a>
+                    </div>
+                `;
+            } else {
+                statusMsg.className = 'update-status-msg success';
+                statusMsg.innerHTML = '<i class="fas fa-check-circle"></i> 当前已是最新版本';
+            }
+        } else {
+            statusMsg.className = 'update-status-msg error';
+            statusMsg.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${result.error || '检查更新失败'}`;
+        }
+    } catch (error) {
+        statusMsg.className = 'update-status-msg error';
+        statusMsg.innerHTML = `<i class="fas fa-exclamation-circle"></i> 检查更新失败: ${error.message}`;
+    } finally {
+        btnCheck.disabled = false;
+        btnCheck.innerHTML = '<i class="fas fa-sync"></i> 检查更新';
     }
 }
 

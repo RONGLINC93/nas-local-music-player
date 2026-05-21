@@ -3389,6 +3389,47 @@ body {
     gap: 8px;
 }
 
+.about-content .update-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.about-content .update-buttons .btn-update {
+    flex: 1;
+}
+
+.update-status-msg {
+    margin-top: 12px;
+    padding: 10px 15px;
+    border-radius: 8px;
+    font-size: 14px;
+    text-align: center;
+}
+
+.update-status-msg.info {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+    display: block;
+}
+
+.update-status-msg.success {
+    background: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+    display: block;
+}
+
+.update-status-msg.warning {
+    background: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+    display: block;
+}
+
+.update-status-msg.error {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    display: block;
+}
+
 .btn-update {
     display: flex;
     align-items: center;

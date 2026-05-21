@@ -3981,6 +3981,120 @@ function validateUpdatePackage(zipPath) {
     }
 }
 
+// 获取当前版本信息
+app.get('/api/version', (req, res) => {
+    try {
+        const versionFile = path.join(__dirname, 'version.json');
+        if (fs.existsSync(versionFile)) {
+            const versionInfo = JSON.parse(fs.readFileSync(versionFile, 'utf8'));
+            res.json({ success: true, ...versionInfo });
+        } else {
+            res.json({ success: false, error: '版本文件不存在' });
+        }
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// 检查远程更新
+app.get('/api/check-update', (req, res) => {
+    try {
+        const versionFile = path.join(__dirname, 'version.json');
+        let currentVersion = 'unknown';
+        
+        if (fs.existsSync(versionFile)) {
+            const versionInfo = JSON.parse(fs.readFileSync(versionFile, 'utf8'));
+            currentVersion = versionInfo.version;
+        }
+
+        // 从 GitHub 获取最新版本
+        const options = {
+            hostname: 'api.github.com',
+            path: '/repos/RONGLINC93/nas-local-music-player/releases/latest',
+            method: 'GET',
+            headers: {
+                'User-Agent': 'NAS-Local-Music-Player'
+            }
+        };
+
+        const request = https.request(options, (response) => {
+            let data = '';
+            
+            response.on('data', (chunk) => {
+                data += chunk;
+            });
+            
+            response.on('end', () => {
+                try {
+                    if (response.statusCode === 200) {
+                        const release = JSON.parse(data);
+                        const latestVersion = release.tag_name.replace(/^v/, '');
+                        const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
+                        
+                        res.json({
+                            success: true,
+                            currentVersion,
+                            latestVersion,
+                            hasUpdate,
+                            releaseNotes: release.body || '',
+                            publishedAt: release.published_at,
+                            downloadUrl: release.html_url
+                        });
+                    } else {
+                        res.json({
+                            success: false,
+                            currentVersion,
+                            error: '无法获取最新版本信息'
+                        });
+                    }
+                } catch (error) {
+                    res.json({
+                        success: false,
+                        currentVersion,
+                        error: '解析版本信息失败: ' + error.message
+                    });
+                }
+            });
+        });
+
+        request.on('error', (error) => {
+            res.json({
+                success: false,
+                currentVersion,
+                error: '网络请求失败: ' + error.message
+            });
+        });
+
+        request.setTimeout(5000, () => {
+            request.destroy();
+            res.json({
+                success: false,
+                currentVersion,
+                error: '请求超时'
+            });
+        });
+
+        request.end();
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// 版本号比较 (返回 1: v1 > v2, -1: v1 < v2, 0: v1 == v2)
+function compareVersions(v1, v2) {
+    const parts1 = v1.split('.').map(Number);
+    const parts2 = v2.split('.').map(Number);
+    const maxLen = Math.max(parts1.length, parts2.length);
+    
+    for (let i = 0; i < maxLen; i++) {
+        const n1 = parts1[i] || 0;
+        const n2 = parts2[i] || 0;
+        if (n1 > n2) return 1;
+        if (n1 < n2) return -1;
+    }
+    return 0;
+}
+
 // 创建临时上传目录
 const tempUploadDir = path.join(__dirname, 'temp_uploads');
 if (!fs.existsSync(tempUploadDir)) {

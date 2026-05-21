@@ -59,26 +59,6 @@ if ($AutoIncrement) {
     }
 }
 
-# Update CHANGELOG.md with new version entry
-if ($AutoIncrement) {
-    Write-Host "Updating CHANGELOG.md..." -ForegroundColor Yellow
-    $changelogPath = Join-Path $PWD "CHANGELOG.md"
-    if (Test-Path $changelogPath) {
-        $today = Get-Date -Format "yyyy-MM-dd"
-        # Build Chinese strings using Unicode code points to avoid encoding issues
-        $newFeature = [char]0x65B0 + [char]0x589E + [char]0x529F + [char]0x80FD
-        $bugFix = [char]0x4FEE + [char]0x590D
-        $optimize = [char]0x529F + [char]0x80FD + [char]0x4F18 + [char]0x5316
-        $newEntry = "## [$VERSION] - $today`n`n### $newFeature`n`n`n### Bug$bugFix`n`n`n### $optimize`n`n"
-        $existingContent = Get-Content $changelogPath -Raw -Encoding UTF8
-        $newContent = $newEntry + $existingContent
-        [System.IO.File]::WriteAllText($changelogPath, $newContent, [System.Text.Encoding]::UTF8)
-        Write-Host "CHANGELOG.md updated with version $VERSION" -ForegroundColor Green
-    } else {
-        Write-Host "Warning: CHANGELOG.md not found, skipping update" -ForegroundColor Yellow
-    }
-}
-
 Write-Host "=== Auto Release Script ===" -ForegroundColor Cyan
 Write-Host "Version: $VERSION" -ForegroundColor Cyan
 Write-Host "Tag: $TAG" -ForegroundColor Cyan

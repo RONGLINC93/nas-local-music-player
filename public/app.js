@@ -2519,9 +2519,12 @@ async function checkUpdate() {
                 statusMsg.className = 'update-status-msg warning';
                 statusMsg.innerHTML = `
                     <div>发现新版本 <strong>${result.latestVersion}</strong>（当前版本：${result.currentVersion}）</div>
-                    <div style="margin-top: 8px; font-size: 12px;">
-                        <a href="${result.downloadUrl}" target="_blank" style="color: #3b82f6; text-decoration: underline;">
-                            <i class="fas fa-download"></i> 前往 GitHub 下载更新
+                    <div style="margin-top: 10px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+                        <button onclick="autoUpdate()" class="btn-auto-update" id="btnAutoUpdate">
+                            <i class="fas fa-download"></i> 立即更新
+                        </button>
+                        <a href="${result.downloadUrl}" target="_blank" class="btn-github-link">
+                            <i class="fab fa-github"></i> GitHub 下载
                         </a>
                     </div>
                 `;
@@ -2539,6 +2542,47 @@ async function checkUpdate() {
     } finally {
         btnCheck.disabled = false;
         btnCheck.innerHTML = '<i class="fas fa-sync"></i> 检查更新';
+    }
+}
+
+// 自动更新
+async function autoUpdate() {
+    const btnAuto = document.getElementById('btnAutoUpdate');
+    const statusMsg = document.getElementById('updateStatusMsg');
+    
+    if (!btnAuto || !statusMsg) return;
+    
+    if (!confirm('确定要自动更新吗？更新过程中服务器将重启。')) {
+        return;
+    }
+    
+    btnAuto.disabled = true;
+    btnAuto.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 下载中...';
+    statusMsg.className = 'update-status-msg info';
+    statusMsg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在下载更新包，请稍候...';
+    
+    try {
+        const result = await apiRequest('/api/auto-update', 'POST');
+        
+        if (result.success) {
+            statusMsg.className = 'update-status-msg success';
+            statusMsg.innerHTML = `<i class="fas fa-check-circle"></i> 更新成功！已升级到 ${result.version}，页面将在 5 秒后刷新...`;
+            btnAuto.innerHTML = '<i class="fas fa-check"></i> 更新成功';
+            
+            setTimeout(() => {
+                window.location.reload();
+            }, 5000);
+        } else {
+            statusMsg.className = 'update-status-msg error';
+            statusMsg.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${result.error || '更新失败'}`;
+            btnAuto.disabled = false;
+            btnAuto.innerHTML = '<i class="fas fa-download"></i> 立即更新';
+        }
+    } catch (error) {
+        statusMsg.className = 'update-status-msg error';
+        statusMsg.innerHTML = `<i class="fas fa-exclamation-circle"></i> 更新失败: ${error.message}`;
+        btnAuto.disabled = false;
+        btnAuto.innerHTML = '<i class="fas fa-download"></i> 立即更新';
     }
 }
 

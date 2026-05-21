@@ -4095,6 +4095,323 @@ function compareVersions(v1, v2) {
     return 0;
 }
 
+// 下载并自动更新
+app.post('/api/auto-update', async (req, res) => {
+    let upgradeFilePath = null;
+    let tempExtractDir = null;
+    
+    try {
+        console.log('===== 开始自动更新 =====');
+
+        // 先获取最新版本信息
+        const versionFile = path.join(__dirname, 'version.json');
+        let currentVersion = 'unknown';
+        if (fs.existsSync(versionFile)) {
+            const versionInfo = JSON.parse(fs.readFileSync(versionFile, 'utf8'));
+            currentVersion = versionInfo.version;
+        }
+
+        // 获取 GitHub 最新版本
+        const releaseInfo = await getLatestRelease();
+        if (!releaseInfo) {
+            return res.status(500).json({ error: '无法获取最新版本信息' });
+        }
+
+        const latestVersion = releaseInfo.tag_name.replace(/^v/, '');
+        const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
+        
+        if (!hasUpdate) {
+            return res.json({ success: true, message: '当前已是最新版本', currentVersion });
+        }
+
+        // 查找 zip 资源
+        const zipAsset = releaseInfo.assets.find(a => a.name.endsWith('.zip'));
+        if (!zipAsset) {
+            return res.status(500).json({ error: '未找到 ZIP 格式的更新包' });
+        }
+
+        console.log(`正在下载更新包: ${zipAsset.name}`);
+
+        // 下载更新包
+        const upgradeDir = path.join(__dirname, 'upgrades');
+        if (!fs.existsSync(upgradeDir)) {
+            fs.mkdirSync(upgradeDir, { recursive: true });
+        }
+
+        upgradeFilePath = path.join(upgradeDir, zipAsset.name);
+        await downloadFile(zipAsset.browser_download_url, upgradeFilePath);
+
+        console.log(`更新包已下载: ${upgradeFilePath}, 大小: ${fs.statSync(upgradeFilePath).size} bytes`);
+
+        // 验证更新包
+        console.log('正在验证更新包...');
+        const validationResult = validateUpdatePackage(upgradeFilePath);
+        if (!validationResult.valid) {
+            console.error(`更新包验证失败: ${validationResult.message}`);
+            if (upgradeFilePath && fs.existsSync(upgradeFilePath)) {
+                fs.unlinkSync(upgradeFilePath);
+            }
+            return res.status(400).json({ error: validationResult.message });
+        }
+        console.log('更新包验证通过:', validationResult.version);
+
+        // 解压
+        tempExtractDir = path.join(__dirname, 'temp', 'extract');
+        if (fs.existsSync(tempExtractDir)) {
+            fs.rmSync(tempExtractDir, { recursive: true, force: true });
+        }
+        fs.mkdirSync(tempExtractDir, { recursive: true });
+
+        console.log('正在解压更新包...');
+        const zip = new AdmZip(upgradeFilePath);
+        const zipEntries = zip.getEntries();
+
+        for (const entry of zipEntries) {
+            const entryName = entry.entryName;
+            const filePath = path.join(tempExtractDir, entryName);
+
+            if (entry.isDirectory) {
+                if (!fs.existsSync(filePath)) {
+                    fs.mkdirSync(filePath, { recursive: true });
+                }
+            } else {
+                const fileDir = path.dirname(filePath);
+                if (!fs.existsSync(fileDir)) {
+                    fs.mkdirSync(fileDir, { recursive: true });
+                }
+                fs.writeFileSync(filePath, entry.getData());
+            }
+        }
+        console.log(`解压完成，共 ${zipEntries.length} 个文件`);
+
+        // 清理旧文件
+        console.log('正在清理旧文件...');
+        const protectedItems = ['music', 'upgrades', 'temp', '.git', 'node_modules', 'data'];
+
+        const rootItems = fs.readdirSync(__dirname);
+        for (const item of rootItems) {
+            if (protectedItems.includes(item)) continue;
+            const itemPath = path.join(__dirname, item);
+            try {
+                const stat = fs.statSync(itemPath);
+                if (stat.isDirectory()) {
+                    fs.rmSync(itemPath, { recursive: true, force: true });
+                } else {
+                    fs.unlinkSync(itemPath);
+                }
+                console.log(`删除: ${item}`);
+            } catch (e) {
+                console.error(`删除失败: ${item}, ${e.message}`);
+            }
+        }
+
+        const publicDir = path.join(__dirname, 'public');
+        if (fs.existsSync(publicDir)) {
+            const publicItems = fs.readdirSync(publicDir);
+            for (const item of publicItems) {
+                if (protectedItems.includes(item)) continue;
+                const itemPath = path.join(publicDir, item);
+                try {
+                    const stat = fs.statSync(itemPath);
+                    if (stat.isDirectory()) {
+                        fs.rmSync(itemPath, { recursive: true, force: true });
+                    } else {
+                        fs.unlinkSync(itemPath);
+                    }
+                    console.log(`删除 public/${item}`);
+                } catch (e) {
+                    console.error(`删除失败: public/${item}, ${e.message}`);
+                }
+            }
+        }
+
+        // 复制新文件
+        console.log('正在复制新文件...');
+        let copiedCount = 0;
+        function copyFiles(srcDir, destDir) {
+            if (!fs.existsSync(srcDir)) return;
+            const items = fs.readdirSync(srcDir);
+            for (const item of items) {
+                const srcPath = path.join(srcDir, item);
+                const destPath = path.join(destDir, item);
+
+                if (item === 'music' || item === 'upgrades' || item === 'temp' || item === '.git' || item === 'data') {
+                    continue;
+                }
+
+                const stat = fs.statSync(srcPath);
+                if (stat.isDirectory()) {
+                    fs.mkdirSync(destPath, { recursive: true });
+                    copyFiles(srcPath, destPath);
+                } else {
+                    fs.copyFileSync(srcPath, destPath);
+                    copiedCount++;
+                }
+            }
+        }
+
+        copyFiles(tempExtractDir, __dirname);
+        console.log(`复制完成，共复制 ${copiedCount} 个文件`);
+
+        // 清理临时目录
+        try {
+            fs.rmSync(tempExtractDir, { recursive: true, force: true });
+            console.log('临时目录已清理');
+        } catch (e) {
+            console.warn('清理临时目录失败:', e.message);
+        }
+
+        console.log(`===== 自动更新完成 (版本: ${latestVersion}) =====`);
+        
+        res.json({ success: true, message: '更新成功，服务器正在重启', version: latestVersion });
+
+        // 重启服务
+        setTimeout(() => {
+            try {
+                if (IS_DOCKER) {
+                    console.log('Docker环境：退出进程，容器将自动重启');
+                    stopMusic();
+                    process.exit(0);
+                } else {
+                    console.log('非Docker环境：尝试重启进程');
+                    const child = spawn(process.execPath, [path.join(__dirname, 'server.js')], {
+                        detached: true,
+                        stdio: ['ignore', 'inherit', 'inherit']
+                    });
+
+                    child.unref();
+
+                    setTimeout(() => {
+                        stopMusic();
+                        process.exit(0);
+                    }, 1000);
+                }
+            } catch (exitError) {
+                console.error('重启过程中发生错误:', exitError);
+                process.exit(1);
+            }
+        }, 1000);
+
+    } catch (error) {
+        console.error('===== 自动更新失败 =====');
+        console.error('错误信息:', error.message);
+        console.error('错误堆栈:', error.stack);
+        
+        try {
+            if (tempExtractDir && fs.existsSync(tempExtractDir)) {
+                fs.rmSync(tempExtractDir, { recursive: true, force: true });
+            }
+            if (upgradeFilePath && fs.existsSync(upgradeFilePath)) {
+                fs.unlinkSync(upgradeFilePath);
+            }
+        } catch (cleanupError) {
+            console.error('清理临时文件失败:', cleanupError.message);
+        }
+        
+        res.status(500).json({ 
+            error: '自动更新失败: ' + error.message,
+            details: error.stack ? error.stack.substring(0, 500) : ''
+        });
+    }
+});
+
+// 获取 GitHub 最新版本
+function getLatestRelease() {
+    return new Promise((resolve, reject) => {
+        const options = {
+            hostname: 'api.github.com',
+            path: '/repos/RONGLINC93/nas-local-music-player/releases/latest',
+            method: 'GET',
+            headers: {
+                'User-Agent': 'NAS-Local-Music-Player'
+            }
+        };
+
+        const request = https.request(options, (response) => {
+            let data = '';
+            
+            response.on('data', (chunk) => {
+                data += chunk;
+            });
+            
+            response.on('end', () => {
+                try {
+                    if (response.statusCode === 200) {
+                        resolve(JSON.parse(data));
+                    } else {
+                        resolve(null);
+                    }
+                } catch (error) {
+                    resolve(null);
+                }
+            });
+        });
+
+        request.on('error', (error) => {
+            resolve(null);
+        });
+
+        request.setTimeout(10000, () => {
+            request.destroy();
+            resolve(null);
+        });
+
+        request.end();
+    });
+}
+
+// 下载文件
+function downloadFile(url, dest) {
+    return new Promise((resolve, reject) => {
+        const parsedUrl = new URL(url);
+        const options = {
+            hostname: parsedUrl.hostname,
+            path: parsedUrl.pathname,
+            method: 'GET',
+            headers: {
+                'User-Agent': 'NAS-Local-Music-Player'
+            }
+        };
+
+        const request = https.request(options, (response) => {
+            if (response.statusCode === 302 || response.statusCode === 301) {
+                // 处理重定向
+                downloadFile(response.headers.location, dest).then(resolve).catch(reject);
+                return;
+            }
+
+            if (response.statusCode !== 200) {
+                reject(new Error(`下载失败，HTTP 状态码: ${response.statusCode}`));
+                return;
+            }
+
+            const fileStream = fs.createWriteStream(dest);
+            response.pipe(fileStream);
+
+            fileStream.on('finish', () => {
+                fileStream.close();
+                resolve();
+            });
+
+            fileStream.on('error', (err) => {
+                fs.unlink(dest, () => {});
+                reject(err);
+            });
+        });
+
+        request.on('error', (error) => {
+            reject(error);
+        });
+
+        request.setTimeout(60000, () => {
+            request.destroy();
+            reject(new Error('下载超时'));
+        });
+
+        request.end();
+    });
+}
+
 // 创建临时上传目录
 const tempUploadDir = path.join(__dirname, 'temp_uploads');
 if (!fs.existsSync(tempUploadDir)) {

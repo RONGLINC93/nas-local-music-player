@@ -3942,6 +3942,8 @@ function validateUpdatePackage(zipPath, isSourceZip = false) {
         const entries = zip.getEntries();
 
         if (isSourceZip) {
+            let versionInfo;
+            
             // 源码 ZIP 验证（路径会有嵌套目录前缀，如 nas-local-music-player-1.0.0/version.json）
             const versionEntry = entries.find(e => e.entryName.endsWith('/version.json') || e.entryName === 'version.json');
             if (!versionEntry) {
@@ -3949,7 +3951,6 @@ function validateUpdatePackage(zipPath, isSourceZip = false) {
             }
 
             const versionContent = versionEntry.getData().toString('utf8');
-            let versionInfo;
             try {
                 versionInfo = JSON.parse(versionContent);
             } catch {
@@ -3977,7 +3978,6 @@ function validateUpdatePackage(zipPath, isSourceZip = false) {
             }
 
             const versionContent = versionEntry.getData().toString('utf8');
-            let versionInfo;
             try {
                 versionInfo = JSON.parse(versionContent);
             } catch {

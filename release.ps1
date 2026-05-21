@@ -6,6 +6,12 @@ param(
     [string]$Message = ""
 )
 
+# Add Git to PATH if not already present
+$gitPath = "C:\Program Files\Git\bin"
+if (-not $env:PATH.Contains($gitPath)) {
+    $env:PATH = "$gitPath;$env:PATH"
+}
+
 # Load .env config
 Get-Content ".env" | ForEach-Object {
     if ($_ -match '^([^#][^=]+)=(.*)$') {
@@ -88,8 +94,8 @@ if ($releaseCheck) {
     # 5. Create Release
     Write-Host "[5/5] Creating GitHub Release $TAG..." -ForegroundColor Yellow
 
-    # Read release notes from CHANGELOG
-    $changelog = Get-Content "CHANGELOG.md" -Raw
+    # Read release notes from CHANGELOG (UTF-8 encoding)
+    $changelog = Get-Content "CHANGELOG.md" -Raw -Encoding UTF8
     $releaseNotes = "Release $TAG"
     
     $pattern = "## [$VERSION]"
@@ -108,7 +114,7 @@ if ($releaseCheck) {
     $zipName = "nas-local-music-player-$VERSION.zip"
     $zipPath = Join-Path $PWD $zipName
     
-    $excludeItems = @('.git', 'node_modules', 'upgrades', 'temp', 'temp_uploads', '.env')
+    $excludeItems = @('.git', 'upgrades', 'temp', 'temp_uploads', '.env')
     $allItems = Get-ChildItem -Path $PWD -Force | Where-Object { 
         $_.Name -notin $excludeItems -and $_.Name -notmatch '\.zip$'
     }
@@ -125,14 +131,18 @@ if ($releaseCheck) {
         prerelease = $false
     } | ConvertTo-Json
 
+    # Convert release body to UTF-8 bytes to ensure proper Chinese encoding
+    $releaseBodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes($releaseBody)
+    
     $release = Invoke-RestMethod `
         -Uri "https://api.github.com/repos/$GITHUB_REPO/releases" `
         -Method POST `
         -Headers @{
             Authorization = "Bearer $GITHUB_TOKEN"
             Accept = "application/vnd.github+json"
+            "Content-Type" = "application/json; charset=utf-8"
         } `
-        -Body $releaseBody
+        -Body $releaseBodyUtf8
 
     $releaseId = $release.id
     Write-Host "Release created: $($release.html_url)" -ForegroundColor Green

@@ -1,3 +1,13 @@
+## [1.0.9] - 2026-05-21
+
+### 功能优化
+- **release.ps1 打包重构**：将 PowerShell 打包逻辑替换为调用 package.js，统一打包流程
+- **package.js 命令行支持**：支持通过命令行参数指定输出文件名
+
+### Bug修复
+- **server.js UTF-8 BOM 修复**：修复更新包验证时 version.json 的 BOM 问题
+- **package.js 排除文件优化**：添加跳过 .git、.env、PROJECT_MEMORY.md、release.ps1 文件/目录
+
 ## [1.0.8] - 2026-05-21
 
 ### Bug修复

@@ -579,6 +579,48 @@
                             </div>
                         </div>
 
+                        <!-- 常见问题 -->
+                        <div class="faq-section">
+                            <h4><i class="fas fa-question-circle"></i> 常见问题</h4>
+                            
+                            <div class="faq-item">
+                                <h5><i class="fas fa-question"></i> 如何安装 ffmpeg？</h5>
+                                <p><strong>Windows</strong>：下载 ffmpeg 并添加到系统 PATH，或运行项目根目录的 <code>install-ffmpeg.ps1</code> 脚本自动安装。</p>
+                                <p><strong>macOS</strong>：使用 Homebrew 安装 <code>brew install ffmpeg</code>。</p>
+                                <p><strong>Linux</strong>：使用包管理器安装 <code>sudo apt install ffmpeg</code>（Debian/Ubuntu）或 <code>sudo dnf install ffmpeg</code>（Fedora）。</p>
+                            </div>
+                            
+                            <div class="faq-item">
+                                <h5><i class="fas fa-question"></i> 音乐文件应该放在哪里？</h5>
+                                <p>音乐文件需要放在服务器的 <code>music/</code> 目录下。也可以通过网页上传功能直接上传音乐文件，上传后会自动保存到该目录。</p>
+                            </div>
+                            
+                            <div class="faq-item">
+                                <h5><i class="fas fa-question"></i> 如何备份数据？</h5>
+                                <p>主要需要备份的文件包括：</p>
+                                <ul>
+                                    <li><code>music/</code> - 音乐文件目录</li>
+                                    <li><code>config.json</code> - 配置文件（声卡设置、音量等）</li>
+                                    <li><code>version.json</code> - 版本信息文件</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="faq-item">
+                                <h5><i class="fas fa-question"></i> 如何设置开机自启？</h5>
+                                <p><strong>Windows</strong>：将 <code>start.bat</code> 快捷方式添加到「启动」文件夹。</p>
+                                <p><strong>Linux</strong>：创建 systemd 服务或使用 crontab 的 <code>@reboot</code> 命令。</p>
+                                <p><strong>Docker</strong>：使用 <code>docker-compose up -d</code> 启动，并设置 <code>restart: always</code>。</p>
+                            </div>
+                            
+                            <div class="faq-item">
+                                <h5><i class="fas fa-question"></i> 网页无法访问怎么办？</h5>
+                                <p>1. 检查服务器是否正在运行</p>
+                                <p>2. 确认端口 9524 未被其他程序占用</p>
+                                <p>3. 检查防火墙设置，确保端口已开放</p>
+                                <p>4. 使用服务器 IP:9524 访问（如：http://192.168.1.100:9524）</p>
+                            </div>
+                        </div>
+
                         <!-- 技术架构 -->
                         <div class="tech-architecture">
                             <h4><i class="fas fa-code"></i> 技术架构</h4>

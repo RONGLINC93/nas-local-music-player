@@ -145,7 +145,9 @@ if ($releaseCheck) {
         $_.Name -notin $excludeItems -and $_.Name -notmatch '\.zip$'
     }
     
-    Compress-Archive -Path $allItems.FullName -DestinationPath $zipPath -Force
+    Push-Location $PWD
+    Compress-Archive -Path $allItems.Name -DestinationPath $zipPath -Force
+    Pop-Location
     Write-Host "Created ZIP: $zipName" -ForegroundColor Green
 
     # Create Release via API with proper UTF-8 encoding

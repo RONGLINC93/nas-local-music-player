@@ -3937,10 +3937,10 @@ app.post('/api/system-update', updateUpload.single('file'), async (req, res) => 
 
 // 验证更新包
 function validateUpdatePackage(zipPath, isSourceZip = false) {
+    let versionInfo = null;
     try {
         const zip = new AdmZip(zipPath);
         const entries = zip.getEntries();
-        let versionInfo;
 
         if (isSourceZip) {
             
@@ -4002,7 +4002,7 @@ function validateUpdatePackage(zipPath, isSourceZip = false) {
         return {
             valid: true,
             message: '验证通过',
-            version: versionInfo.version,
+            version: versionInfo ? versionInfo.version : 'unknown',
             packageName: path.basename(zipPath)
         };
     } catch (error) {

@@ -3940,9 +3940,9 @@ function validateUpdatePackage(zipPath, isSourceZip = false) {
     try {
         const zip = new AdmZip(zipPath);
         const entries = zip.getEntries();
+        let versionInfo;
 
         if (isSourceZip) {
-            let versionInfo;
             
             // 源码 ZIP 验证（路径会有嵌套目录前缀，如 nas-local-music-player-1.0.0/version.json）
             const versionEntry = entries.find(e => e.entryName.endsWith('/version.json') || e.entryName === 'version.json');

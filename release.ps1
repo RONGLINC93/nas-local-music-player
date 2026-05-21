@@ -1,9 +1,11 @@
 # Auto Release Script
 # Usage: .\release.ps1
-# Optional: .\release.ps1 -Message "commit message"
+# Optional: .\release.ps1 -Message "commit message" -AutoIncrement
+# -AutoIncrement: Automatically increment minor version (e.g., 1.0.1 → 1.0.2)
 
 param(
-    [string]$Message = ""
+    [string]$Message = "",
+    [switch]$AutoIncrement = $false
 )
 
 # Add Git to PATH if not already present
@@ -32,6 +34,30 @@ $versionJsonRaw = [System.IO.File]::ReadAllText((Join-Path $PWD "version.json"),
 $versionJson = $versionJsonRaw | ConvertFrom-Json
 $VERSION = $versionJson.version
 $TAG = "v$VERSION"
+
+# Auto-increment version if requested
+if ($AutoIncrement) {
+    Write-Host "Auto-incrementing version..." -ForegroundColor Yellow
+    $versionParts = $VERSION -split '\.'
+    if ($versionParts.Count -eq 3) {
+        $major = [int]$versionParts[0]
+        $minor = [int]$versionParts[1]
+        $patch = [int]$versionParts[2] + 1
+        $VERSION = "$major.$minor.$patch"
+        $TAG = "v$VERSION"
+        
+        # Update version.json
+        $versionJson.version = $VERSION
+        $versionJson.buildTime = [System.DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+        $versionJson.buildNumber = [System.Guid]::NewGuid().ToString("n").Substring(0, 8)
+        $newVersionJson = $versionJson | ConvertTo-Json -Depth 10
+        [System.IO.File]::WriteAllText((Join-Path $PWD "version.json"), $newVersionJson, [System.Text.Encoding]::UTF8)
+        
+        Write-Host "Version incremented to: $VERSION" -ForegroundColor Green
+    } else {
+        Write-Host "Warning: Cannot auto-increment version format: $VERSION" -ForegroundColor Yellow
+    }
+}
 
 Write-Host "=== Auto Release Script ===" -ForegroundColor Cyan
 Write-Host "Version: $VERSION" -ForegroundColor Cyan
@@ -114,7 +140,7 @@ if ($releaseCheck) {
     $zipName = "nas-local-music-player-$VERSION.zip"
     $zipPath = Join-Path $PWD $zipName
     
-    $excludeItems = @('.git', 'upgrades', 'temp', 'temp_uploads', '.env')
+    $excludeItems = @('.git', 'upgrades', 'temp', 'temp_uploads', '.env', 'PROJECT_MEMORY.md', 'release.ps1')
     $allItems = Get-ChildItem -Path $PWD -Force | Where-Object { 
         $_.Name -notin $excludeItems -and $_.Name -notmatch '\.zip$'
     }

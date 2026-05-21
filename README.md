@@ -82,8 +82,8 @@ NAS本地音乐播放器/
 ├── docker-compose.yml     # 容器编排配置
 ├── package.json           # 项目依赖
 ├── start.bat              # Windows 启动脚本
-├── 打包.bat               # Docker 镜像打包脚本
-├── install-ffmpeg.ps1      # ffmpeg 安装脚本
+├── 打包.bat               # 更新包打包脚本
+├── install-ffmpeg.ps1      # windows端ffmpeg 安装脚本
 └── DOCKER_AUDIO.md        # Docker 音频配置说明
 ```
 

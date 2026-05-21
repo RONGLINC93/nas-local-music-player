@@ -1,7 +1,7 @@
-# Auto Release Script
+﻿# Auto Release Script
 # Usage: .\release.ps1
 # Optional: .\release.ps1 -Message "commit message" -AutoIncrement
-# -AutoIncrement: Automatically increment minor version (e.g., 1.0.1 → 1.0.2)
+# -AutoIncrement: Automatically increment minor version (e.g., 1.0.1 鈫?1.0.2)
 
 param(
     [string]$Message = "",
@@ -68,13 +68,13 @@ if ($AutoIncrement) {
         $newEntry = @"
 ## [$VERSION] - $today
 
-### 新增功能
+### 鏂板鍔熻兘
 
 
-### Bug修复
+### Bug淇
 
 
-### 功能优化
+### 鍔熻兘浼樺寲
 
 "@
         $existingContent = Get-Content $changelogPath -Raw -Encoding UTF8

@@ -8,6 +8,7 @@
 ## 硬约束 (Hard Constraints)
 - release.ps1 必须使用 UTF-8 编码处理中文
 - server.js 中 versionInfo 变量必须在条件块外声明
+- 不要手动更新 version.json，由 release.ps1 自动更新版本号
 
 ## 工程约定 (Engineering Conventions)
 - GitHub发布需要 .env 文件（包含 GITHUB_TOKEN 和 GITHUB_REPO）

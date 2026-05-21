@@ -16,12 +16,18 @@ function createZipPackage(outputPath) {
       const filePath = path.join(dir, file);
       const stat = fs.statSync(filePath);
       
+      const excludeFiles = ['.env', 'PROJECT_MEMORY.md', 'release.ps1'];
+      if (stat.isFile() && excludeFiles.includes(file)) {
+        console.log('跳过:', file);
+        continue;
+      }
+      
       if ((dir === rootDir && stat.isFile() && file.endsWith('.zip'))) {
         console.log('跳过:', file);
         continue;
       }
       
-      if (stat.isDirectory() && file === 'music') {
+      if (stat.isDirectory() && (file === 'music' || file === '.git')) {
         console.log('跳过目录:', file);
         continue;
       }

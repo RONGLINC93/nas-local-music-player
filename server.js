@@ -3945,8 +3945,9 @@ function validateUpdatePackage(zipPath, isSourceZip = false) {
         if (isSourceZip) {
             
             // 源码 ZIP 验证（路径会有嵌套目录前缀，如 nas-local-music-player-1.0.0/version.json）
-            const versionEntry = entries.find(e => e.entryName.endsWith('/version.json') || e.entryName === 'version.json');
+            const versionEntry = entries.find(e => e.entryName.endsWith('/version.json') || e.entryName.endsWith('version.json'));
             if (!versionEntry) {
+                console.log('GitHub ZIP 文件列表:', entries.slice(0, 10).map(e => e.entryName));
                 return { valid: false, message: '更新包缺少 version.json 文件' };
             }
 

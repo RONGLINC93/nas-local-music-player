@@ -3936,38 +3936,67 @@ app.post('/api/system-update', updateUpload.single('file'), async (req, res) => 
 });
 
 // 验证更新包
-function validateUpdatePackage(zipPath) {
+function validateUpdatePackage(zipPath, isSourceZip = false) {
     try {
         const zip = new AdmZip(zipPath);
         const entries = zip.getEntries();
 
-        const versionEntry = entries.find(e => e.entryName === 'version.json');
+        if (isSourceZip) {
+            // 源码 ZIP 验证（路径会有嵌套目录前缀，如 nas-local-music-player-1.0.0/version.json）
+            const versionEntry = entries.find(e => e.entryName.endsWith('/version.json') || e.entryName === 'version.json');
+            if (!versionEntry) {
+                return { valid: false, message: '更新包缺少 version.json 文件' };
+            }
 
-        if (!versionEntry) {
-            return { valid: false, message: '更新包缺少 version.json 文件' };
-        }
+            const versionContent = versionEntry.getData().toString('utf8');
+            let versionInfo;
+            try {
+                versionInfo = JSON.parse(versionContent);
+            } catch {
+                return { valid: false, message: 'version.json 格式无效' };
+            }
 
-        const versionContent = versionEntry.getData().toString('utf8');
-        let versionInfo;
+            if (!versionInfo.version) {
+                return { valid: false, message: 'version.json 缺少 version 字段' };
+            }
 
-        try {
-            versionInfo = JSON.parse(versionContent);
-        } catch {
-            return { valid: false, message: 'version.json 格式无效' };
-        }
+            const serverEntry = entries.find(e => e.entryName.endsWith('/server.js') || e.entryName === 'server.js');
+            if (!serverEntry) {
+                return { valid: false, message: '更新包缺少 server.js 文件' };
+            }
 
-        if (!versionInfo.version) {
-            return { valid: false, message: 'version.json 缺少 version 字段' };
-        }
+            const publicEntry = entries.find(e => e.entryName.includes('/public/'));
+            if (!publicEntry) {
+                return { valid: false, message: '更新包缺少 public 目录' };
+            }
+        } else {
+            // 手动更新 ZIP 验证（根目录直接是文件）
+            const versionEntry = entries.find(e => e.entryName === 'version.json');
+            if (!versionEntry) {
+                return { valid: false, message: '更新包缺少 version.json 文件' };
+            }
 
-        const serverEntry = entries.find(e => e.entryName === 'server.js');
-        if (!serverEntry) {
-            return { valid: false, message: '更新包缺少 server.js 文件' };
-        }
+            const versionContent = versionEntry.getData().toString('utf8');
+            let versionInfo;
+            try {
+                versionInfo = JSON.parse(versionContent);
+            } catch {
+                return { valid: false, message: 'version.json 格式无效' };
+            }
 
-        const publicEntry = entries.find(e => e.entryName.startsWith('public/'));
-        if (!publicEntry) {
-            return { valid: false, message: '更新包缺少 public 目录' };
+            if (!versionInfo.version) {
+                return { valid: false, message: 'version.json 缺少 version 字段' };
+            }
+
+            const serverEntry = entries.find(e => e.entryName === 'server.js');
+            if (!serverEntry) {
+                return { valid: false, message: '更新包缺少 server.js 文件' };
+            }
+
+            const publicEntry = entries.find(e => e.entryName.startsWith('public/'));
+            if (!publicEntry) {
+                return { valid: false, message: '更新包缺少 public 目录' };
+            }
         }
 
         return {
@@ -4124,13 +4153,11 @@ app.post('/api/auto-update', async (req, res) => {
             return res.json({ success: true, message: '当前已是最新版本', currentVersion });
         }
 
-        // 查找 zip 资源
-        const zipAsset = releaseInfo.assets.find(a => a.name.endsWith('.zip'));
-        if (!zipAsset) {
-            return res.status(500).json({ error: '未找到 ZIP 格式的更新包' });
-        }
+        // 使用 GitHub 源码 ZIP 地址
+        const zipUrl = `https://github.com/RONGLINC93/nas-local-music-player/archive/refs/tags/${releaseInfo.tag_name}.zip`;
+        const zipFileName = `update-${latestVersion}.zip`;
 
-        console.log(`正在下载更新包: ${zipAsset.name}`);
+        console.log(`正在下载更新包: ${zipUrl}`);
 
         // 下载更新包
         const upgradeDir = path.join(__dirname, 'upgrades');
@@ -4138,14 +4165,14 @@ app.post('/api/auto-update', async (req, res) => {
             fs.mkdirSync(upgradeDir, { recursive: true });
         }
 
-        upgradeFilePath = path.join(upgradeDir, zipAsset.name);
-        await downloadFile(zipAsset.browser_download_url, upgradeFilePath);
+        upgradeFilePath = path.join(upgradeDir, zipFileName);
+        await downloadFile(zipUrl, upgradeFilePath);
 
         console.log(`更新包已下载: ${upgradeFilePath}, 大小: ${fs.statSync(upgradeFilePath).size} bytes`);
 
         // 验证更新包
         console.log('正在验证更新包...');
-        const validationResult = validateUpdatePackage(upgradeFilePath);
+        const validationResult = validateUpdatePackage(upgradeFilePath, true);
         if (!validationResult.valid) {
             console.error(`更新包验证失败: ${validationResult.message}`);
             if (upgradeFilePath && fs.existsSync(upgradeFilePath)) {
@@ -4183,6 +4210,18 @@ app.post('/api/auto-update', async (req, res) => {
             }
         }
         console.log(`解压完成，共 ${zipEntries.length} 个文件`);
+
+        // GitHub 源码 ZIP 解压后会有嵌套目录，需要提取出来
+        const extractedItems = fs.readdirSync(tempExtractDir);
+        let sourceDir = tempExtractDir;
+        
+        if (extractedItems.length === 1) {
+            const singleItem = path.join(tempExtractDir, extractedItems[0]);
+            if (fs.statSync(singleItem).isDirectory()) {
+                sourceDir = singleItem;
+                console.log(`检测到嵌套目录，使用: ${sourceDir}`);
+            }
+        }
 
         // 清理旧文件
         console.log('正在清理旧文件...');
@@ -4250,7 +4289,7 @@ app.post('/api/auto-update', async (req, res) => {
             }
         }
 
-        copyFiles(tempExtractDir, __dirname);
+        copyFiles(sourceDir, __dirname);
         console.log(`复制完成，共复制 ${copiedCount} 个文件`);
 
         // 清理临时目录

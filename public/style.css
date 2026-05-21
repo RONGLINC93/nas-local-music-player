@@ -3522,6 +3522,28 @@ body {
     margin-top: 8px;
 }
 
+.about-content .footer .github-link {
+    margin-top: 10px;
+}
+
+.about-content .footer .github-link a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #4f46e5;
+    text-decoration: none;
+    font-size: 13px;
+    padding: 6px 12px;
+    background: rgba(79, 70, 229, 0.1);
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.about-content .footer .github-link a:hover {
+    background: rgba(79, 70, 229, 0.2);
+    color: #4338ca;
+}
+
 /* 更新模态框样式 */
 .update-info {
     background: #f8fafc;

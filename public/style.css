@@ -3399,6 +3399,7 @@ body {
 }
 
 .update-status-msg {
+    max-width: 270px;
     margin-top: 12px;
     padding: 10px 15px;
     border-radius: 8px;
@@ -3435,7 +3436,7 @@ body {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    width: 100%;
+    max-width: 130px;
     padding: 12px 20px;
     border: none;
     border-radius: 10px;

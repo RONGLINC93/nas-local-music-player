@@ -136,18 +136,15 @@ if ($releaseCheck) {
         }
     }
 
-    # Create ZIP package
+    # Create ZIP package using package.js
     $zipName = "nas-local-music-player-$VERSION.zip"
     $zipPath = Join-Path $PWD $zipName
     
-    $excludeItems = @('.git', 'upgrades', 'temp', 'temp_uploads', '.env', 'PROJECT_MEMORY.md', 'release.ps1')
-    $allItems = Get-ChildItem -Path $PWD -Force | Where-Object { 
-        $_.Name -notin $excludeItems -and $_.Name -notmatch '\.zip$'
+    node package.js "$zipPath"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Package creation failed" -ForegroundColor Red
+        exit 1
     }
-    
-    Push-Location $PWD
-    Compress-Archive -Path $allItems.Name -DestinationPath $zipPath -Force
-    Pop-Location
     Write-Host "Created ZIP: $zipName" -ForegroundColor Green
 
     # Create Release via API with proper UTF-8 encoding

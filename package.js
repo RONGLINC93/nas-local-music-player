@@ -82,7 +82,15 @@ function createZipPackage(outputPath) {
   console.log('文件大小:', (fs.statSync(outputPath).size / 1024 / 1024).toFixed(2), 'MB');
 }
 
-const timestamp = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().replace(/[-:T.]/g, '').slice(0, 12);
-const outputZip = path.join(__dirname, `NAS本地音乐播放器${timestamp}.zip`);
+// 获取命令行参数指定的输出文件名
+const args = process.argv.slice(2);
+let outputZip;
+
+if (args.length > 0) {
+  outputZip = path.resolve(args[0]);
+} else {
+  const timestamp = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().replace(/[-:T.]/g, '').slice(0, 12);
+  outputZip = path.join(__dirname, `NAS本地音乐播放器${timestamp}.zip`);
+}
 
 createZipPackage(outputZip);

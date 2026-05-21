@@ -22,7 +22,8 @@ if (-not $GITHUB_TOKEN) {
 }
 
 # Read version
-$versionJson = Get-Content "version.json" -Raw | ConvertFrom-Json
+$versionJsonRaw = [System.IO.File]::ReadAllText((Join-Path $PWD "version.json"), [System.Text.Encoding]::UTF8)
+$versionJson = $versionJsonRaw | ConvertFrom-Json
 $VERSION = $versionJson.version
 $TAG = "v$VERSION"
 

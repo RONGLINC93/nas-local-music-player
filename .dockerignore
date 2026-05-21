@@ -1,0 +1,16 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+README.md
+.env
+*.md
+.dockerignore
+Dockerfile
+docker-compose.yml
+music/*.mp3
+music/*.flac
+music/*.wav
+music/*.m4a
+music/*.ogg
+music/*.wma

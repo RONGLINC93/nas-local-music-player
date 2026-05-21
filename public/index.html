@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NAS本地音乐播放器</title>
+    <link rel="stylesheet" href="style.css?v=1.0.1">
+    <link rel="stylesheet" href="assets/font-awesome/css/all.min.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="logo">
+                <h1>
+                    <i class="fas fa-music logo-icon"></i>
+                    NAS本地音乐播放器
+                </h1>
+            </div>
+            <nav class="nav-menu">
+                <div class="nav-item active" data-view="music">
+                    <i class="fas fa-music nav-icon"></i>
+                    <span>播放列表</span>
+                </div>
+                <div class="nav-item" data-view="folder">
+                    <i class="fas fa-folder nav-icon"></i>
+                    <span>文件管理</span>
+                </div>
+                <div class="nav-item" data-view="task">
+                    <i class="fas fa-tasks nav-icon"></i>
+                    <span>任务管理</span>
+                    <span id="taskBadge" class="nav-badge" style="display: none;">0</span>
+                </div>
+                <div class="nav-item" data-view="device">
+                    <i class="fas fa-volume-up nav-icon"></i>
+                    <span>声卡管理</span>
+                </div>
+                <div class="nav-item" data-view="faq">
+                    <i class="fas fa-question-circle nav-icon"></i>
+                    <span>常见问题</span>
+                </div>
+                <div class="nav-item" data-view="about">
+                    <i class="fas fa-info-circle nav-icon"></i>
+                    <span>关于说明</span>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 音乐视图 -->
+            <div id="view-music" class="view active">
+                <!-- 顶部栏 -->
+                <header class="top-bar">
+                    <div class="search-box">
+                        <input type="text" placeholder="搜索音乐..." id="searchInput" oninput="searchMusic(this.value)">
+                    </div>
+                </header>
+
+                <!-- 内容区域 -->
+                <div class="content-area">
+                    <!-- 播放列表 -->
+                    <section class="playlist-section">
+                        <div class="section-header">
+                            <h2>播放列表 <span class="count" id="playlistCount">(0 首)</span></h2>
+                            <button onclick="refreshLibrary()" class="playlist-refresh-btn" title="刷新播放列表">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                        <!-- 批量操作栏 -->
+                        <div id="playlistBatchBar" class="playlist-batch-bar">
+                            <div class="playlist-batch-labels">
+                                <label class="playlist-batch-select-all">
+                                    <input type="checkbox" id="playlistSelectAllBtn" onchange="togglePlaylistSelectAll()">
+                                </label>
+                                <span class="playlist-header-index">序号</span>
+                                <span class="playlist-header-title">标题</span>
+                                <span class="playlist-header-artist">艺术家</span>
+                                <span class="playlist-header-duration">时长</span>
+                                <div class="playlist-batch-actions">
+                                    <button onclick="playlistBatchDownload()" class="playlist-batch-btn playlist-batch-download-btn" title="批量下载">
+                                        <i class="fas fa-download"></i>
+                                    </button>
+                                    <button onclick="playlistBatchDelete()" class="playlist-batch-btn playlist-batch-delete-btn" title="批量删除">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="playlist" id="playlist"></div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- 任务管理视图 -->
+            <div id="view-task" class="view">
+                <!-- 顶部栏 -->
+                <header class="top-bar">
+                    <div class="task-header">
+                        <i class="fas fa-tasks"></i>
+                        <span>任务管理</span>
+                    </div>
+                    <div class="task-actions">
+                        <button onclick="refreshTaskList()" class="task-action-btn task-refresh-btn" title="刷新任务列表">
+                            <i class="fas fa-sync-alt"></i>
+                            <span>刷新</span>
+                        </button>
+                        <button onclick="openWorkerConfigModal()" class="task-action-btn task-config-btn" title="线程数量设置">
+                            <i class="fas fa-cog"></i>
+                            <span>设置</span>
+                        </button>
+                        <button onclick="clearCompletedTasks()" class="task-action-btn task-clear-btn" title="清除已完成任务">
+                            <i class="fas fa-trash"></i>
+                            <span>清除</span>
+                        </button>
+                    </div>
+                </header>
+
+                <!-- 内容区域 -->
+                <div class="content-area">
+                    <!-- 任务统计 -->
+                    <div class="task-stats">
+                        <div class="stat-item">
+                            <div class="stat-icon bg-info"><i class="fas fa-clock"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="taskStatPending">0</span>
+                                <span class="stat-label">等待中</span>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon bg-warning"><i class="fas fa-spinner"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="taskStatConverting">0</span>
+                                <span class="stat-label">执行中</span>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon bg-success"><i class="fas fa-check"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="taskStatCompleted">0</span>
+                                <span class="stat-label">已完成</span>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon bg-danger"><i class="fas fa-times"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="taskStatFailed">0</span>
+                                <span class="stat-label">失败</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 任务列表 -->
+                    <section class="task-list-section">
+                        <div class="section-header">
+                            <h2>任务列表</h2>
+                            <div class="task-filter">
+                                <button class="filter-btn active" data-filter="all">全部</button>
+                                <button class="filter-btn" data-filter="queued">等待中</button>
+                                <button class="filter-btn" data-filter="converting">执行中</button>
+                                <button class="filter-btn" data-filter="completed">已完成</button>
+                                <button class="filter-btn" data-filter="failed">失败</button>
+                            </div>
+                        </div>
+                        <div class="task-list" id="taskList">
+                            <div class="empty-state">
+                                <i class="fas fa-tasks"></i>
+                                <p>暂无任务</p>
+                                <p class="empty-hint">在文件管理中选择文件并批量转换为MP3</p>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- 文件管理视图 -->
+            <div id="view-folder" class="view">
+                <!-- 顶部栏 -->
+                <header class="top-bar">
+                    <div class="folder-breadcrumb" id="folderBreadcrumb">
+                        <i class="fas fa-folder-open"></i>
+                        <span>文件管理</span>
+                    </div>
+                    <div class="top-actions">
+                        <div class="folder-search-box">
+                            <i class="fas fa-search folder-search-icon"></i>
+                            <input type="text" id="folderSearchInput" class="folder-search-input" placeholder="搜索音乐文件..." oninput="handleFolderSearch()" />
+                            <button id="folderSearchClear" class="folder-search-clear" style="display: none;" onclick="clearFolderSearch()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <button onclick="openUploadModal()" class="folder-action-btn folder-upload-btn" title="上传音乐">
+                            <i class="fas fa-upload"></i>
+                            <span>上传</span>
+                        </button>
+                        <button onclick="scanFolders()" class="folder-action-btn folder-scan-btn" title="扫描文件">
+                            <i class="fas fa-search"></i>
+                            <span>扫描文件</span>
+                        </button>
+                        <button onclick="refreshFolders()" class="folder-action-btn folder-refresh-btn" title="刷新文件夹">
+                            <i class="fas fa-sync-alt"></i>
+                            <span>刷新</span>
+                        </button>
+                        <button onclick="openOrganizeModal()" class="folder-action-btn folder-organize-btn" title="一键整理">
+                            <i class="fas fa-magic"></i>
+                            <span>整理</span>
+                        </button>
+                        <button onclick="openScrapeModal()" class="folder-action-btn folder-scrape-btn folder-scrape-btn-desktop" title="自动刮削">
+                            <i class="fas fa-cloud-download-alt"></i>
+                            <span>刮削</span>
+                        </button>
+                        <div class="folder-more-menu-wrapper">
+                            <button onclick="toggleFolderMoreMenu(event)" class="folder-action-btn folder-more-btn" title="更多操作">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <div id="folderMoreMenu" class="folder-more-menu" style="display: none;">
+                                <div class="folder-menu-item" onclick="openUploadModal(); closeFolderMoreMenu();">
+                                    <i class="fas fa-upload"></i>
+                                    <span>上传</span>
+                                </div>
+                                <div class="folder-menu-item" onclick="scanFolders(); closeFolderMoreMenu();">
+                                    <i class="fas fa-search"></i>
+                                    <span>扫描文件</span>
+                                </div>
+                                <div class="folder-menu-item" onclick="refreshFolders(); closeFolderMoreMenu();">
+                                    <i class="fas fa-sync-alt"></i>
+                                    <span>刷新</span>
+                                </div>
+                                <div class="folder-menu-item" onclick="openOrganizeModal(); closeFolderMoreMenu();">
+                                    <i class="fas fa-magic"></i>
+                                    <span>整理</span>
+                                </div>
+                                <div class="folder-menu-item" onclick="openScrapeModal(); closeFolderMoreMenu();">
+                                    <i class="fas fa-cloud-download-alt"></i>
+                                    <span>刮削</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="cacheStatus" class="cache-status"></div>
+                    </div>
+                </header>
+
+                <!-- 批量操作栏 -->
+                <div id="batchActionsBar" class="batch-actions-bar">
+                    <label class="batch-select-all">
+                        <input type="checkbox" id="selectAllBtn" onchange="toggleSelectAll()">
+                        <span>全选</span>
+                    </label>
+                    <div class="batch-divider"></div>
+                    <div class="batch-actions-right">
+                        <button onclick="createNewFolder()" class="batch-action-btn batch-new-folder-btn" title="新建文件夹">
+                            <i class="fas fa-folder-plus"></i>
+                        </button>
+                        <button onclick="batchAddToPlaylist()" class="batch-action-btn batch-add-btn" title="加入播放列表" disabled>
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <button onclick="batchMoveFiles()" class="batch-action-btn batch-move-btn" title="移动" disabled>
+                            <i class="fas fa-arrows-alt"></i>
+                        </button>
+                        <button onclick="batchDeleteFiles()" class="batch-action-btn batch-delete-btn" title="删除" disabled>
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        <button onclick="batchDownloadFiles()" class="batch-action-btn batch-download-btn" title="下载" disabled>
+                            <i class="fas fa-download"></i>
+                        </button>
+                        <button onclick="batchConvertToMp3()" class="batch-action-btn batch-convert-btn" title="转MP3" disabled>
+                            <i class="fas fa-exchange-alt"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 内容区域 -->
+                <div class="content-area">
+                    <section class="folder-section">
+                        <div class="folder-view" id="folderView"></div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- 设备管理视图 -->
+            <div id="view-device" class="view">
+                <div class="content-area">
+                    <section class="device-section">
+                        <div class="section-header">
+                            <h2>声卡设备管理</h2>
+                            <button onclick="testAudioDevice()" class="device-test-btn" title="测试声卡">
+                                <i class="fas fa-play-circle"></i>
+                                测试播放
+                            </button>
+                        </div>
+                        <div class="device-list" id="deviceList">
+                            <p class="empty-state">加载中...</p>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+                        <!-- FAQ视图 -->
+            <div id="view-faq" class="view">
+                <div class="content-area faq-view">
+                    <div class="faq-content">
+                        <h2><i class="fas fa-question-circle"></i> 常见问题</h2>
+                        
+                        <!-- 书签目录 -->
+                        <div class="faq-toc">
+                            <h5><i class="fas fa-bookmark"></i> 快速导航</h5>
+                            <ul>
+                                <li><a href="#faq-no-sound">为什么没有声音？</a></li>
+                                <li><a href="#faq-docker-sound">Docker 中无法播放声音？</a></li>
+                                <li><a href="#faq-nvidia-sound">Docker 下只识别到 NVIDIA 声卡？</a></li>
+                                <li><a href="#faq-fnos-sound">声卡不识别怎么办？（fnOS）</a></li>
+                                <li><a href="#faq-intel-sound">Intel 声卡驱动配置方法？</a></li>
+                                <li><a href="#faq-backup">如何备份音乐和配置？</a></li>
+                                <li><a href="#faq-formats">支持哪些音频格式？</a></li>
+                                <li><a href="#faq-update">如何更新系统？</a></li>
+                            </ul>
+                        </div>
+                        
+                        <div class="faq-item" id="faq-no-sound">
+                            <h5>Q: 为什么没有声音？</h5>
+                            <p>A: 请检查以下几点：</p>
+                            <ul>
+                                <li>确认已安装 ffmpeg（Windows 用户）</li>
+                                <li>在"声卡管理"页面确认选择了正确的输出设备</li>
+                                <li>检查音箱/耳机是否正确连接</li>
+                                <li>确认音量未设置为 0</li>
+                                <li>点击"测试声卡"按钮检测设备是否正常</li>
+                            </ul>
+                        </div>
+
+                        <div class="faq-item" id="faq-docker-sound">
+                            <h5>Q: Docker 中无法播放声音？</h5>
+                            <p>A: Windows 系统上 Docker 无法直接访问宿主机声卡，建议使用本地 Node.js 运行。Linux 系统需要挂载 /dev/snd 设备并配置 ALSA。</p>
+                        </div>
+
+                        <div class="faq-item" id="faq-nvidia-sound">
+                            <h5>Q: Docker 下只识别到 NVIDIA 声卡，识别不到 Intel 声卡？</h5>
+                            <p>A: 这是 Docker 设备映射的问题。Docker 默认只会映射第一个可用的声卡设备。解决方法：</p>
+                            <ul>
+                                <li><strong>方法一：</strong>启动容器时指定设备映射</li>
+                                <li><code>--device /dev/snd:/dev/snd</code></li>
+                                <li>如果需要指定特定设备，可以查看 <code>ls -l /dev/snd</code> 确定设备名称</li>
+                                <li><strong>方法二：</strong>使用 <code>--privileged</code> 权限（不推荐，安全性较低）</li>
+                                <li><strong>方法三：</strong>在宿主机上禁用不使用的声卡，强制 Docker 使用指定的声卡</li>
+                            </ul>
+                            <p class="tip"><i class="fas fa-lightbulb"></i> <strong>提示：</strong>可以使用 <code>aplay -l</code> 命令查看当前系统识别到的所有声卡设备</p>
+                        </div>
+
+                        <div class="faq-item" id="faq-fnos-sound">
+                            <h5>Q: 声卡不识别怎么办？（针对飞牛 fnOS）</h5>
+                            <p>A: fnOS 可能精简了 ALSA 或没有完整的音频驱动，可以尝试以下方法修复：</p>
+                            <ul>
+                                <li><code>sudo apt install --reinstall alsa-utils pulseaudio -y</code> - 重新安装 ALSA 和 pulseaudio</li>
+                                <li><code>sudo modprobe snd-hda-intel</code> - 加载声卡驱动</li>
+                                <li><code>ls -l /dev/snd</code> - 检查声卡设备是否存在</li>
+                                <li><code>sudo usermod -aG audio `$USER</code> - 确保当前用户有 audio 组权限</li>
+                                <li><code>pulseaudio --start</code> - 启动 pulseaudio 服务</li>
+                            </ul>
+                            <p class="tip"><i class="fas fa-lightbulb"></i> <strong>提示：</strong>执行完上述命令后，建议重启服务器或重新登录用户会话</p>
+                        </div>
+
+                        <div class="faq-item" id="faq-intel-sound">
+                            <h5>Q: Intel 声卡驱动安装和配置方法？</h5>
+                            <p>A: 如果系统识别不到 Intel 声卡，可以尝试以下步骤：</p>
+                            <ul>
+                                <li><code>lspci | grep -i audio</code> - 检查硬件是否被识别</li>
+                                <li><code>aplay -l</code> - 查看已加载的声卡设备</li>
+                                <li><code>sudo apt install --reinstall alsa-utils pulseaudio</code> - 重新安装音频工具</li>
+                                <li><code>sudo modprobe snd-hda-intel</code> - 加载 Intel HD Audio 模块</li>
+                                <li><code>sudo usermod -aG audio `$USER</code> - 确保用户有音频权限</li>
+                            </ul>
+                            <p>如果模块正在使用中无法卸载，可以直接重新加载：</p>
+                            <ul>
+                                <li><code>sudo rmmod snd-hda-intel && sudo modprobe snd-hda-intel</code></li>
+                            </ul>
+                            <p>检查 <code>/dev/snd/</code> 目录是否有 <code>controlC0</code> 等设备文件，存在说明声卡已识别。</p>
+                        </div>
+
+                        <div class="faq-item" id="faq-backup">
+                            <h5>Q: 如何备份音乐和配置？</h5>
+                            <p>A: 备份以下目录即可：</p>
+                            <ul>
+                                <li><code>music/</code> - 音乐文件目录</li>
+                                <li><code>config.json</code> - 配置文件</li>
+                            </ul>
+                        </div>
+
+                        <div class="faq-item" id="faq-formats">
+                            <h5>Q: 支持哪些音频格式？</h5>
+                            <p>A: 支持 MP3、FLAC、WAV、M4A、OGG、WMA 等常见音频格式。只要 ffmpeg 支持的格式都可以播放。</p>
+                        </div>
+
+                        <div class="faq-item" id="faq-update">
+                            <h5>Q: 如何更新系统？</h5>
+                            <p>A: 在关于页面点击"手动更新"，选择 ZIP 格式的更新包文件。更新完成后服务器会自动重启，数据不会丢失。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+<!-- 关于视图 -->
+            <div id="view-about" class="view">
+                <div class="content-area about-view">
+                    <div class="about-content">
+                        <div class="about-logo">
+                            <i class="fas fa-music" style="font-size: 48px; color: #4f46e5;"></i>
+                        </div>
+                        <h2>NAS本地音乐播放器</h2>
+                        <p class="version">版本 1.0.0</p>
+                        <p class="description">一个轻量级的本地音乐播放器，支持通过网页界面控制飞牛osNAS服务器，通过插入AUX音频或USB声卡设备，实现音乐播放。</p>
+
+                        <!-- 系统更新区域 -->
+                        <div class="update-section">
+                            <h4><i class="fas fa-sync-alt"></i> 系统更新</h4>
+                            <button id="btnManualUpdate" class="btn-update" onclick="openUpdateModal()">
+                                <i class="fas fa-upload"></i> 手动更新
+                            </button>
+                        </div>
+
+                        <div class="features">
+                            <h4>功能特性</h4>
+                            <ul>
+                                <li>📁 支持多种音乐格式（MP3, FLAC, WAV, M4A, OGG, WMA）</li>
+                                <li>🎵 播放/暂停/停止控制</li>
+                                <li>🔊 音量调节</li>
+                                <li>🎛️ 声卡设备管理</li>
+                                <li>📤 文件上传功能</li>
+                                <li>🔍 音乐搜索</li>
+                            </ul>
+                        </div>
+
+                        <!-- 使用说明 -->
+                        <div class="usage-guide">
+                            <h4><i class="fas fa-book"></i> 使用说明</h4>
+                            
+                            <div class="guide-section">
+                                <h5><i class="fas fa-play-circle"></i> 播放控制</h5>
+                                <ul>
+                                    <li><strong>播放/暂停</strong>：点击底部播放栏的播放按钮，或使用快捷键</li>
+                                    <li><strong>上一首/下一首</strong>：点击左右箭头切换歌曲</li>
+                                    <li><strong>停止</strong>：停止当前播放，进度条归零</li>
+                                    <li><strong>播放模式</strong>：支持顺序播放、随机播放、单曲播放、单曲循环四种模式</li>
+                                    <li><strong>进度控制</strong>：点击进度条可跳转到指定位置播放</li>
+                                </ul>
+                            </div>
+
+                            <div class="guide-section">
+                                <h5><i class="fas fa-upload"></i> 上传音乐</h5>
+                                <ul>
+                                    <li>点击顶部"上传"按钮打开上传对话框</li>
+                                    <li>支持拖拽文件或点击选择文件</li>
+                                    <li>单次最多上传 50 个文件，每个最大 500MB，总计最大 2GB</li>
+                                    <li>上传的音乐自动保存到服务器 music/ 目录</li>
+                                    <li>上传完成后播放列表自动刷新</li>
+                                </ul>
+                            </div>
+
+                            <div class="guide-section">
+                                <h5><i class="fas fa-search"></i> 搜索音乐</h5>
+                                <ul>
+                                    <li>在顶部搜索框输入关键词实时搜索</li>
+                                    <li>支持按歌曲名称搜索</li>
+                                    <li>清空搜索框显示全部歌曲</li>
+                                </ul>
+                            </div>
+
+                            <div class="guide-section">
+                                <h5><i class="fas fa-folder"></i> 文件夹浏览</h5>
+                                <ul>
+                                    <li>切换到"文件管理"视图浏览音乐目录</li>
+                                    <li>点击文件夹查看其中的音乐文件</li>
+                                    <li>支持文件夹级别的播放控制</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- 发声原理 -->
+                        <div class="audio-principle">
+                            <h4><i class="fas fa-volume-up"></i> 发声原理</h4>
+                            
+                            <div class="principle-section">
+                                <h5><i class="fas fa-cogs"></i> 音频播放流程</h5>
+                                <div class="flow-diagram">
+                                    <div class="flow-step">
+                                        <span class="step-number">1</span>
+                                        <div class="step-content">
+                                            <strong>读取音频文件</strong>
+                                            <p>服务器从 music/ 目录读取 MP3、FLAC、WAV 等格式的音频文件</p>
+                                        </div>
+                                    </div>
+                                    <div class="flow-arrow">↓</div>
+                                    <div class="flow-step">
+                                        <span class="step-number">2</span>
+                                        <div class="step-content">
+                                            <strong>解码音频数据</strong>
+                                            <p>使用 ffmpeg 将压缩格式的音频解码为 PCM 原始音频数据（S16_LE 格式，48kHz 采样率，双声道）</p>
+                                        </div>
+                                    </div>
+                                    <div class="flow-arrow">↓</div>
+                                    <div class="flow-step">
+                                        <span class="step-number">3</span>
+                                        <div class="step-content">
+                                            <strong>输出到声卡</strong>
+                                            <p>解码后的 PCM 数据通过管道传输到系统声卡播放器（ffplay/afplay/aplay），由声卡设备转换为模拟信号输出</p>
+                                        </div>
+                                    </div>
+                                    <div class="flow-arrow">↓</div>
+                                    <div class="flow-step">
+                                        <span class="step-number">4</span>
+                                        <div class="step-content">
+                                            <strong>扬声器发声</strong>
+                                            <p>声卡通过 AUX 音频线或 USB 连接音箱/耳机，将数字信号转换为声音</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="principle-section">
+                                <h5><i class="fas fa-laptop"></i> 多平台播放方案</h5>
+                                <table class="platform-table">
+                                    <thead>
+                                        <tr>
+                                            <th>平台</th>
+                                            <th>播放器</th>
+                                            <th>说明</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>Windows</td>
+                                            <td>ffplay</td>
+                                            <td>需要安装 ffmpeg，通过 audio_device 参数指定声卡</td>
+                                        </tr>
+                                        <tr>
+                                            <td>macOS</td>
+                                            <td>afplay</td>
+                                            <td>系统自带播放器，无需额外安装</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Linux</td>
+                                            <td>ffplay / aplay</td>
+                                            <td>使用 ALSA 声卡驱动，支持硬件设备选择</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Docker</td>
+                                            <td>ffmpeg → aplay</td>
+                                            <td>ffmpeg 解码后通过管道转发给 aplay 输出到 ALSA</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div class="principle-section">
+                                <h5><i class="fas fa-headphones"></i> 声卡设备管理</h5>
+                                <ul>
+                                    <li><strong>自动检测</strong>：程序启动时自动扫描系统所有可用的声卡设备</li>
+                                    <li><strong>设备切换</strong>：在"声卡管理"页面选择输出设备，设置即时生效</li>
+                                    <li><strong>设备测试</strong>：支持测试当前选中的声卡是否正常工作</li>
+                                    <li><strong>持久化</strong>：选择的设备会保存到配置，下次启动自动使用</li>
+                                </ul>
+                                <p class="tip"><i class="fas fa-lightbulb"></i> <strong>提示：</strong>插入 USB 声卡或 AUX 音频线后，建议在声卡管理页面点击刷新按钮重新检测设备</p>
+                            </div>
+
+                            <div class="principle-section">
+                                <h5><i class="fas fa-sliders-h"></i> 音量控制原理</h5>
+                                <ul>
+                                    <li>前端网页通过 HTTP API 向服务器发送音量设置请求</li>
+                                    <li>服务器保存音量值到配置文件（config.json）</li>
+                                    <li>播放时通过播放器参数控制输出音量</li>
+                                    <li>多客户端共享同一音量设置，修改后全局生效</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- 技术架构 -->
+                        <div class="tech-architecture">
+                            <h4><i class="fas fa-code"></i> 技术架构</h4>
+                            <table class="tech-table">
+                                <tbody>
+                                    <tr>
+                                        <td><strong>后端框架</strong></td>
+                                        <td>Express.js (Node.js)</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>前端技术</strong></td>
+                                        <td>原生 HTML / CSS / JavaScript</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>音频解码</strong></td>
+                                        <td>ffmpeg / ffplay</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>元数据解析</strong></td>
+                                        <td>music-metadata 库</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>容器化</strong></td>
+                                        <td>Docker (Alpine Linux)</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>默认端口</strong></td>
+                                        <td>9524</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="footer">
+                            <p>© 2026 RONGLINC93. All Rights Reserved.</p>
+                            <p class="license">MIT License</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 底部播放控制栏 -->
+        <footer class="player-bar">
+            <!-- 当前播放信息 -->
+            <div class="player-info-bar">
+                <div class="now-playing-info">
+                    <div class="track-title" id="trackTitle">未播放</div>
+                    <div class="track-artist" id="trackArtist">-</div>
+                </div>
+            </div>
+
+            <!-- 播放控制 -->
+            <div class="player-controls">
+                <div class="control-buttons">
+                    <button onclick="togglePlayMode()" id="playModeBtn" class="control-btn" title="播放模式">
+                        <i class="fas fa-list"></i>
+                    </button>
+                    <button onclick="prevTrack()" class="control-btn" title="上一首">
+                        <i class="fas fa-step-backward"></i>
+                    </button>
+                    <button onclick="togglePlay()" id="playPauseBtn" class="control-btn play-btn" title="播放/暂停">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <button onclick="stop()" class="control-btn" title="停止">
+                        <i class="fas fa-stop"></i>
+                    </button>
+                    <button onclick="nextTrack()" class="control-btn" title="下一首">
+                        <i class="fas fa-step-forward"></i>
+                    </button>
+                </div>
+                <div class="progress-container">
+                    <span class="time" id="currentTime">0:00</span>
+                    <div class="progress-bar" id="progressBarContainer">
+                        <div class="progress" id="progressBar"></div>
+                    </div>
+                    <span class="time" id="duration">0:00</span>
+                </div>
+            </div>
+
+            <!-- 音量控制 -->
+            <div class="player-volume">
+                <button class="mute-btn" id="muteBtn" onclick="toggleMute()">
+                    <i class="fas fa-volume-up volume-icon"></i>
+                </button>
+                <input type="range" id="volumeSlider" min="0" max="100" value="100" oninput="changeVolume(this.value)">
+                <span class="volume-value" id="volumeValue">100%</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- 上传音乐模态框 -->
+    <div id="uploadModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-upload" style="font-size: 24px; vertical-align: middle; margin-right: 8px;"></i>
+                    上传音乐
+                </h3>
+                <button onclick="closeUploadModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="upload-folder-info" id="uploadFolderInfo">
+                    上传到：<span id="uploadTargetPath">根目录</span>
+                </div>
+                <div class="upload-dropzone" id="uploadDropzone">
+                    <i class="fas fa-music upload-icon"></i>
+                    <div class="upload-text">点击选择文件或拖拽文件到此处</div>
+                    <div class="upload-hint">支持格式：MP3, FLAC, WAV, M4A, OGG, WMA</div>
+                    <div class="upload-limit">单次最多 50 个文件，每个最大 500MB，总计最大 2GB</div>
+                    <input type="file" id="musicFileInput" accept=".mp3,.flac,.wav,.m4a,.ogg,.wma" multiple
+                        style="display: none;">
+                </div>
+                <div class="upload-actions">
+                    <button onclick="triggerFileSelect()" class="btn-primary">选择文件</button>
+                    <button onclick="uploadMusic()" class="btn-primary" id="uploadConfirmBtn" disabled>上传音乐</button>
+                </div>
+                <div id="fileList" class="file-list"></div>
+                <div id="uploadProgress" class="upload-progress" style="display: none;">
+                    <div class="upload-progress-item">
+                        <div class="upload-progress-filename" id="uploadFileName">-</div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar-fill" id="uploadProgressBar"></div>
+                        </div>
+                        <div class="progress-text" id="uploadPercent">0%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- 更新模态框 -->
+    <div id="updateModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-sync-alt" style="font-size: 24px; vertical-align: middle; margin-right: 8px;"></i>
+                    手动更新
+                </h3>
+                <button onclick="closeUpdateModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="update-info">
+                    <div class="update-info-title"><i class="fas fa-info-circle"></i> 更新说明</div>
+                    <ul class="update-info-list">
+                        <li>请选择 ZIP 格式的更新包文件</li>
+                        <li>更新过程将替换系统文件，请提前备份重要数据</li>
+                        <li>数据文件不会丢失，合并更新包中的数据到当前系统数据文件</li>
+                        <li>更新完成后服务器将自动重启</li>
+                    </ul>
+                </div>
+                <div class="update-upload-section">
+                    <label class="file-upload-label">
+                        <input type="file" id="updateFile" accept=".zip" class="file-upload-input">
+                        <span class="btn btn-secondary btn-block">
+                            <i class="fas fa-folder-open"></i> 选择ZIP更新包
+                        </span>
+                    </label>
+                    <p id="updateFileName" class="update-file-name"></p>
+                </div>
+                <p id="updateStatus" class="update-status" style="display: none;"></p>
+                <div id="updateUploadProgress" class="upload-progress">
+                    <div class="progress-bar-container">
+                        <div id="updateProgressFill" class="progress-bar-fill"></div>
+                    </div>
+                    <span id="updateProgressText" class="progress-text">0%</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="btnUpdateCancel" class="btn btn-secondary"
+                    onclick="closeUpdateModal()">取消</button>
+                <button type="button" id="btnUploadUpdate" class="btn btn-primary" disabled>
+                    <i class="fas fa-upload"></i> 上传并更新
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 删除确认模态框 -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-exclamation-triangle"
+                        style="font-size: 24px; color: #ef4444; vertical-align: middle; margin-right: 8px;"></i>
+                    确认删除
+                </h3>
+                <button onclick="closeDeleteModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="delete-confirm-content">
+                    <p>确定要删除以下歌曲吗？</p>
+                    <p class="delete-track-name" id="deleteTrackName">-</p>
+                    <p class="delete-warning" id="deleteWarning">此操作将从播放列表中移除该歌曲。</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">取消</button>
+                <button type="button" id="btnConfirmDelete" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> 确认删除
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 线程数量设置对话框 -->
+    <div id="workerConfigModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-cog" style="font-size: 24px; color: #3b82f6; vertical-align: middle; margin-right: 8px;"></i>
+                    线程数量设置
+                </h3>
+                <button onclick="closeWorkerConfigModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="maxConvertWorkers">转换线程数：</label>
+                    <input type="number" id="maxConvertWorkers" class="form-control" min="1" max="10" value="2" />
+                    <small class="form-text">范围：1-10</small>
+                </div>
+                <div class="form-group">
+                    <label for="maxUploadWorkers">上传线程数：</label>
+                    <input type="number" id="maxUploadWorkers" class="form-control" min="1" max="10" value="3" />
+                    <small class="form-text">范围：1-10</small>
+                </div>
+                <div class="worker-status" id="workerStatus">
+                    <p><i class="fas fa-info-circle"></i> 当前状态：</p>
+                    <p>转换线程：<span id="currentConvertWorkers">0</span> / <span id="totalConvertWorkers">2</span></p>
+                    <p>上传线程：<span id="currentUploadWorkers">0</span> / <span id="totalUploadWorkers">3</span></p>
+                    <p>转换队列：<span id="convertQueueLen">0</span></p>
+                    <p>上传队列：<span id="uploadQueueLen">0</span></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeWorkerConfigModal()">取消</button>
+                <button type="button" id="btnSaveWorkerConfig" class="btn btn-primary" onclick="saveWorkerConfig()">
+                    <i class="fas fa-save"></i> 保存设置
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 移动文件对话框 -->
+    <div id="moveModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-arrow-right"
+                        style="font-size: 24px; color: #f59e0b; vertical-align: middle; margin-right: 8px;"></i>
+                    移动文件
+                </h3>
+                <button onclick="closeMoveModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <p>选择目标文件夹：</p>
+                <div class="folder-tree" id="folderTree">
+                    <!-- 文件夹树将动态生成 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeMoveModal()">取消</button>
+                <button type="button" id="btnConfirmMove" class="btn btn-primary" disabled>
+                    <i class="fas fa-arrow-right"></i> 确认移动
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新建文件夹对话框 -->
+    <div id="newFolderModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-folder-plus"
+                        style="font-size: 24px; color: #22c55e; vertical-align: middle; margin-right: 8px;"></i>
+                    新建文件夹
+                </h3>
+                <button onclick="closeNewFolderModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <label for="newFolderName">文件夹名称：</label>
+                <input type="text" id="newFolderName" class="form-control" placeholder="请输入文件夹名称" />
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeNewFolderModal()">取消</button>
+                <button type="button" id="btnConfirmNewFolder" class="btn btn-primary">
+                    <i class="fas fa-folder-plus"></i> 创建
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 一键整理对话框 -->
+    <div id="organizeModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-magic"
+                        style="font-size: 24px; color: #8b5cf6; vertical-align: middle; margin-right: 8px;"></i>
+                    一键整理
+                </h3>
+                <button onclick="closeOrganizeModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 16px; color: #666;">选择整理方式：</p>
+                <div class="organize-options">
+                    <label class="organize-option">
+                        <input type="radio" name="organizeType" value="artist" checked>
+                        <div class="organize-option-content">
+                            <i class="fas fa-user"></i>
+                            <div>
+                                <div class="organize-option-title">按艺术家分类</div>
+                                <div class="organize-option-desc">将音乐按艺术家名称归类到不同文件夹</div>
+                            </div>
+                        </div>
+                    </label>
+                    <label class="organize-option">
+                        <input type="radio" name="organizeType" value="album">
+                        <div class="organize-option-content">
+                            <i class="fas fa-compact-disc"></i>
+                            <div>
+                                <div class="organize-option-title">按专辑分类</div>
+                                <div class="organize-option-desc">将音乐按专辑名称归类到不同文件夹</div>
+                            </div>
+                        </div>
+                    </label>
+                    <label class="organize-option">
+                        <input type="radio" name="organizeType" value="year">
+                        <div class="organize-option-content">
+                            <i class="fas fa-calendar"></i>
+                            <div>
+                                <div class="organize-option-title">按年份分类</div>
+                                <div class="organize-option-desc">将音乐按发行年份归类到不同文件夹</div>
+                            </div>
+                        </div>
+                    </label>
+                    <label class="organize-option">
+                        <input type="radio" name="organizeType" value="genre">
+                        <div class="organize-option-content">
+                            <i class="fas fa-tags"></i>
+                            <div>
+                                <div class="organize-option-title">按流派分类</div>
+                                <div class="organize-option-desc">将音乐按音乐流派归类到不同文件夹</div>
+                            </div>
+                        </div>
+                    </label>
+                    <label class="organize-option">
+                        <input type="radio" name="organizeType" value="flat">
+                        <div class="organize-option-content">
+                            <i class="fas fa-layer-group"></i>
+                            <div>
+                                <div class="organize-option-title">移到主目录</div>
+                                <div class="organize-option-desc">将所有音乐文件移到主目录，移除子文件夹</div>
+                            </div>
+                        </div>
+                    </label>
+                </div>
+                <div class="organize-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>整理将移动所有音乐文件，请确认操作</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeOrganizeModal()">取消</button>
+                <button type="button" id="btnConfirmOrganize" class="btn btn-primary">
+                    <i class="fas fa-magic"></i> 开始整理
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 自动刮削对话框 -->
+    <div id="scrapeModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-cloud-download-alt"
+                        style="font-size: 24px; color: #8b5cf6; vertical-align: middle; margin-right: 8px;"></i>
+                    自动刮削元数据
+                </h3>
+                <button onclick="closeScrapeModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 16px; color: #666;">从 MusicBrainz 自动获取歌曲信息（标题、艺术家、专辑、年份等）</p>
+                <div class="scrape-options">
+                    <label class="scrape-option">
+                        <input type="radio" name="scrapeType" value="single" checked>
+                        <div class="scrape-option-content">
+                            <i class="fas fa-music"></i>
+                            <div>
+                                <div class="scrape-option-title">刮削当前文件</div>
+                                <div class="scrape-option-desc">仅刮削右键点击的单个文件</div>
+                            </div>
+                        </div>
+                    </label>
+                    <label class="scrape-option">
+                        <input type="radio" name="scrapeType" value="folder">
+                        <div class="scrape-option-content">
+                            <i class="fas fa-folder"></i>
+                            <div>
+                                <div class="scrape-option-title">刮削当前文件夹</div>
+                                <div class="scrape-option-desc">批量刮削当前文件夹中所有音乐文件</div>
+                            </div>
+                        </div>
+                    </label>
+                </div>
+                <div id="scrapeProgress" style="display: none; margin-top: 16px;">
+                    <div class="progress-bar-container">
+                        <div id="scrapeProgressBar" class="progress-bar" style="width: 0%;"></div>
+                    </div>
+                    <p id="scrapeProgressText" style="margin-top: 8px; font-size: 14px; color: #666;"></p>
+                    <div id="scrapeResults" style="margin-top: 12px; max-height: 300px; overflow-y: auto;"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeScrapeModal()">取消</button>
+                <button type="button" id="btnConfirmScrape" class="btn btn-primary">
+                    <i class="fas fa-cloud-download-alt"></i> 开始刮削
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑音乐属性对话框 -->
+    <div id="editMetadataModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-edit"
+                        style="font-size: 24px; color: #3b82f6; vertical-align: middle; margin-right: 8px;"></i>
+                    编辑音乐属性
+                </h3>
+                <button onclick="closeEditMetadataModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editMetadataFilePath" />
+                <div class="edit-metadata-form">
+                    <div class="form-group">
+                        <label for="editMetadataFileName">
+                            <i class="fas fa-file"></i> 文件名
+                        </label>
+                        <div class="filename-input-group">
+                            <input type="text" id="editMetadataFileName" class="form-control" readonly placeholder="文件名" />
+                            <select id="parseFormatSelect" class="parse-format-select" title="选择解析格式">
+                                <option value="auto">自动识别</option>
+                                <option value="artist-title">艺术家-歌曲名</option>
+                                <option value="title-artist">歌曲名-艺术家</option>
+                                <option value="title">仅歌曲名</option>
+                            </select>
+                            <button onclick="parseFileName()" class="btn-parse-filename" title="从文件名解析">
+                                <i class="fas fa-magic"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="editMetadataTitle">
+                            <i class="fas fa-music"></i> 歌曲名称
+                        </label>
+                        <input type="text" id="editMetadataTitle" class="form-control" placeholder="请输入歌曲名称" />
+                    </div>
+                    <div class="form-group">
+                        <label for="editMetadataArtist">
+                            <i class="fas fa-user"></i> 艺术家
+                        </label>
+                        <input type="text" id="editMetadataArtist" class="form-control" placeholder="请输入艺术家名称" />
+                    </div>
+                    <div class="form-group">
+                        <label for="editMetadataAlbum">
+                            <i class="fas fa-compact-disc"></i> 专辑
+                        </label>
+                        <input type="text" id="editMetadataAlbum" class="form-control" placeholder="请输入专辑名称" />
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editMetadataYear">
+                                <i class="fas fa-calendar"></i> 年份
+                            </label>
+                            <input type="text" id="editMetadataYear" class="form-control" placeholder="如：2024" maxlength="4" />
+                        </div>
+                        <div class="form-group">
+                            <label for="editMetadataTrack">
+                                <i class="fas fa-list-ol"></i> 音轨号
+                            </label>
+                            <input type="number" id="editMetadataTrack" class="form-control" placeholder="如：1" min="1" />
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="editMetadataGenre">
+                            <i class="fas fa-tags"></i> 流派
+                        </label>
+                        <input type="text" id="editMetadataGenre" class="form-control" placeholder="如：Pop, Rock" />
+                    </div>
+                    <div class="form-group">
+                        <label for="editMetadataComment">
+                            <i class="fas fa-comment"></i> 注释
+                        </label>
+                        <textarea id="editMetadataComment" class="form-control" rows="3" placeholder="请输入注释内容"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="editMetadataAlbumArtist">
+                            <i class="fas fa-users"></i> 专辑艺术家
+                        </label>
+                        <input type="text" id="editMetadataAlbumArtist" class="form-control" placeholder="请输入专辑艺术家名称" />
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeEditMetadataModal()">取消</button>
+                <button type="button" id="btnScrapeSingle" class="btn btn-scrape" onclick="scrapeCurrentFile()">
+                    <i class="fas fa-cloud-download-alt"></i> 刮削
+                </button>
+                <button type="button" id="btnConfirmEditMetadata" class="btn btn-primary">
+                    <i class="fas fa-save"></i> 保存
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 转MP3对话框 -->
+    <div id="convertToMp3Modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-exchange-alt"
+                        style="font-size: 24px; color: #10b981; vertical-align: middle; margin-right: 8px;"></i>
+                    转换为MP3格式
+                </h3>
+                <button onclick="closeConvertToMp3Modal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="convertFilePath" />
+                <div class="convert-info">
+                    <div class="info-item">
+                        <i class="fas fa-file-audio"></i>
+                        <span id="convertFileName">-</span>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-arrow-right"></i>
+                        <span id="convertOutputName">-</span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="convertQuality">
+                        <i class="fas fa-sliders-h"></i> 音质
+                    </label>
+                    <select id="convertQuality" class="form-control">
+                        <option value="192">标准 (192kbps)</option>
+                        <option value="256" selected>高质量 (256kbps)</option>
+                        <option value="320">最高质量 (320kbps)</option>
+                    </select>
+                </div>
+                <p class="convert-hint">
+                    <i class="fas fa-info-circle"></i>
+                    转换任务将在后台进行，可在"任务管理"中查看进度
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeConvertToMp3Modal()">取消</button>
+                <button type="button" id="btnConfirmConvert" class="btn btn-primary">
+                    <i class="fas fa-cog"></i> 开始转换
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 批量转MP3对话框 -->
+    <div id="batchConvertModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-exchange-alt"
+                        style="font-size: 24px; color: #10b981; vertical-align: middle; margin-right: 8px;"></i>
+                    批量转换MP3
+                </h3>
+                <button onclick="closeBatchConvertModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="batch-convert-info">
+                    <div class="info-item">
+                        <i class="fas fa-list"></i>
+                        <span>已选择 <strong id="batchConvertCount">0</strong> 个文件</span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="batchConvertQuality">
+                        <i class="fas fa-sliders-h"></i> 音质
+                    </label>
+                    <select id="batchConvertQuality" class="form-control">
+                        <option value="192">标准 (192kbps)</option>
+                        <option value="256" selected>高质量 (256kbps)</option>
+                        <option value="320">最高质量 (320kbps)</option>
+                    </select>
+                </div>
+                <p class="convert-hint">
+                    <i class="fas fa-info-circle"></i>
+                    转换任务将在后台进行，可在"任务管理"中查看进度
+                </p>
+                <div id="batchConvertProgress" class="batch-convert-progress" style="display: none;">
+                    <div class="progress-info">
+                        <span id="batchConvertCurrent">0</span> / <span id="batchConvertTotal">0</span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div id="batchConvertProgressBar" class="progress-bar"></div>
+                    </div>
+                    <div id="batchConvertStatus" class="convert-status">准备转换...</div>
+                    <div id="batchConvertLog" class="batch-convert-log"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeBatchConvertModal()">取消</button>
+                <button type="button" id="btnConfirmBatchConvert" class="btn btn-primary">
+                    <i class="fas fa-cog"></i> 开始转换
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 后台转换进度面板 -->
+    <div id="backgroundConvertPanel" class="background-convert-panel" style="display: none;">
+        <div class="panel-content">
+            <div class="panel-header">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span>后台转换中</span>
+                <span class="queue-info">队列: <span id="backgroundConvertQueueCount">0</span></span>
+            </div>
+            <div class="panel-progress">
+                <div class="progress-bar-container">
+                    <div id="backgroundConvertProgressBar" class="progress-bar"></div>
+                </div>
+                <div id="backgroundConvertStatus" class="status-text">正在转换...</div>
+            </div>
+            <button class="cancel-btn" onclick="cancelBackgroundConvert()">
+                <i class="fas fa-times"></i> 取消
+            </button>
+        </div>
+    </div>
+
+    <!-- 通知弹窗容器 -->
+    <div id="notificationContainer" class="notification-container"></div>
+
+    <script src="app.js?v=1.0.0"></script>
+</body>
+
+</html>

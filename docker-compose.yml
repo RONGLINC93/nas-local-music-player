@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  nas-local-music-player:
+    build: .
+    container_name: nas-local-music-player
+    restart: unless-stopped
+    ports:
+      - "9524:9524"
+    volumes:
+      - "/vol2/1000/web/nas-local-music-player:/app"
+      - "/dev/snd:/dev/snd"
+      - "/vol6/@team/影视音1/音乐:/app/music"
+    working_dir: "/app"
+    environment:
+      - NODE_ENV=production
+      - PORT=9524
+      - IS_DOCKER=true
+      - ALSA_ENABLED=true
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
+    devices:
+      - "/dev/snd:/dev/snd"
+    group_add:
+      - audio
+    privileged: true

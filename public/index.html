@@ -759,6 +759,31 @@
         </div>
     </div>
 
+    <!-- 更新确认模态框 -->
+    <div id="autoUpdateConfirmModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-download" style="font-size: 24px; color: #3b82f6; vertical-align: middle; margin-right: 8px;"></i>
+                    确认更新
+                </h3>
+                <button onclick="closeAutoUpdateConfirmModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="delete-confirm-content">
+                    <p>确定要自动更新吗？</p>
+                    <p class="delete-warning">更新过程中服务器将重启，请确保没有重要任务正在执行。</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeAutoUpdateConfirmModal()">取消</button>
+                <button type="button" id="btnConfirmAutoUpdate" class="btn btn-primary" onclick="doAutoUpdate()">
+                    <i class="fas fa-download"></i> 立即更新
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- 删除确认模态框 -->
     <div id="deleteModal" class="modal">
         <div class="modal-content modal-sm">

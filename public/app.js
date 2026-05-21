@@ -2545,6 +2545,22 @@ async function checkUpdate() {
     }
 }
 
+// 打开自动更新确认模态框
+function openAutoUpdateConfirmModal() {
+    const modal = document.getElementById('autoUpdateConfirmModal');
+    if (modal) {
+        modal.classList.add('show');
+    }
+}
+
+// 关闭自动更新确认模态框
+function closeAutoUpdateConfirmModal() {
+    const modal = document.getElementById('autoUpdateConfirmModal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
+}
+
 // 自动更新
 async function autoUpdate() {
     const btnAuto = document.getElementById('btnAutoUpdate');
@@ -2552,9 +2568,18 @@ async function autoUpdate() {
     
     if (!btnAuto || !statusMsg) return;
     
-    if (!confirm('确定要自动更新吗？更新过程中服务器将重启。')) {
-        return;
-    }
+    openAutoUpdateConfirmModal();
+}
+
+// 执行自动更新
+async function doAutoUpdate() {
+    const btnAuto = document.getElementById('btnAutoUpdate');
+    const statusMsg = document.getElementById('updateStatusMsg');
+    const confirmBtn = document.getElementById('btnConfirmAutoUpdate');
+    
+    if (!btnAuto || !statusMsg) return;
+    
+    closeAutoUpdateConfirmModal();
     
     btnAuto.disabled = true;
     btnAuto.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 下载中...';

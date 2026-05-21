@@ -65,18 +65,11 @@ if ($AutoIncrement) {
     $changelogPath = Join-Path $PWD "CHANGELOG.md"
     if (Test-Path $changelogPath) {
         $today = Get-Date -Format "yyyy-MM-dd"
-        $newEntry = @"
-## [$VERSION] - $today
-
-### 鏂板鍔熻兘
-
-
-### Bug淇
-
-
-### 鍔熻兘浼樺寲
-
-"@
+        # Build Chinese strings using Unicode code points to avoid encoding issues
+        $newFeature = [char]0x65B0 + [char]0x589E + [char]0x529F + [char]0x80FD
+        $bugFix = [char]0x4FEE + [char]0x590D
+        $optimize = [char]0x529F + [char]0x80FD + [char]0x4F18 + [char]0x5316
+        $newEntry = "## [$VERSION] - $today`n`n### $newFeature`n`n`n### Bug$bugFix`n`n`n### $optimize`n`n"
         $existingContent = Get-Content $changelogPath -Raw -Encoding UTF8
         $newContent = $newEntry + $existingContent
         [System.IO.File]::WriteAllText($changelogPath, $newContent, [System.Text.Encoding]::UTF8)

@@ -52,7 +52,8 @@ function createZipPackage(outputPath) {
   
   if (fs.existsSync(versionFile)) {
     try {
-      const content = fs.readFileSync(versionFile, 'utf8');
+      let content = fs.readFileSync(versionFile, 'utf8');
+      content = content.replace(/^\uFEFF/, ''); // 移除 UTF-8 BOM
       const parsed = JSON.parse(content);
       versionInfo = {
         version: parsed.version || 'unknown',

@@ -3522,6 +3522,22 @@ body {
     margin-top: 8px;
 }
 
+.about-content .footer .license a {
+    color: #4f46e5;
+    text-decoration: none;
+}
+
+.about-content .footer .license a:hover {
+    text-decoration: underline;
+}
+
+.about-content .footer .license-info {
+    font-size: 11px;
+    color: #aaa;
+    margin-top: 5px;
+    font-style: italic;
+}
+
 .about-content .footer .github-link {
     margin-top: 10px;
 }

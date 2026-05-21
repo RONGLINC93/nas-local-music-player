@@ -3951,7 +3951,7 @@ function validateUpdatePackage(zipPath, isSourceZip = false) {
                 return { valid: false, message: '更新包缺少 version.json 文件' };
             }
 
-            const versionContent = versionEntry.getData().toString('utf8');
+            const versionContent = versionEntry.getData().toString('utf8').replace(/^\uFEFF/, '');
             try {
                 versionInfo = JSON.parse(versionContent);
             } catch {
@@ -3978,7 +3978,7 @@ function validateUpdatePackage(zipPath, isSourceZip = false) {
                 return { valid: false, message: '更新包缺少 version.json 文件' };
             }
 
-            const versionContent = versionEntry.getData().toString('utf8');
+            const versionContent = versionEntry.getData().toString('utf8').replace(/^\uFEFF/, '');
             try {
                 versionInfo = JSON.parse(versionContent);
             } catch {

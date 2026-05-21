@@ -41,13 +41,31 @@ function createZipPackage(outputPath) {
   
   walkDirectory(rootDir);
   
-  // 添加版本信息
-  const versionInfo = {
-    version: '1.0.0',
+  // 添加版本信息（从 version.json 读取）
+  const versionFile = path.join(rootDir, 'version.json');
+  let versionInfo = {
+    version: 'unknown',
     buildTime: new Date().toISOString(),
     buildNumber: Date.now().toString(36),
     project: 'NAS本地音乐播放器'
   };
+  
+  if (fs.existsSync(versionFile)) {
+    try {
+      const content = fs.readFileSync(versionFile, 'utf8');
+      const parsed = JSON.parse(content);
+      versionInfo = {
+        version: parsed.version || 'unknown',
+        buildTime: parsed.buildTime || new Date().toISOString(),
+        buildNumber: parsed.buildNumber || Date.now().toString(36),
+        project: parsed.project || 'NAS本地音乐播放器'
+      };
+    } catch (e) {
+      console.log('读取 version.json 失败，使用默认值');
+    }
+  } else {
+    console.log('未找到 version.json，使用默认值');
+  }
   
   zip.addFile('version.json', Buffer.from(JSON.stringify(versionInfo, null, 2)), '', 0x0008);
   

@@ -19,10 +19,11 @@
 
 ## 用户偏好 (User Preferences)
 - 当用户说"发布"时，自动执行以下操作:
-  1. 递增小版本号 (如 1.0.1 → 1.0.2)
-  2. 提交并推送到 GitHub
-  3. 创建 Git tag (如 v1.0.2)
-  4. 创建 GitHub Release 并上传 ZIP 包
+  1. 更新 CHANGELOG.md 添加新版本条目
+  2. 递增小版本号 (如 1.0.1 → 1.0.2)
+  3. 提交并推送到 GitHub
+  4. 创建 Git tag (如 v1.0.2)
+  5. 创建 GitHub Release 并上传 ZIP 包
 
 ## 已修复的问题
 1. ✅ release.ps1 中文乱码问题 (添加 UTF-8 编码支持)

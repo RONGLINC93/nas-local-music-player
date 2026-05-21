@@ -59,6 +59,33 @@ if ($AutoIncrement) {
     }
 }
 
+# Update CHANGELOG.md with new version entry
+if ($AutoIncrement) {
+    Write-Host "Updating CHANGELOG.md..." -ForegroundColor Yellow
+    $changelogPath = Join-Path $PWD "CHANGELOG.md"
+    if (Test-Path $changelogPath) {
+        $today = Get-Date -Format "yyyy-MM-dd"
+        $newEntry = @"
+## [$VERSION] - $today
+
+### 新增功能
+
+
+### Bug修复
+
+
+### 功能优化
+
+"@
+        $existingContent = Get-Content $changelogPath -Raw -Encoding UTF8
+        $newContent = $newEntry + $existingContent
+        [System.IO.File]::WriteAllText($changelogPath, $newContent, [System.Text.Encoding]::UTF8)
+        Write-Host "CHANGELOG.md updated with version $VERSION" -ForegroundColor Green
+    } else {
+        Write-Host "Warning: CHANGELOG.md not found, skipping update" -ForegroundColor Yellow
+    }
+}
+
 Write-Host "=== Auto Release Script ===" -ForegroundColor Cyan
 Write-Host "Version: $VERSION" -ForegroundColor Cyan
 Write-Host "Tag: $TAG" -ForegroundColor Cyan

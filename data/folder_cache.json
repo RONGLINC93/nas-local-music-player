@@ -1,6 +1,52 @@
 {
-  "timestamp": 1780362106344,
-  "folders": [],
+  "timestamp": 1780364153077,
+  "folders": [
+    {
+      "name": "新建文件夹 (2)",
+      "path": "新建文件夹 (2)",
+      "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\新建文件夹 (2)",
+      "musicCount": 0,
+      "hasSubFolders": false,
+      "folders": [],
+      "files": []
+    },
+    {
+      "name": "新建文件夹 (3)",
+      "path": "新建文件夹 (3)",
+      "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\新建文件夹 (3)",
+      "musicCount": 0,
+      "hasSubFolders": false,
+      "folders": [],
+      "files": []
+    },
+    {
+      "name": "新建文件夹 (4)",
+      "path": "新建文件夹 (4)",
+      "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\新建文件夹 (4)",
+      "musicCount": 0,
+      "hasSubFolders": false,
+      "folders": [],
+      "files": []
+    },
+    {
+      "name": "新建文件夹 (5)",
+      "path": "新建文件夹 (5)",
+      "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\新建文件夹 (5)",
+      "musicCount": 0,
+      "hasSubFolders": false,
+      "folders": [],
+      "files": []
+    },
+    {
+      "name": "新建文件夹 (6)",
+      "path": "新建文件夹 (6)",
+      "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\新建文件夹 (6)",
+      "musicCount": 0,
+      "hasSubFolders": false,
+      "folders": [],
+      "files": []
+    }
+  ],
   "files": [
     {
       "title": "01 被遺忘的時光 - 副本.mp3",
@@ -364,6 +410,6 @@
     }
   ],
   "totalFiles": 40,
-  "totalFolders": 0,
+  "totalFolders": 5,
   "path": ""
 }

@@ -3139,6 +3139,241 @@ async function refreshFolderTreeOnly() {
     }
 }
 
+// 删除文件夹相关函数
+function openDeleteFolderModal(folderPath, folderName) {
+    const modal = document.getElementById('deleteFolderModal');
+    const pathInput = document.getElementById('deleteFolderPath');
+    const nameDisplay = document.getElementById('deleteFolderNameDisplay');
+    
+    pathInput.value = folderPath;
+    nameDisplay.textContent = folderName;
+    
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeDeleteFolderModal() {
+    const modal = document.getElementById('deleteFolderModal');
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+// 确认删除文件夹
+document.addEventListener('DOMContentLoaded', function() {
+    const btnConfirmDelete = document.getElementById('btnConfirmDeleteFolder');
+    if (btnConfirmDelete) {
+        btnConfirmDelete.addEventListener('click', async function() {
+            const folderPath = document.getElementById('deleteFolderPath').value;
+            if (!folderPath) {
+                showError('文件夹路径为空');
+                return;
+            }
+            
+            btnConfirmDelete.disabled = true;
+            btnConfirmDelete.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 删除中...';
+            
+            try {
+                const result = await apiRequest('/api/delete-folder', 'DELETE', { folderPath });
+                
+                if (result.success) {
+                    showSuccess(result.message);
+                    closeDeleteFolderModal();
+                    folderCacheData = null;
+                    await loadFolderData(currentFolderPath, folderCurrentPage, FOLDER_PAGE_SIZE, folderSearchKeyword || undefined);
+                    refreshFolderTreeOnly();
+                } else {
+                    showError(result.error || '删除失败');
+                }
+            } catch (error) {
+                console.error('删除文件夹失败:', error);
+                showError('删除失败');
+            } finally {
+                btnConfirmDelete.disabled = false;
+                btnConfirmDelete.innerHTML = '<i class="fas fa-trash"></i> 确认删除';
+            }
+        });
+    }
+});
+
+// 重命名文件夹相关函数
+function openRenameFolderModal(folderPath, folderName) {
+    const modal = document.getElementById('renameFolderModal');
+    const pathInput = document.getElementById('renameFolderPath');
+    const nameInput = document.getElementById('renameFolderInput');
+    
+    pathInput.value = folderPath;
+    nameInput.value = folderName;
+    
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+    
+    // 自动选中输入框文本
+    setTimeout(() => {
+        nameInput.focus();
+        nameInput.select();
+    }, 100);
+}
+
+function closeRenameFolderModal() {
+    const modal = document.getElementById('renameFolderModal');
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+// 打开重命名音乐文件对话框
+function openRenameFileModal(filePath, fileName) {
+    const modal = document.getElementById('renameFileModal');
+    const pathInput = document.getElementById('renameFilePath');
+    const nameInput = document.getElementById('renameFileInput');
+    
+    pathInput.value = filePath;
+    // 去掉扩展名
+    const nameWithoutExt = fileName.replace(/\.[^.]+$/, '');
+    nameInput.value = nameWithoutExt;
+    
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+    
+    // 自动选中输入框文本
+    setTimeout(() => {
+        nameInput.focus();
+        nameInput.select();
+    }, 100);
+}
+
+// 关闭重命名音乐文件对话框
+function closeRenameFileModal() {
+    const modal = document.getElementById('renameFileModal');
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+// 确认重命名文件夹
+document.addEventListener('DOMContentLoaded', function() {
+    const btnConfirmRename = document.getElementById('btnConfirmRenameFolder');
+    if (btnConfirmRename) {
+        btnConfirmRename.addEventListener('click', async function() {
+            const folderPath = document.getElementById('renameFolderPath').value;
+            const newName = document.getElementById('renameFolderInput').value.trim();
+            
+            if (!folderPath) {
+                showError('文件夹路径为空');
+                return;
+            }
+            
+            if (!newName) {
+                showError('文件夹名称不能为空');
+                return;
+            }
+            
+            // 检查非法字符
+            const invalidChars = /[\\/:*?"<>|]/;
+            if (invalidChars.test(newName)) {
+                showError('文件夹名称包含非法字符');
+                return;
+            }
+            
+            btnConfirmRename.disabled = true;
+            btnConfirmRename.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 重命名中...';
+            
+            try {
+                const result = await apiRequest('/api/rename-folder', 'POST', { 
+                    folderPath, 
+                    newName 
+                });
+                
+                if (result.success) {
+                    showSuccess(result.message);
+                    closeRenameFolderModal();
+                    folderCacheData = null;
+                    await loadFolderData(currentFolderPath, folderCurrentPage, FOLDER_PAGE_SIZE, folderSearchKeyword || undefined);
+                    refreshFolderTreeOnly();
+                } else {
+                    showError(result.error || '重命名失败');
+                }
+            } catch (error) {
+                console.error('重命名文件夹失败:', error);
+                showError('重命名失败');
+            } finally {
+                btnConfirmRename.disabled = false;
+                btnConfirmRename.innerHTML = '<i class="fas fa-save"></i> 确认重命名';
+            }
+        });
+    }
+    
+    // 回车键确认重命名
+    const renameInput = document.getElementById('renameFolderInput');
+    if (renameInput) {
+        renameInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('btnConfirmRenameFolder').click();
+            }
+        });
+    }
+    
+    // 确认重命名音乐文件
+    const btnConfirmRenameFile = document.getElementById('btnConfirmRenameFile');
+    if (btnConfirmRenameFile) {
+        btnConfirmRenameFile.addEventListener('click', async function() {
+            const filePath = document.getElementById('renameFilePath').value;
+            const newName = document.getElementById('renameFileInput').value.trim();
+            
+            if (!filePath) {
+                showError('文件路径为空');
+                return;
+            }
+            
+            if (!newName) {
+                showError('文件名称不能为空');
+                return;
+            }
+            
+            // 检查非法字符
+            const invalidChars = /[\\/:*?"<>|]/;
+            if (invalidChars.test(newName)) {
+                showError('文件名称包含非法字符');
+                return;
+            }
+            
+            btnConfirmRenameFile.disabled = true;
+            btnConfirmRenameFile.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 重命名中...';
+            
+            try {
+                const result = await apiRequest('/api/rename-file', 'POST', { 
+                    filePath, 
+                    newName 
+                });
+                
+                if (result.success) {
+                    showSuccess(result.message);
+                    closeRenameFileModal();
+                    folderCacheData = null;
+                    await loadFolderData(currentFolderPath, folderCurrentPage, FOLDER_PAGE_SIZE, folderSearchKeyword || undefined);
+                    refreshFolderTreeOnly();
+                } else {
+                    showError(result.error || '重命名失败');
+                }
+            } catch (error) {
+                console.error('重命名音乐文件失败:', error);
+                showError('重命名失败');
+            } finally {
+                btnConfirmRenameFile.disabled = false;
+                btnConfirmRenameFile.innerHTML = '<i class="fas fa-save"></i> 确认重命名';
+            }
+        });
+    }
+    
+    // 回车键确认重命名音乐文件
+    const renameFileInput = document.getElementById('renameFileInput');
+    if (renameFileInput) {
+        renameFileInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('btnConfirmRenameFile').click();
+            }
+        });
+    }
+});
+
 // 初始化多选功能事件
 function initSelectionBox() {
     const folderMusicList = document.getElementById('folderMusicList');
@@ -3480,9 +3715,15 @@ function createFolderCardHTML(folder) {
                     ${folder.hasSubFolders ? '<span><i class="fas fa-folder"></i> 包含子文件夹</span>' : ''}
                 </div>
             </div>
-            <div class="folder-actions">
+            <div class="folder-card-actions">
                 <button onclick="event.stopPropagation(); playFolder('${escapedPath}')" class="folder-play-btn" title="播放此文件夹">
                     <i class="fas fa-play"></i>
+                </button>
+                <button onclick="event.stopPropagation(); openRenameFolderModal('${escapedPath}', '${folder.name.replace(/'/g, "\\'")}')" class="folder-icon-btn folder-rename-btn" title="重命名">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button onclick="event.stopPropagation(); openDeleteFolderModal('${escapedPath}', '${folder.name.replace(/'/g, "\\'")}')" class="folder-icon-btn folder-delete-btn" title="删除">
+                    <i class="fas fa-trash"></i>
                 </button>
             </div>
         </div>
@@ -3492,6 +3733,7 @@ function createFolderCardHTML(folder) {
 // 创建文件项 HTML
 function createFileItemHTML(track, index, searchKeyword = '') {
     const escapedPath = track.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const escapedFilename = (track.filename || track.title).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     const highlightedTitle = highlightText(track.title, searchKeyword);
     const highlightedArtist = highlightText(track.artist, searchKeyword);
     
@@ -3513,6 +3755,9 @@ function createFileItemHTML(track, index, searchKeyword = '') {
                 </button>
                 <button onclick="addToPlaylist('${escapedPath}')" class="folder-music-action-btn folder-music-add-btn" title="加入播放列表">
                     <i class="fas fa-plus"></i>
+                </button>
+                <button onclick="openRenameFileModal('${escapedPath}', '${escapedFilename}')" class="folder-music-action-btn folder-music-rename-btn" title="重命名">
+                    <i class="fas fa-font"></i>
                 </button>
                 <button onclick="moveSingleFile('${escapedPath}')" class="folder-music-action-btn folder-music-move-btn" title="移动">
                     <i class="fas fa-arrows-alt"></i>
@@ -3564,6 +3809,10 @@ function showFileContextMenu(event, filePath, anchorRect) {
         <div class="context-menu-item" onclick="event.stopPropagation(); moveSingleFile('${filePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'); closeFileContextMenu();">
             <i class="fas fa-arrows-alt"></i>
             <span>移动</span>
+        </div>
+        <div class="context-menu-item" onclick="event.stopPropagation(); openRenameFileModal('${filePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', '${(filePath.split(/[\\/]/).pop() || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'); closeFileContextMenu();">
+            <i class="fas fa-font"></i>
+            <span>重命名</span>
         </div>
         <div class="context-menu-divider"></div>
         <div class="context-menu-item" onclick="event.stopPropagation(); openEditMetadataModal('${filePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'); closeFileContextMenu();">

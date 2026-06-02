@@ -1833,6 +1833,191 @@ app.delete('/api/delete-file', async (req, res) => {
     }
 });
 
+// 删除文件夹
+app.delete('/api/delete-folder', async (req, res) => {
+    try {
+        const { folderPath } = req.body;
+        
+        if (!folderPath) {
+            return res.status(400).json({ success: false, error: '缺少文件夹路径' });
+        }
+        
+        const musicDir = path.join(__dirname, 'music');
+        const normalizedPath = folderPath.replace(/\//g, path.sep);
+        const fullPath = path.join(musicDir, normalizedPath);
+        
+        // 安全检查：确保路径在 music 目录下
+        if (!fullPath.startsWith(musicDir)) {
+            return res.status(400).json({ success: false, error: '无效的路径' });
+        }
+        
+        if (!fs.existsSync(fullPath)) {
+            return res.status(404).json({ success: false, error: '文件夹不存在' });
+        }
+        
+        // 递归删除文件夹及其内容
+        fs.rmSync(fullPath, { recursive: true, force: true });
+        console.log(`🗑️ 删除文件夹: ${fullPath}`);
+        
+        // 从播放列表中移除该文件夹下的所有文件
+        const removedFiles = currentPlaylist.filter(track => track.path.startsWith(fullPath));
+        currentPlaylist = currentPlaylist.filter(track => !track.path.startsWith(fullPath));
+        
+        // 更新播放列表缓存
+        fs.writeFileSync(PLAYLIST_CACHE_FILE, JSON.stringify(currentPlaylist, null, 2));
+        console.log(`📝 从播放列表移除 ${removedFiles.length} 个文件`);
+        
+        // 删除文件夹缓存
+        if (fs.existsSync(FOLDER_CACHE_FILE)) {
+            fs.unlinkSync(FOLDER_CACHE_FILE);
+            console.log('🗑️ 删除文件夹缓存');
+        }
+        
+        res.json({
+            success: true,
+            message: `已删除文件夹 "${path.basename(fullPath)}" 及其 ${removedFiles.length} 个文件`
+        });
+    } catch (error) {
+        console.error('删除文件夹失败:', error);
+        res.status(500).json({ success: false, error: '删除文件夹失败: ' + error.message });
+    }
+});
+
+// 重命名文件夹
+app.post('/api/rename-folder', async (req, res) => {
+    try {
+        const { folderPath, newName } = req.body;
+        
+        if (!folderPath || !newName) {
+            return res.status(400).json({ success: false, error: '缺少参数' });
+        }
+        
+        // 检查非法字符
+        const invalidChars = /[\\/:*?"<>|]/;
+        if (invalidChars.test(newName)) {
+            return res.status(400).json({ success: false, error: '文件夹名称包含非法字符' });
+        }
+        
+        const musicDir = path.join(__dirname, 'music');
+        const normalizedPath = folderPath.replace(/\//g, path.sep);
+        const oldFullPath = path.join(musicDir, normalizedPath);
+        
+        // 安全检查：确保路径在 music 目录下
+        if (!oldFullPath.startsWith(musicDir)) {
+            return res.status(400).json({ success: false, error: '无效的路径' });
+        }
+        
+        if (!fs.existsSync(oldFullPath)) {
+            return res.status(404).json({ success: false, error: '文件夹不存在' });
+        }
+        
+        // 构建新路径
+        const parentDir = path.dirname(oldFullPath);
+        const newFullPath = path.join(parentDir, newName);
+        
+        // 检查新名称是否已存在
+        if (fs.existsSync(newFullPath)) {
+            return res.status(400).json({ success: false, error: '同名文件夹已存在' });
+        }
+        
+        // 重命名文件夹
+        fs.renameSync(oldFullPath, newFullPath);
+        console.log(`📝 重命名文件夹: ${oldFullPath} -> ${newFullPath}`);
+        
+        // 更新播放列表中该文件夹下文件的路径
+        let updatedCount = 0;
+        currentPlaylist = currentPlaylist.map(track => {
+            if (track.path.startsWith(oldFullPath)) {
+                const relativePath = track.path.substring(oldFullPath.length);
+                track.path = newFullPath + relativePath;
+                updatedCount++;
+                return track;
+            }
+            return track;
+        });
+        
+        // 更新播放列表缓存
+        fs.writeFileSync(PLAYLIST_CACHE_FILE, JSON.stringify(currentPlaylist, null, 2));
+        console.log(`📝 更新播放列表中 ${updatedCount} 个文件的路径`);
+        
+        // 删除文件夹缓存
+        if (fs.existsSync(FOLDER_CACHE_FILE)) {
+            fs.unlinkSync(FOLDER_CACHE_FILE);
+            console.log('🗑️ 删除文件夹缓存');
+        }
+        
+        res.json({
+            success: true,
+            message: `已将文件夹重命名为 "${newName}"`
+        });
+    } catch (error) {
+        console.error('重命名文件夹失败:', error);
+        res.status(500).json({ success: false, error: '重命名文件夹失败: ' + error.message });
+    }
+});
+
+// 重命名音乐文件
+app.post('/api/rename-file', async (req, res) => {
+    try {
+        const { filePath, newName } = req.body;
+        
+        if (!filePath || !newName) {
+            return res.status(400).json({ success: false, error: '缺少参数' });
+        }
+        
+        // 检查非法字符
+        const invalidChars = /[\\/:*?"<>|]/;
+        if (invalidChars.test(newName)) {
+            return res.status(400).json({ success: false, error: '文件名称包含非法字符' });
+        }
+        
+        // 如果已经是绝对路径，直接使用；否则拼接 __dirname
+        const oldFullPath = path.isAbsolute(filePath) ? filePath : path.join(__dirname, filePath);
+        
+        if (!fs.existsSync(oldFullPath)) {
+            return res.status(404).json({ success: false, error: '文件不存在' });
+        }
+        
+        // 获取文件扩展名
+        const ext = path.extname(oldFullPath);
+        const parentDir = path.dirname(oldFullPath);
+        const newFullPath = path.join(parentDir, newName + ext);
+        
+        // 检查新名称是否已存在
+        if (fs.existsSync(newFullPath)) {
+            return res.status(400).json({ success: false, error: '同名文件已存在' });
+        }
+        
+        // 重命名文件
+        fs.renameSync(oldFullPath, newFullPath);
+        console.log(`📝 重命名文件: ${oldFullPath} -> ${newFullPath}`);
+        
+        // 更新播放列表中该文件的路径
+        const trackIndex = currentPlaylist.findIndex(track => track.path === oldFullPath);
+        if (trackIndex !== -1) {
+            currentPlaylist[trackIndex].path = newFullPath;
+            currentPlaylist[trackIndex].title = newName;
+            // 更新播放列表缓存
+            fs.writeFileSync(PLAYLIST_CACHE_FILE, JSON.stringify(currentPlaylist, null, 2));
+            console.log(`📝 更新播放列表中文件路径`);
+        }
+        
+        // 删除文件夹缓存
+        if (fs.existsSync(FOLDER_CACHE_FILE)) {
+            fs.unlinkSync(FOLDER_CACHE_FILE);
+            console.log('🗑️ 删除文件夹缓存');
+        }
+        
+        res.json({
+            success: true,
+            message: `已将文件重命名为 "${newName}${ext}"`
+        });
+    } catch (error) {
+        console.error('重命名音乐文件失败:', error);
+        res.status(500).json({ success: false, error: '重命名音乐文件失败: ' + error.message });
+    }
+});
+
 // 批量从播放列表删除（不删除物理文件）
 app.post('/api/batch-delete-playlist', async (req, res) => {
     try {

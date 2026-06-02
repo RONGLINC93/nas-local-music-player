@@ -1842,10 +1842,21 @@ app.delete('/api/delete-file', async (req, res) => {
             console.log(`📝 从播放列表移除: ${removedTrack.title}`);
         }
         
-        // 删除文件夹缓存，下次打开时重新生成
+        // 更新缓存文件（而不是删除）
         if (fs.existsSync(FOLDER_CACHE_FILE)) {
-            fs.unlinkSync(FOLDER_CACHE_FILE);
-            console.log('🗑️ 删除文件夹缓存');
+            try {
+                const cacheContent = fs.readFileSync(FOLDER_CACHE_FILE, 'utf8');
+                const cacheData = JSON.parse(cacheContent);
+                
+                // 从缓存中删除文件
+                removeFileFromCacheData(cacheData, fullPath);
+                
+                cacheData.timestamp = Date.now();
+                fs.writeFileSync(FOLDER_CACHE_FILE, JSON.stringify(cacheData, null, 2));
+                console.log('✅ 已更新文件夹缓存');
+            } catch (e) {
+                console.error('更新缓存失败:', e);
+            }
         }
         
         res.json({
@@ -1892,10 +1903,29 @@ app.delete('/api/delete-folder', async (req, res) => {
         fs.writeFileSync(PLAYLIST_CACHE_FILE, JSON.stringify(currentPlaylist, null, 2));
         console.log(`📝 从播放列表移除 ${removedFiles.length} 个文件`);
         
-        // 删除文件夹缓存
+        // 更新缓存文件（而不是删除）
         if (fs.existsSync(FOLDER_CACHE_FILE)) {
-            fs.unlinkSync(FOLDER_CACHE_FILE);
-            console.log('🗑️ 删除文件夹缓存');
+            try {
+                const cacheContent = fs.readFileSync(FOLDER_CACHE_FILE, 'utf8');
+                const cacheData = JSON.parse(cacheContent);
+                
+                // 计算相对路径
+                const relativePath = normalizedPath.replace(/^[\\/]/, '').replace(/\\/g, '/');
+                
+                // 从缓存中删除文件夹
+                const folderToDelete = findAndRemoveFolderFromCache(cacheData.folders, relativePath);
+                if (folderToDelete) {
+                    cacheData.totalFolders = (cacheData.totalFolders || 0) - 1;
+                    cacheData.totalFiles = (cacheData.totalFiles || 0) - (folderToDelete.musicCount || 0);
+                    if (cacheData.totalFiles < 0) cacheData.totalFiles = 0;
+                }
+                
+                cacheData.timestamp = Date.now();
+                fs.writeFileSync(FOLDER_CACHE_FILE, JSON.stringify(cacheData, null, 2));
+                console.log('✅ 已更新文件夹缓存');
+            } catch (e) {
+                console.error('更新缓存失败:', e);
+            }
         }
         
         res.json({
@@ -1965,10 +1995,26 @@ app.post('/api/rename-folder', async (req, res) => {
         fs.writeFileSync(PLAYLIST_CACHE_FILE, JSON.stringify(currentPlaylist, null, 2));
         console.log(`📝 更新播放列表中 ${updatedCount} 个文件的路径`);
         
-        // 删除文件夹缓存
+        // 更新缓存文件（而不是删除）
         if (fs.existsSync(FOLDER_CACHE_FILE)) {
-            fs.unlinkSync(FOLDER_CACHE_FILE);
-            console.log('🗑️ 删除文件夹缓存');
+            try {
+                const cacheContent = fs.readFileSync(FOLDER_CACHE_FILE, 'utf8');
+                const cacheData = JSON.parse(cacheContent);
+                
+                // 计算相对路径
+                const oldRelativePath = normalizedPath.replace(/^[\\/]/, '').replace(/\\/g, '/');
+                const parentPath = oldRelativePath.substring(0, oldRelativePath.lastIndexOf('/'));
+                const newRelativePath = parentPath ? `${parentPath}/${newName}` : newName;
+                
+                // 更新缓存中的文件夹名称和路径
+                updateFolderNameInCache(cacheData.folders, oldRelativePath, newRelativePath, newName);
+                
+                cacheData.timestamp = Date.now();
+                fs.writeFileSync(FOLDER_CACHE_FILE, JSON.stringify(cacheData, null, 2));
+                console.log('✅ 已更新文件夹缓存');
+            } catch (e) {
+                console.error('更新缓存失败:', e);
+            }
         }
         
         res.json({
@@ -2027,10 +2073,21 @@ app.post('/api/rename-file', async (req, res) => {
             console.log(`📝 更新播放列表中文件路径`);
         }
         
-        // 删除文件夹缓存
+        // 更新缓存文件（而不是删除）
         if (fs.existsSync(FOLDER_CACHE_FILE)) {
-            fs.unlinkSync(FOLDER_CACHE_FILE);
-            console.log('🗑️ 删除文件夹缓存');
+            try {
+                const cacheContent = fs.readFileSync(FOLDER_CACHE_FILE, 'utf8');
+                const cacheData = JSON.parse(cacheContent);
+                
+                // 更新缓存中的文件路径
+                updateFilePathInCache(cacheData, oldFullPath, newFullPath, newName + ext);
+                
+                cacheData.timestamp = Date.now();
+                fs.writeFileSync(FOLDER_CACHE_FILE, JSON.stringify(cacheData, null, 2));
+                console.log('✅ 已更新文件夹缓存');
+            } catch (e) {
+                console.error('更新缓存失败:', e);
+            }
         }
         
         res.json({
@@ -2303,9 +2360,50 @@ app.post('/api/create-folder', (req, res) => {
         fs.mkdirSync(newFolderPath);
         console.log(`📁 创建文件夹: ${newFolderPath}`);
         
-        // 删除文件夹缓存，下次打开时重新生成
+        // 更新缓存文件（而不是删除）
         if (fs.existsSync(FOLDER_CACHE_FILE)) {
-            fs.unlinkSync(FOLDER_CACHE_FILE);
+            try {
+                const cacheContent = fs.readFileSync(FOLDER_CACHE_FILE, 'utf8');
+                const cacheData = JSON.parse(cacheContent);
+                
+                // 计算新文件夹的相对路径
+                const relativeParentPath = fullParentPath.substring(MUSIC_DIR.length).replace(/^[\\/]/, '').replace(/\\/g, '/');
+                const newFolderRelativePath = relativeParentPath ? `${relativeParentPath}/${folderName.trim()}` : folderName.trim();
+                
+                // 添加新文件夹到缓存
+                const newFolderEntry = {
+                    name: folderName.trim(),
+                    path: newFolderRelativePath,
+                    fullPath: newFolderPath,
+                    musicCount: 0,
+                    hasSubFolders: false,
+                    folders: [],
+                    files: []
+                };
+                
+                if (relativeParentPath === '') {
+                    // 根目录，直接添加
+                    if (!cacheData.folders) cacheData.folders = [];
+                    cacheData.folders.push(newFolderEntry);
+                    cacheData.folders.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+                    cacheData.totalFolders = (cacheData.totalFolders || 0) + 1;
+                } else {
+                    // 在子文件夹中找到目标并添加
+                    const targetFolder = findFolderInCacheRecursive(cacheData.folders, relativeParentPath);
+                    if (targetFolder) {
+                        if (!targetFolder.folders) targetFolder.folders = [];
+                        targetFolder.folders.push(newFolderEntry);
+                        targetFolder.folders.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+                        cacheData.totalFolders = (cacheData.totalFolders || 0) + 1;
+                    }
+                }
+                
+                cacheData.timestamp = Date.now();
+                fs.writeFileSync(FOLDER_CACHE_FILE, JSON.stringify(cacheData, null, 2));
+                console.log('✅ 已更新文件夹缓存');
+            } catch (e) {
+                console.error('更新缓存失败:', e);
+            }
         }
         
         res.json({ success: true, message: `成功创建文件夹 "${folderName}"` });
@@ -2315,6 +2413,155 @@ app.post('/api/create-folder', (req, res) => {
         res.status(500).json({ success: false, error: '创建文件夹失败: ' + error.message });
     }
 });
+
+// 辅助函数：从缓存数据中删除文件
+function removeFileFromCacheData(cacheData, filePath) {
+    if (!cacheData) return false;
+    
+    // 在根目录文件中查找
+    if (cacheData.files) {
+        const fileIndex = cacheData.files.findIndex(f => f.path === filePath);
+        if (fileIndex !== -1) {
+            cacheData.files.splice(fileIndex, 1);
+            cacheData.totalFiles = (cacheData.totalFiles || 0) - 1;
+            if (cacheData.totalFiles < 0) cacheData.totalFiles = 0;
+            return true;
+        }
+    }
+    
+    // 在子文件夹中查找
+    return removeFileFromFolderCache(cacheData.folders, filePath);
+}
+
+function removeFileFromFolderCache(folders, filePath) {
+    if (!folders) return false;
+    
+    for (const folder of folders) {
+        if (folder.files) {
+            const fileIndex = folder.files.findIndex(f => f.path === filePath);
+            if (fileIndex !== -1) {
+                folder.files.splice(fileIndex, 1);
+                folder.musicCount = (folder.musicCount || 0) - 1;
+                if (folder.musicCount < 0) folder.musicCount = 0;
+                return true;
+            }
+        }
+        if (folder.folders && folder.folders.length > 0) {
+            if (removeFileFromFolderCache(folder.folders, filePath)) {
+                folder.musicCount = (folder.musicCount || 0) - 1;
+                if (folder.musicCount < 0) folder.musicCount = 0;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// 辅助函数：更新缓存中的文件路径
+function updateFilePathInCache(cacheData, oldPath, newPath, newTitle) {
+    if (!cacheData) return false;
+    
+    // 在根目录文件中查找
+    if (cacheData.files) {
+        const file = cacheData.files.find(f => f.path === oldPath);
+        if (file) {
+            file.path = newPath;
+            file.title = newTitle;
+            return true;
+        }
+    }
+    
+    // 在子文件夹中查找
+    return updateFileInFolderCache(cacheData.folders, oldPath, newPath, newTitle);
+}
+
+function updateFileInFolderCache(folders, oldPath, newPath, newTitle) {
+    if (!folders) return false;
+    
+    for (const folder of folders) {
+        if (folder.files) {
+            const file = folder.files.find(f => f.path === oldPath);
+            if (file) {
+                file.path = newPath;
+                file.title = newTitle;
+                return true;
+            }
+        }
+        if (folder.folders && folder.folders.length > 0) {
+            if (updateFileInFolderCache(folder.folders, oldPath, newPath, newTitle)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// 辅助函数：更新缓存中的文件夹名称和路径
+function updateFolderNameInCache(folders, oldPath, newPath, newName) {
+    if (!folders) return false;
+    
+    for (const folder of folders) {
+        if (folder.path === oldPath) {
+            folder.name = newName;
+            folder.path = newPath;
+            // 更新子文件夹的路径
+            updateSubfolderPaths(folder.folders, oldPath, newPath);
+            return true;
+        }
+        if (folder.folders && folder.folders.length > 0) {
+            if (updateFolderNameInCache(folder.folders, oldPath, newPath, newName)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+function updateSubfolderPaths(folders, oldParentPath, newParentPath) {
+    if (!folders) return;
+    
+    folders.forEach(folder => {
+        const relativeName = folder.path.substring(oldParentPath.length + 1);
+        folder.path = newParentPath + '/' + relativeName;
+        if (folder.folders && folder.folders.length > 0) {
+            updateSubfolderPaths(folder.folders, oldParentPath, newParentPath);
+        }
+    });
+}
+
+// 辅助函数：在缓存中查找并删除文件夹
+function findAndRemoveFolderFromCache(folders, targetPath) {
+    if (!folders) return null;
+    for (let i = 0; i < folders.length; i++) {
+        if (folders[i].path === targetPath) {
+            const removed = folders.splice(i, 1)[0];
+            return removed;
+        }
+        if (folders[i].folders && folders[i].folders.length > 0) {
+            const removed = findAndRemoveFolderFromCache(folders[i].folders, targetPath);
+            if (removed) {
+                // 更新父文件夹的音乐计数
+                folders[i].musicCount = (folders[i].musicCount || 0) - (removed.musicCount || 0);
+                if (folders[i].musicCount < 0) folders[i].musicCount = 0;
+                return removed;
+            }
+        }
+    }
+    return null;
+}
+
+// 辅助函数：在缓存中递归查找文件夹
+function findFolderInCacheRecursive(folders, targetPath) {
+    if (!folders) return null;
+    for (const folder of folders) {
+        if (folder.path === targetPath) return folder;
+        if (folder.folders && folder.folders.length > 0) {
+            const found = findFolderInCacheRecursive(folder.folders, targetPath);
+            if (found) return found;
+        }
+    }
+    return null;
+}
 
 // 辅助函数：发起 HTTP/HTTPS 请求
 function httpGet(url, timeout = 15000) {
@@ -2951,10 +3198,22 @@ app.post('/api/batch-delete-files', (req, res) => {
         
         fs.writeFileSync(PLAYLIST_CACHE_FILE, JSON.stringify(currentPlaylist, null, 2));
         
-        // 删除文件夹缓存，下次打开时重新生成
+        // 更新缓存文件（而不是删除）
         if (fs.existsSync(FOLDER_CACHE_FILE)) {
-            fs.unlinkSync(FOLDER_CACHE_FILE);
-            console.log('🗑️ 删除文件夹缓存');
+            try {
+                const cacheContent = fs.readFileSync(FOLDER_CACHE_FILE, 'utf8');
+                const cacheData = JSON.parse(cacheContent);
+                
+                for (const filePath of files) {
+                    removeFileFromCacheData(cacheData, filePath);
+                }
+                
+                cacheData.timestamp = Date.now();
+                fs.writeFileSync(FOLDER_CACHE_FILE, JSON.stringify(cacheData, null, 2));
+                console.log('✅ 已更新文件夹缓存');
+            } catch (e) {
+                console.error('更新缓存失败:', e);
+            }
         }
         
         let message = '';

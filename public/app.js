@@ -1899,10 +1899,11 @@ document.getElementById('btnConfirmDelete').addEventListener('click', async func
                     if (index !== -1) {
                         currentPlaylist.splice(index, 1);
                     }
+                    // 从 folderCacheData 中删除文件
+                    removeFileFromCache(path);
                 });
                 renderPlaylist();
                 clearSelection();
-                folderCacheData = null;
                 await loadFolderData(currentFolderPath, folderCurrentPage, FOLDER_PAGE_SIZE, folderSearchKeyword || undefined);
             } else {
                 showError(result.error || '删除失败');
@@ -1924,7 +1925,8 @@ document.getElementById('btnConfirmDelete').addEventListener('click', async func
                     currentPlaylist.splice(playlistIndex, 1);
                     renderPlaylist();
                 }
-                folderCacheData = null;
+                // 从缓存中删除文件
+                removeFileFromCache(filePath);
                 await loadFolderData(currentFolderPath, folderCurrentPage, FOLDER_PAGE_SIZE, folderSearchKeyword || undefined);
             } else {
                 showError(result.error || '删除失败');
@@ -3130,6 +3132,156 @@ function findFolderInCache(folders, targetPath) {
     return null;
 }
 
+// 从缓存中删除文件
+function removeFileFromCache(filePath) {
+    if (!folderCacheData) return;
+    
+    const fileName = filePath.split(/[\\/]/).pop();
+    const parentPath = filePath.split(/[\\/]/).slice(0, -1).join('/').replace(/.*\/music\/?/, '');
+    
+    // 在根目录文件中查找
+    if (folderCacheData.files) {
+        const fileIndex = folderCacheData.files.findIndex(f => f.path === filePath);
+        if (fileIndex !== -1) {
+            folderCacheData.files.splice(fileIndex, 1);
+            folderCacheData.totalFiles = (folderCacheData.totalFiles || 0) - 1;
+            return;
+        }
+    }
+    
+    // 在子文件夹中查找并删除
+    removeFileFromFolder(folderCacheData.folders, filePath, parentPath);
+}
+
+function removeFileFromFolder(folders, filePath, parentPath) {
+    if (!folders) return;
+    
+    for (const folder of folders) {
+        if (folder.path === parentPath && folder.files) {
+            const fileIndex = folder.files.findIndex(f => f.path === filePath);
+            if (fileIndex !== -1) {
+                folder.files.splice(fileIndex, 1);
+                folder.musicCount = (folder.musicCount || 0) - 1;
+                if (folder.musicCount < 0) folder.musicCount = 0;
+                return true;
+            }
+        }
+        if (folder.folders && folder.folders.length > 0) {
+            if (removeFileFromFolder(folder.folders, filePath, parentPath)) {
+                // 更新父文件夹的音乐计数
+                folder.musicCount = (folder.musicCount || 0) - 1;
+                if (folder.musicCount < 0) folder.musicCount = 0;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// 从缓存中删除文件夹
+function removeFolderFromCache(folderPath) {
+    if (!folderCacheData || !folderCacheData.folders) return;
+    
+    const folderIndex = folderCacheData.folders.findIndex(f => f.path === folderPath);
+    if (folderIndex !== -1) {
+        const removedFolder = folderCacheData.folders[folderIndex];
+        folderCacheData.folders.splice(folderIndex, 1);
+        folderCacheData.totalFolders = (folderCacheData.totalFolders || 0) - 1;
+        folderCacheData.totalFiles = (folderCacheData.totalFiles || 0) - (removedFolder.musicCount || 0);
+        return;
+    }
+    
+    // 在子文件夹中查找
+    removeFolderFromSubfolders(folderCacheData.folders, folderPath);
+}
+
+function removeFolderFromSubfolders(folders, folderPath) {
+    if (!folders) return;
+    
+    for (let i = 0; i < folders.length; i++) {
+        const folder = folders[i];
+        if (folder.path === folderPath) {
+            const removedFolder = folders[i];
+            folders.splice(i, 1);
+            folderCacheData.totalFolders = (folderCacheData.totalFolders || 0) - 1;
+            folderCacheData.totalFiles = (folderCacheData.totalFiles || 0) - (removedFolder.musicCount || 0);
+            return true;
+        }
+        if (folder.folders && folder.folders.length > 0) {
+            if (removeFolderFromSubfolders(folder.folders, folderPath)) {
+                // 更新父文件夹的计数
+                folder.musicCount = (folder.musicCount || 0) - (removedFolder ? removedFolder.musicCount : 0);
+                if (folder.musicCount < 0) folder.musicCount = 0;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// 更新缓存中的文件夹名称
+function renameFolderInCache(oldPath, newPath, newName) {
+    if (!folderCacheData || !folderCacheData.folders) return;
+    
+    const folder = findFolderInCache(folderCacheData.folders, oldPath);
+    if (folder) {
+        folder.name = newName;
+        folder.path = newPath;
+        updateFolderPathsInSubfolders(folder.folders, oldPath, newPath);
+    }
+}
+
+function updateFolderPathsInSubfolders(folders, oldParentPath, newParentPath) {
+    if (!folders) return;
+    
+    folders.forEach(folder => {
+        const relativeName = folder.path.replace(oldParentPath + '/', '');
+        folder.path = newParentPath + '/' + relativeName;
+        if (folder.folders && folder.folders.length > 0) {
+            updateFolderPathsInSubfolders(folder.folders, oldParentPath, newParentPath);
+        }
+    });
+}
+
+// 更新缓存中的文件名称
+function renameFileInCache(oldPath, newPath) {
+    if (!folderCacheData) return;
+    
+    // 在根目录文件中查找
+    if (folderCacheData.files) {
+        const file = folderCacheData.files.find(f => f.path === oldPath);
+        if (file) {
+            file.path = newPath;
+            file.title = newPath.split(/[\\/]/).pop().replace(/\.[^.]+$/, '');
+            return;
+        }
+    }
+    
+    // 在子文件夹中查找
+    renameFileInSubfolders(folderCacheData.folders, oldPath, newPath);
+}
+
+function renameFileInSubfolders(folders, oldPath, newPath) {
+    if (!folders) return;
+    
+    for (const folder of folders) {
+        if (folder.files) {
+            const file = folder.files.find(f => f.path === oldPath);
+            if (file) {
+                file.path = newPath;
+                file.title = newPath.split(/[\\/]/).pop().replace(/\.[^.]+$/, '');
+                return true;
+            }
+        }
+        if (folder.folders && folder.folders.length > 0) {
+            if (renameFileInSubfolders(folder.folders, oldPath, newPath)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 // 更新文件夹文件计数
 function updateFolderCountsAfterMove(folders, targetPath, delta) {
     if (!folders || folders.length === 0) return;
@@ -3226,7 +3378,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (result.success) {
                     showSuccess(result.message);
                     closeDeleteFolderModal();
-                    folderCacheData = null;
+                    // 从缓存中删除文件夹
+                    removeFolderFromCache(folderPath);
                     await loadFolderData(currentFolderPath, folderCurrentPage, FOLDER_PAGE_SIZE, folderSearchKeyword || undefined);
                     refreshFolderTreeOnly();
                 } else {
@@ -3333,7 +3486,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (result.success) {
                     showSuccess(result.message);
                     closeRenameFolderModal();
-                    folderCacheData = null;
+                    // 更新缓存中的文件夹名称
+                    const parentPath = folderPath.substring(0, folderPath.lastIndexOf('/'));
+                    const newPath = parentPath ? `${parentPath}/${newName}` : newName;
+                    renameFolderInCache(folderPath, newPath, newName);
                     await loadFolderData(currentFolderPath, folderCurrentPage, FOLDER_PAGE_SIZE, folderSearchKeyword || undefined);
                     refreshFolderTreeOnly();
                 } else {
@@ -3395,7 +3551,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (result.success) {
                     showSuccess(result.message);
                     closeRenameFileModal();
-                    folderCacheData = null;
+                    // 更新缓存中的文件名称
+                    const dir = filePath.substring(0, filePath.lastIndexOf('\\'));
+                    const ext = filePath.substring(filePath.lastIndexOf('.'));
+                    const newPath = dir ? `${dir}\\${newName}${ext}` : `${newName}${ext}`;
+                    renameFileInCache(filePath, newPath);
                     await loadFolderData(currentFolderPath, folderCurrentPage, FOLDER_PAGE_SIZE, folderSearchKeyword || undefined);
                     refreshFolderTreeOnly();
                 } else {
@@ -4302,7 +4462,6 @@ async function confirmCreateFolder() {
         btnConfirm.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 创建中...';
     }
     
-    // 使用当前打开的文件夹路径作为父路径，如果没有则使用根目录
     const parentPath = currentFolderPath || '/music';
     
     try {
@@ -4319,14 +4478,37 @@ async function confirmCreateFolder() {
         if (result.success) {
             showSuccess(result.message);
             
-            // 刷新文件夹缓存
-            folderCacheData = null;
-            
-            // 刷新文件夹视图
-            await loadFolders();
-            if (currentFolderPath) {
-                await openFolder(currentFolderPath);
+            // 更新 folderCacheData，添加新创建的文件夹
+            if (folderCacheData) {
+                const targetPath = currentFolderPath || '';
+                const newFolderData = {
+                    name: folderName,
+                    path: targetPath ? `${targetPath}/${folderName}` : folderName,
+                    fullPath: '',
+                    musicCount: 0,
+                    hasSubFolders: false,
+                    folders: [],
+                    files: []
+                };
+                
+                if (targetPath === '') {
+                    // 根目录，直接添加
+                    if (!folderCacheData.folders) folderCacheData.folders = [];
+                    folderCacheData.folders.push(newFolderData);
+                    folderCacheData.folders.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+                } else {
+                    // 在子文件夹中找到目标并添加
+                    const targetFolder = findFolderInCache(folderCacheData.folders, targetPath);
+                    if (targetFolder) {
+                        if (!targetFolder.folders) targetFolder.folders = [];
+                        targetFolder.folders.push(newFolderData);
+                        targetFolder.folders.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+                    }
+                }
             }
+            
+            // 刷新当前文件夹视图
+            await loadFolderData(currentFolderPath, folderCurrentPage, FOLDER_PAGE_SIZE, folderSearchKeyword || undefined);
         } else {
             showError(result.error || '创建失败');
         }

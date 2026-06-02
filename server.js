@@ -1938,6 +1938,110 @@ app.delete('/api/delete-folder', async (req, res) => {
     }
 });
 
+// 解散文件夹（将文件移动到上级目录并删除空文件夹）
+app.post('/api/dissolve-folder', async (req, res) => {
+    try {
+        const { folderPath } = req.body;
+        
+        if (!folderPath) {
+            return res.status(400).json({ success: false, error: '缺少文件夹路径' });
+        }
+        
+        const musicDir = path.join(__dirname, 'music');
+        const normalizedPath = folderPath.replace(/\//g, path.sep);
+        const fullPath = path.join(musicDir, normalizedPath);
+        
+        // 安全检查：确保路径在 music 目录下
+        if (!fullPath.startsWith(musicDir)) {
+            return res.status(400).json({ success: false, error: '无效的路径' });
+        }
+        
+        if (!fs.existsSync(fullPath)) {
+            return res.status(404).json({ success: false, error: '文件夹不存在' });
+        }
+        
+        const stat = fs.statSync(fullPath);
+        if (!stat.isDirectory()) {
+            return res.status(400).json({ success: false, error: '路径不是文件夹' });
+        }
+        
+        const parentDir = path.dirname(fullPath);
+        
+        // 获取文件夹内的所有文件（不包括子文件夹中的文件）
+        const files = fs.readdirSync(fullPath).filter(file => {
+            const filePath = path.join(fullPath, file);
+            return fs.statSync(filePath).isFile();
+        });
+        
+        let movedCount = 0;
+        
+        // 移动所有文件到上级目录
+        for (const file of files) {
+            const sourcePath = path.join(fullPath, file);
+            const targetPath = path.join(parentDir, file);
+            
+            // 如果目标文件已存在，生成新文件名
+            let finalTargetPath = targetPath;
+            let counter = 1;
+            while (fs.existsSync(finalTargetPath)) {
+                const ext = path.extname(file);
+                const nameWithoutExt = path.basename(file, ext);
+                finalTargetPath = path.join(parentDir, `${nameWithoutExt}_${counter}${ext}`);
+                counter++;
+            }
+            
+            fs.renameSync(sourcePath, finalTargetPath);
+            movedCount++;
+            
+            // 更新播放列表中的路径
+            const index = currentPlaylist.findIndex(track => track.path === sourcePath);
+            if (index !== -1) {
+                currentPlaylist[index].path = finalTargetPath;
+            }
+        }
+        
+        // 删除空文件夹
+        fs.rmdirSync(fullPath);
+        console.log(`📂 解散文件夹: ${fullPath}，移动了 ${movedCount} 个文件`);
+        
+        // 保存播放列表
+        fs.writeFileSync(PLAYLIST_CACHE_FILE, JSON.stringify(currentPlaylist, null, 2));
+        
+        // 更新缓存文件
+        if (fs.existsSync(FOLDER_CACHE_FILE)) {
+            try {
+                const cacheContent = fs.readFileSync(FOLDER_CACHE_FILE, 'utf8');
+                const cacheData = JSON.parse(cacheContent);
+                
+                // 计算相对路径
+                const relativePath = normalizedPath.replace(/^[\\/]/, '').replace(/\\/g, '/');
+                
+                // 从缓存中删除文件夹
+                const folderToDelete = findAndRemoveFolderFromCache(cacheData.folders, relativePath);
+                if (folderToDelete) {
+                    cacheData.totalFolders = (cacheData.totalFolders || 0) - 1;
+                    cacheData.totalFiles = (cacheData.totalFiles || 0) - (folderToDelete.musicCount || 0);
+                    if (cacheData.totalFiles < 0) cacheData.totalFiles = 0;
+                }
+                
+                cacheData.timestamp = Date.now();
+                fs.writeFileSync(FOLDER_CACHE_FILE, JSON.stringify(cacheData, null, 2));
+                console.log('✅ 已更新文件夹缓存');
+            } catch (e) {
+                console.error('更新缓存失败:', e);
+            }
+        }
+        
+        res.json({
+            success: true,
+            message: `已解散文件夹 "${path.basename(fullPath)}"，${movedCount} 个文件已移动到上级目录`
+        });
+    } catch (error) {
+        console.error('解散文件夹失败:', error);
+        res.status(500).json({ success: false, error: '解散文件夹失败: ' + error.message });
+    }
+});
+
 // 重命名文件夹
 app.post('/api/rename-folder', async (req, res) => {
     try {

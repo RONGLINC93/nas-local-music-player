@@ -1017,6 +1017,12 @@ body {
     color: white;
 }
 
+.folder-dissolve-btn:hover {
+    background: #f59e0b;
+    border-color: #f59e0b;
+    color: white;
+}
+
 .folder-delete-btn:hover {
     background: #ef4444;
     border-color: #ef4444;
@@ -3895,6 +3901,36 @@ body {
     transform: none;
 }
 
+.btn-warning {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+    padding: 12px 30px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-warning:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 20px rgba(245, 158, 11, 0.4);
+}
+
+.btn-warning:active {
+    transform: translateY(0);
+}
+
+.btn-warning:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
 .delete-confirm-content {
     text-align: center;
     padding: 10px 0;
@@ -4276,6 +4312,42 @@ body {
 }
 
 .delete-warning i {
+    color: #f59e0b;
+    font-size: 16px;
+}
+
+/* 解散文件夹样式 */
+.dissolve-folder-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    background: #fffbeb;
+    border-radius: 12px;
+    margin-bottom: 20px;
+}
+
+.dissolve-folder-info .folder-name-display {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1f2937;
+    text-align: center;
+}
+
+.dissolve-warning {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: #fef3c7;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #92400e;
+    width: 100%;
+}
+
+.dissolve-warning i {
     color: #f59e0b;
     font-size: 16px;
 }

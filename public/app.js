@@ -3425,6 +3425,63 @@ function closeRenameFolderModal() {
     document.body.style.overflow = '';
 }
 
+// 解散文件夹相关函数
+function openDissolveFolderModal(folderPath, folderName) {
+    const modal = document.getElementById('dissolveFolderModal');
+    const pathInput = document.getElementById('dissolveFolderPath');
+    const nameDisplay = document.getElementById('dissolveFolderNameDisplay');
+    
+    pathInput.value = folderPath;
+    nameDisplay.textContent = folderName;
+    
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeDissolveFolderModal() {
+    const modal = document.getElementById('dissolveFolderModal');
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+// 确认解散文件夹
+document.addEventListener('DOMContentLoaded', function() {
+    const btnConfirmDissolve = document.getElementById('btnConfirmDissolveFolder');
+    if (btnConfirmDissolve) {
+        btnConfirmDissolve.addEventListener('click', async function() {
+            const folderPath = document.getElementById('dissolveFolderPath').value;
+            if (!folderPath) {
+                showError('文件夹路径为空');
+                return;
+            }
+            
+            btnConfirmDissolve.disabled = true;
+            btnConfirmDissolve.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 解散中...';
+            
+            try {
+                const result = await apiRequest('/api/dissolve-folder', 'POST', { folderPath });
+                
+                if (result.success) {
+                    showSuccess(result.message);
+                    closeDissolveFolderModal();
+                    // 从缓存中删除文件夹
+                    removeFolderFromCache(folderPath);
+                    await loadFolderData(currentFolderPath, folderCurrentPage, FOLDER_PAGE_SIZE, folderSearchKeyword || undefined);
+                    refreshFolderTreeOnly();
+                } else {
+                    showError(result.error || '解散失败');
+                }
+            } catch (error) {
+                console.error('解散文件夹失败:', error);
+                showError('解散失败');
+            } finally {
+                btnConfirmDissolve.disabled = false;
+                btnConfirmDissolve.innerHTML = '<i class="fas fa-box-open"></i> 确认解散';
+            }
+        });
+    }
+});
+
 // 打开重命名音乐文件对话框
 function openRenameFileModal(filePath, fileName) {
     const modal = document.getElementById('renameFileModal');
@@ -3933,6 +3990,9 @@ function createFolderCardHTML(folder) {
                 </button>
                 <button onclick="event.stopPropagation(); openRenameFolderModal('${escapedPath}', '${folder.name.replace(/'/g, "\\'")}')" class="folder-icon-btn folder-rename-btn" title="重命名">
                     <i class="fas fa-edit"></i>
+                </button>
+                <button onclick="event.stopPropagation(); openDissolveFolderModal('${escapedPath}', '${folder.name.replace(/'/g, "\\'")}')" class="folder-icon-btn folder-dissolve-btn" title="解散">
+                    <i class="fas fa-box-open"></i>
                 </button>
                 <button onclick="event.stopPropagation(); openDeleteFolderModal('${escapedPath}', '${folder.name.replace(/'/g, "\\'")}')" class="folder-icon-btn folder-delete-btn" title="删除">
                     <i class="fas fa-trash"></i>

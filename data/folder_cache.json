@@ -1,28 +1,10 @@
 {
-  "timestamp": 1780376383877,
+  "timestamp": 1780390864371,
   "folders": [
-    {
-      "name": "123",
-      "path": "123",
-      "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\123",
-      "musicCount": 0,
-      "hasSubFolders": false,
-      "folders": [],
-      "files": []
-    },
     {
       "name": "1234",
       "path": "1234",
       "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\1234",
-      "musicCount": 0,
-      "hasSubFolders": false,
-      "folders": [],
-      "files": []
-    },
-    {
-      "name": "12345",
-      "path": "12345",
-      "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\12345",
       "musicCount": 0,
       "hasSubFolders": false,
       "folders": [],
@@ -502,6 +484,6 @@
     }
   ],
   "totalFiles": 40,
-  "totalFolders": 15,
+  "totalFolders": 13,
   "path": ""
 }

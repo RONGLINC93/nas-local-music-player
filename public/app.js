@@ -2572,17 +2572,57 @@ async function doAutoUpdate() {
     closeAutoUpdateConfirmModal();
     
     btnAuto.disabled = true;
-    btnAuto.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 下载中...';
+    btnAuto.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 准备中...';
     statusMsg.className = 'update-status-msg info';
-    statusMsg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在下载更新包，请稍候...';
+    statusMsg.innerHTML = `
+        <div><i class="fas fa-spinner fa-spin"></i> 正在下载更新包，请稍候...</div>
+        <div class="update-progress-container" style="margin-top: 12px;">
+            <div class="update-progress-bar">
+                <div class="update-progress-fill" id="updateProgressFill" style="width: 0%"></div>
+            </div>
+            <div class="update-progress-text" id="updateProgressText">0%</div>
+        </div>
+    `;
     
+    // 连接 SSE 接收进度
+    let eventSource = null;
     try {
+        eventSource = new EventSource('/api/update-progress');
+        
+        eventSource.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            const progressFill = document.getElementById('updateProgressFill');
+            const progressText = document.getElementById('updateProgressText');
+            
+            if (progressFill && progressText) {
+                progressFill.style.width = `${data.percent || 0}%`;
+                progressText.textContent = data.message || '';
+            }
+            
+            // 根据阶段更新按钮文字
+            if (data.type === 'download_start') {
+                btnAuto.innerHTML = '<i class="fas fa-download"></i> 下载中...';
+            } else if (data.type === 'download_complete') {
+                btnAuto.innerHTML = '<i class="fas fa-check"></i> 验证中...';
+            } else if (data.type === 'extract_start') {
+                btnAuto.innerHTML = '<i class="fas fa-file-archive"></i> 解压中...';
+            } else if (data.type === 'extract_complete') {
+                btnAuto.innerHTML = '<i class="fas fa-cog fa-spin"></i> 安装中...';
+            } else if (data.type === 'install_complete') {
+                btnAuto.innerHTML = '<i class="fas fa-check"></i> 完成';
+            }
+        };
+        
         const result = await apiRequest('/api/auto-update', 'POST');
         
         if (result.success) {
             statusMsg.className = 'update-status-msg success';
             statusMsg.innerHTML = `<i class="fas fa-check-circle"></i> 更新成功！已升级到 ${result.version}，页面将在 5 秒后刷新...`;
             btnAuto.innerHTML = '<i class="fas fa-check"></i> 更新成功';
+            
+            if (eventSource) {
+                eventSource.close();
+            }
             
             setTimeout(() => {
                 window.location.reload();
@@ -2592,12 +2632,20 @@ async function doAutoUpdate() {
             statusMsg.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${result.error || '更新失败'}`;
             btnAuto.disabled = false;
             btnAuto.innerHTML = '<i class="fas fa-download"></i> 立即更新';
+            
+            if (eventSource) {
+                eventSource.close();
+            }
         }
     } catch (error) {
         statusMsg.className = 'update-status-msg error';
         statusMsg.innerHTML = `<i class="fas fa-exclamation-circle"></i> 更新失败: ${error.message}`;
         btnAuto.disabled = false;
         btnAuto.innerHTML = '<i class="fas fa-download"></i> 立即更新';
+        
+        if (eventSource) {
+            eventSource.close();
+        }
     }
 }
 

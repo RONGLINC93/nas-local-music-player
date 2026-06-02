@@ -22,6 +22,31 @@ app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 app.use(express.static('public'));
 
+// SSE 客户端集合
+const updateProgressClients = new Set();
+
+// SSE 端点：推送更新进度
+app.get('/api/update-progress', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+    
+    updateProgressClients.add(res);
+    
+    req.on('close', () => {
+        updateProgressClients.delete(res);
+    });
+});
+
+// 推送进度到所有 SSE 客户端
+function broadcastUpdateProgress(data) {
+    const message = `data: ${JSON.stringify(data)}\n\n`;
+    for (const client of updateProgressClients) {
+        client.write(message);
+    }
+}
+
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, path.join(__dirname, 'temp_uploads'));
@@ -4005,11 +4030,13 @@ app.post('/api/system-update', updateUpload.single('file'), async (req, res) => 
         fs.mkdirSync(tempExtractDir, { recursive: true });
         console.log(`创建临时解压目录: ${tempExtractDir}`);
 
+        broadcastUpdateProgress({ type: 'extract_start', message: '正在解压更新包...' });
         console.log('正在解压更新包...');
         const zip = new AdmZip(upgradeFilePath);
         const zipEntries = zip.getEntries();
 
-        for (const entry of zipEntries) {
+        for (let i = 0; i < zipEntries.length; i++) {
+            const entry = zipEntries[i];
             const entryName = entry.entryName;
             const filePath = path.join(tempExtractDir, entryName);
 
@@ -4024,7 +4051,17 @@ app.post('/api/system-update', updateUpload.single('file'), async (req, res) => 
                 }
                 fs.writeFileSync(filePath, entry.getData());
             }
+            
+            if (i % 50 === 0) {
+                const percent = Math.round((i / zipEntries.length) * 100);
+                broadcastUpdateProgress({
+                    type: 'extract_progress',
+                    percent,
+                    message: `解压中... ${percent}% (${i}/${zipEntries.length} 文件)`
+                });
+            }
         }
+        broadcastUpdateProgress({ type: 'extract_complete', message: '解压完成，正在安装更新...' });
         console.log(`解压完成，共 ${zipEntries.length} 个文件`);
 
         console.log('正在清理旧文件...');
@@ -4413,9 +4450,23 @@ app.post('/api/auto-update', async (req, res) => {
         }
 
         upgradeFilePath = path.join(upgradeDir, zipFileName);
-        await downloadFile(zipUrl, upgradeFilePath);
+        
+        broadcastUpdateProgress({ type: 'download_start', message: '开始下载更新包...' });
+        
+        await downloadFile(zipUrl, upgradeFilePath, (downloaded, total) => {
+            const percent = Math.round((downloaded / total) * 100);
+            const downloadedMB = (downloaded / 1024 / 1024).toFixed(2);
+            const totalMB = (total / 1024 / 1024).toFixed(2);
+            broadcastUpdateProgress({
+                type: 'download_progress',
+                percent,
+                downloaded: downloadedMB,
+                total: totalMB,
+                message: `下载中... ${percent}% (${downloadedMB}MB / ${totalMB}MB)`
+            });
+        });
 
-        console.log(`更新包已下载: ${upgradeFilePath}, 大小: ${fs.statSync(upgradeFilePath).size} bytes`);
+        broadcastUpdateProgress({ type: 'download_complete', message: '下载完成，正在验证...' });
 
         // 验证更新包
         console.log('正在验证更新包...');
@@ -4436,11 +4487,13 @@ app.post('/api/auto-update', async (req, res) => {
         }
         fs.mkdirSync(tempExtractDir, { recursive: true });
 
+        broadcastUpdateProgress({ type: 'extract_start', message: '正在解压更新包...' });
         console.log('正在解压更新包...');
         const zip = new AdmZip(upgradeFilePath);
         const zipEntries = zip.getEntries();
 
-        for (const entry of zipEntries) {
+        for (let i = 0; i < zipEntries.length; i++) {
+            const entry = zipEntries[i];
             const entryName = entry.entryName;
             const filePath = path.join(tempExtractDir, entryName);
 
@@ -4455,7 +4508,17 @@ app.post('/api/auto-update', async (req, res) => {
                 }
                 fs.writeFileSync(filePath, entry.getData());
             }
+            
+            if (i % 50 === 0) {
+                const percent = Math.round((i / zipEntries.length) * 100);
+                broadcastUpdateProgress({
+                    type: 'extract_progress',
+                    percent,
+                    message: `解压中... ${percent}% (${i}/${zipEntries.length} 文件)`
+                });
+            }
         }
+        broadcastUpdateProgress({ type: 'extract_complete', message: '解压完成，正在安装更新...' });
         console.log(`解压完成，共 ${zipEntries.length} 个文件`);
 
         // GitHub 源码 ZIP 解压后会有嵌套目录，需要提取出来
@@ -4512,8 +4575,32 @@ app.post('/api/auto-update', async (req, res) => {
         }
 
         // 复制新文件
+        broadcastUpdateProgress({ type: 'install_start', message: '正在安装更新...' });
         console.log('正在复制新文件...');
         let copiedCount = 0;
+        let totalFiles = 0;
+        
+        // 先统计总文件数
+        function countFiles(srcDir) {
+            if (!fs.existsSync(srcDir)) return 0;
+            let count = 0;
+            const items = fs.readdirSync(srcDir);
+            for (const item of items) {
+                if (item === 'music' || item === 'upgrades' || item === 'temp' || item === '.git' || item === 'data' || item === 'node_modules') continue;
+                const srcPath = path.join(srcDir, item);
+                const stat = fs.statSync(srcPath);
+                if (stat.isDirectory()) {
+                    count += countFiles(srcPath);
+                } else {
+                    count++;
+                }
+            }
+            return count;
+        }
+        
+        totalFiles = countFiles(sourceDir);
+        let processedFiles = 0;
+        
         function copyFiles(srcDir, destDir) {
             if (!fs.existsSync(srcDir)) return;
             const items = fs.readdirSync(srcDir);
@@ -4521,7 +4608,7 @@ app.post('/api/auto-update', async (req, res) => {
                 const srcPath = path.join(srcDir, item);
                 const destPath = path.join(destDir, item);
 
-                if (item === 'music' || item === 'upgrades' || item === 'temp' || item === '.git' || item === 'data') {
+                if (item === 'music' || item === 'upgrades' || item === 'temp' || item === '.git' || item === 'data' || item === 'node_modules') {
                     continue;
                 }
 
@@ -4532,11 +4619,22 @@ app.post('/api/auto-update', async (req, res) => {
                 } else {
                     fs.copyFileSync(srcPath, destPath);
                     copiedCount++;
+                    processedFiles++;
+                    
+                    if (processedFiles % 50 === 0 && totalFiles > 0) {
+                        const percent = Math.round((processedFiles / totalFiles) * 100);
+                        broadcastUpdateProgress({
+                            type: 'install_progress',
+                            percent,
+                            message: `安装中... ${percent}% (${processedFiles}/${totalFiles} 文件)`
+                        });
+                    }
                 }
             }
         }
 
         copyFiles(sourceDir, __dirname);
+        broadcastUpdateProgress({ type: 'install_complete', message: '更新安装完成，正在重启服务...' });
         console.log(`复制完成，共复制 ${copiedCount} 个文件`);
 
         // 清理临时目录
@@ -4647,7 +4745,7 @@ function getLatestRelease() {
 }
 
 // 下载文件
-function downloadFile(url, dest) {
+function downloadFile(url, dest, onProgress) {
     return new Promise((resolve, reject) => {
         const parsedUrl = new URL(url);
         const options = {
@@ -4662,7 +4760,7 @@ function downloadFile(url, dest) {
         const request = https.request(options, (response) => {
             if (response.statusCode === 302 || response.statusCode === 301) {
                 // 处理重定向
-                downloadFile(response.headers.location, dest).then(resolve).catch(reject);
+                downloadFile(response.headers.location, dest, onProgress).then(resolve).catch(reject);
                 return;
             }
 
@@ -4671,7 +4769,18 @@ function downloadFile(url, dest) {
                 return;
             }
 
+            const totalBytes = parseInt(response.headers['content-length'], 10);
+            let downloadedBytes = 0;
+
             const fileStream = fs.createWriteStream(dest);
+            
+            response.on('data', (chunk) => {
+                downloadedBytes += chunk.length;
+                if (onProgress && totalBytes) {
+                    onProgress(downloadedBytes, totalBytes);
+                }
+            });
+
             response.pipe(fileStream);
 
             fileStream.on('finish', () => {

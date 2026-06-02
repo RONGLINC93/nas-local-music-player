@@ -623,8 +623,8 @@ body {
 .folder-grid {
     padding: 10px;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 4px;
 }
 
 /* 文件夹卡片 */
@@ -1392,7 +1392,7 @@ body {
 @media (max-width: 768px) {
     .folder-grid {
         grid-template-columns: 1fr;
-        gap: 15px;
+        gap: 4px;
     }
     
     .folder-card {
@@ -1438,7 +1438,7 @@ body {
 @media (max-width: 480px) {
     
     .folder-grid {
-        gap: 10px;
+        gap: 4px;
     }
     
     .folder-card {
@@ -1489,7 +1489,7 @@ body {
 @media (max-width: 768px) {
     .folder-grid {
         grid-template-columns: 1fr;
-        gap: 15px;
+        gap: 4px;
     }
     
     .folder-card {

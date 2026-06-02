@@ -1895,13 +1895,6 @@ document.getElementById('btnConfirmDelete').addEventListener('click', async func
             if (result.success) {
                 showSuccess(result.message);
                 deletePaths.forEach(path => {
-                    const index = currentFiles.findIndex(f => f.path === path);
-                    if (index !== -1) {
-                        currentFiles.splice(index, 1);
-                    }
-                });
-                renderFolderSections();
-                deletePaths.forEach(path => {
                     const index = currentPlaylist.findIndex(t => t.path === path);
                     if (index !== -1) {
                         currentPlaylist.splice(index, 1);
@@ -1910,6 +1903,7 @@ document.getElementById('btnConfirmDelete').addEventListener('click', async func
                 renderPlaylist();
                 clearSelection();
                 folderCacheData = null;
+                await loadFolderData(currentFolderPath, folderCurrentPage, FOLDER_PAGE_SIZE, folderSearchKeyword || undefined);
             } else {
                 showError(result.error || '删除失败');
             }
@@ -1925,17 +1919,13 @@ document.getElementById('btnConfirmDelete').addEventListener('click', async func
             
             if (result.success) {
                 showSuccess(result.message);
-                const fileIndex = currentFiles.findIndex(f => f.path === filePath);
-                if (fileIndex !== -1) {
-                    currentFiles.splice(fileIndex, 1);
-                    renderFolderSections();
-                }
                 const playlistIndex = currentPlaylist.findIndex(t => t.path === filePath);
                 if (playlistIndex !== -1) {
                     currentPlaylist.splice(playlistIndex, 1);
                     renderPlaylist();
                 }
                 folderCacheData = null;
+                await loadFolderData(currentFolderPath, folderCurrentPage, FOLDER_PAGE_SIZE, folderSearchKeyword || undefined);
             } else {
                 showError(result.error || '删除失败');
             }
@@ -2840,8 +2830,59 @@ async function loadPlaylistData() {
 let currentFolderPath = '';
 let currentFolders = [];
 let currentFiles = [];
-let folderCacheData = null; // 文件夹缓存数据
-let folderSearchKeyword = ''; // 文件夹搜索关键词
+let folderCacheData = null;
+let folderSearchKeyword = '';
+let folderCurrentPage = 1;
+let FOLDER_PAGE_SIZE = 20;
+let folderTotalFiles = 0;
+let folderTotalPages = 0;
+
+async function loadFolderData(folderPath, page, pageSize, search) {
+    const folderView = document.getElementById('folderView');
+    
+    try {
+        folderView.innerHTML = `
+            <div class="folder-loading">
+                <div class="loading-spinner"></div>
+                <p>正在加载文件夹...</p>
+            </div>
+        `;
+        
+        const params = new URLSearchParams({
+            path: folderPath,
+            page: page,
+            pageSize: pageSize
+        });
+        
+        if (search) {
+            params.set('search', search);
+        }
+        
+        const result = await apiRequest(`/api/folders?${params.toString()}`, 'GET');
+        
+        if (result.success) {
+            currentFolders = result.folders || [];
+            currentFiles = result.files || [];
+            folderTotalFiles = result.totalFiles || 0;
+            folderTotalPages = result.totalPages || 0;
+            folderCurrentPage = result.page || 1;
+            FOLDER_PAGE_SIZE = result.pageSize || 20;
+            renderFolderSections();
+        } else {
+            throw new Error(result.error || '加载失败');
+        }
+        
+    } catch (error) {
+        console.error('加载文件夹内容失败:', error);
+        folderView.innerHTML = `
+            <div class="folder-empty">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>加载失败</p>
+            </div>
+        `;
+        showError('加载文件夹内容失败');
+    }
+}
 
 // 处理文件夹搜索
 function handleFolderSearch() {
@@ -2851,14 +2892,13 @@ function handleFolderSearch() {
     if (!searchInput) return;
     
     folderSearchKeyword = searchInput.value.trim();
+    folderCurrentPage = 1;
     
-    // 显示/隐藏清除按钮
     if (searchClear) {
         searchClear.style.display = folderSearchKeyword ? 'flex' : 'none';
     }
     
-    // 重新渲染当前视图
-    renderFolderSections();
+    loadFolderData(currentFolderPath, 1, FOLDER_PAGE_SIZE, folderSearchKeyword || undefined);
 }
 
 // 清除文件夹搜索
@@ -2874,7 +2914,8 @@ function clearFolderSearch() {
     }
     
     folderSearchKeyword = '';
-    renderFolderSections();
+    folderCurrentPage = 1;
+    loadFolderData(currentFolderPath, 1, FOLDER_PAGE_SIZE);
 }
 
 // 过滤文件
@@ -2907,6 +2948,9 @@ async function loadFolders() {
         currentFolders = [];
         currentFiles = [];
         currentFolderPath = '';
+        folderCurrentPage = 1;
+        FOLDER_PAGE_SIZE = 20;
+        folderSearchKeyword = '';
         
         // 更新面包屑导航
         updateBreadcrumb('');
@@ -2930,21 +2974,11 @@ async function loadFolders() {
             // 服务端总是会返回缓存数据
             folderCacheData = cacheResult.data;
             
-            // 使用 /api/folders API 获取根目录内容（总是从服务器获取最新数据）
-            const rootResult = await apiRequest(`/api/folders?path=&_=${Date.now()}`, 'GET');
+            await loadFolderData('', 1, FOLDER_PAGE_SIZE);
             
-            if (rootResult.success) {
-                currentFolders = rootResult.folders || [];
-                currentFiles = rootResult.files || [];
-                renderFolderSections();
-                
-                // 如果是首次加载，显示提示消息
-                if (cacheResult.message) {
-                    showNotification({ type: 'info', message: cacheResult.message });
-                }
-            } else {
-                // 降级到使用缓存渲染
-                renderFolderFromCache('');
+            // 如果是首次加载，显示提示消息
+            if (cacheResult.message) {
+                showNotification({ type: 'info', message: cacheResult.message });
             }
         } else {
             showError(cacheResult.error || '加载失败');
@@ -2987,8 +3021,7 @@ async function scanFolders() {
                 totalFolders: result.totalFolders || 0
             };
             
-            // 重新加载文件夹视图
-            renderFolderFromCache('');
+            await loadFolderData('', 1, FOLDER_PAGE_SIZE);
             
             showNotification({ type: 'success', message: result.message });
         } else {
@@ -3030,6 +3063,7 @@ function renderFolderFromCache(folderPath) {
     currentFolders = folders;
     currentFiles = files;
     currentFolderPath = folderPath;
+    folderCurrentPage = 1;
     
     renderFolderSections();
 }
@@ -3245,12 +3279,8 @@ function handleMouseDownOnFile(e) {
 function renderFolderSections() {
     const folderView = document.getElementById('folderView');
     
-    // 应用搜索过滤
-    const filteredFiles = filterFiles(currentFiles, folderSearchKeyword);
-    
     let html = '<div class="folder-content">';
     
-    // 显示文件夹（搜索时隐藏文件夹）
     if (currentFolders.length > 0 && !folderSearchKeyword) {
         html += '<div class="folder-section" id="folderSection">';
         html += '<h3 class="folder-section-title"><i class="fas fa-folder"></i> 文件夹</h3>';
@@ -3263,25 +3293,24 @@ function renderFolderSections() {
         html += '</div></div>';
     }
     
-    // 显示文件
-    if (filteredFiles.length > 0) {
+    if (currentFiles.length > 0) {
         html += '<div class="folder-section" id="fileSection">';
         if (folderSearchKeyword) {
-            html += `<h3 class="folder-section-title"><i class="fas fa-music"></i> 搜索结果 (${filteredFiles.length})</h3>`;
+            html += `<h3 class="folder-section-title"><i class="fas fa-music"></i> 搜索结果</h3>`;
         } else {
             html += '<h3 class="folder-section-title"><i class="fas fa-music"></i> 音乐文件</h3>';
         }
         html += '<div class="folder-music-list" id="folderMusicList">';
         
-        filteredFiles.forEach((track, index) => {
-            html += createFileItemHTML(track, index, folderSearchKeyword);
+        currentFiles.forEach((track, index) => {
+            const globalIndex = (folderCurrentPage - 1) * FOLDER_PAGE_SIZE + index;
+            html += createFileItemHTML(track, globalIndex, folderSearchKeyword);
         });
         
         html += '</div></div>';
     }
     
-    // 无搜索结果
-    if (folderSearchKeyword && filteredFiles.length === 0) {
+    if (folderSearchKeyword && currentFiles.length === 0) {
         html += `
             <div class="no-search-results">
                 <i class="fas fa-search"></i>
@@ -3302,7 +3331,110 @@ function renderFolderSections() {
     html += '</div>';
     folderView.innerHTML = html;
     
+    renderFolderPagination(folderTotalFiles, folderTotalPages);
+    
     initSelectionBox();
+}
+
+function renderFolderPagination(totalItems, totalPages) {
+    const paginationEl = document.getElementById('folderPagination');
+    
+    if (!paginationEl || totalPages <= 1) {
+        if (paginationEl) {
+            paginationEl.innerHTML = '';
+        }
+        return;
+    }
+    
+    const startItem = (folderCurrentPage - 1) * FOLDER_PAGE_SIZE + 1;
+    const endItem = Math.min(folderCurrentPage * FOLDER_PAGE_SIZE, totalItems);
+    
+    let html = '<div class="pagination-container">';
+    
+    html += '<div class="pagination-info">';
+    html += `显示 ${startItem}-${endItem} 条，共 ${totalItems} 条`;
+    html += '</div>';
+    
+    html += '<div class="pagination-controls">';
+    
+    html += `<button class="pagination-btn ${folderCurrentPage === 1 ? 'disabled' : ''}" 
+        onclick="changeFolderPage(1)" ${folderCurrentPage === 1 ? 'disabled' : ''}>
+        <i class="fas fa-angle-double-left"></i>
+    </button>`;
+    
+    html += `<button class="pagination-btn ${folderCurrentPage === 1 ? 'disabled' : ''}" 
+        onclick="changeFolderPage(${folderCurrentPage - 1})" ${folderCurrentPage === 1 ? 'disabled' : ''}>
+        <i class="fas fa-angle-left"></i>
+    </button>`;
+    
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, folderCurrentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    if (endPage - startPage < maxVisiblePages - 1) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    
+    if (startPage > 1) {
+        html += `<button class="pagination-btn" onclick="changeFolderPage(1)">1</button>`;
+        if (startPage > 2) {
+            html += '<span class="pagination-ellipsis">...</span>';
+        }
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        html += `<button class="pagination-btn ${i === folderCurrentPage ? 'active' : ''}" 
+            onclick="changeFolderPage(${i})">${i}</button>`;
+    }
+    
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            html += '<span class="pagination-ellipsis">...</span>';
+        }
+        html += `<button class="pagination-btn" onclick="changeFolderPage(${totalPages})">${totalPages}</button>`;
+    }
+    
+    html += `<button class="pagination-btn ${folderCurrentPage === totalPages ? 'disabled' : ''}" 
+        onclick="changeFolderPage(${folderCurrentPage + 1})" ${folderCurrentPage === totalPages ? 'disabled' : ''}>
+        <i class="fas fa-angle-right"></i>
+    </button>`;
+    
+    html += `<button class="pagination-btn ${folderCurrentPage === totalPages ? 'disabled' : ''}" 
+        onclick="changeFolderPage(${totalPages})" ${folderCurrentPage === totalPages ? 'disabled' : ''}>
+        <i class="fas fa-angle-double-right"></i>
+    </button>`;
+    
+    html += '</div>';
+    
+    html += '<div class="pagination-size">';
+    html += `<span>每页</span>`;
+    html += `<select class="pagination-size-select" onchange="changeFolderPageSize(this.value)">`;
+    html += `<option value="10" ${FOLDER_PAGE_SIZE === 10 ? 'selected' : ''}>10</option>`;
+    html += `<option value="20" ${FOLDER_PAGE_SIZE === 20 ? 'selected' : ''}>20</option>`;
+    html += `<option value="50" ${FOLDER_PAGE_SIZE === 50 ? 'selected' : ''}>50</option>`;
+    html += `<option value="100" ${FOLDER_PAGE_SIZE === 100 ? 'selected' : ''}>100</option>`;
+    html += `</select>`;
+    html += `<span>条</span>`;
+    html += '</div>';
+    
+    html += '</div>';
+    
+    paginationEl.innerHTML = html;
+}
+
+async function changeFolderPage(page) {
+    if (page < 1 || page > folderTotalPages) return;
+    await loadFolderData(currentFolderPath, page, FOLDER_PAGE_SIZE, folderSearchKeyword || undefined);
+    const folderView = document.getElementById('folderView');
+    if (folderView) {
+        folderView.scrollTop = 0;
+    }
+}
+
+async function changeFolderPageSize(size) {
+    FOLDER_PAGE_SIZE = parseInt(size);
+    folderCurrentPage = 1;
+    await loadFolderData(currentFolderPath, 1, FOLDER_PAGE_SIZE, folderSearchKeyword || undefined);
 }
 
 // 添加文件夹到视图
@@ -3515,55 +3647,18 @@ function closeFolderMoreMenu() {
 // 打开文件夹（优先使用缓存）
 async function openFolder(folderPath) {
     currentFolderPath = folderPath;
+    folderCurrentPage = 1;
+    folderSearchKeyword = '';
+    
+    const searchInput = document.getElementById('folderSearchInput');
+    const searchClear = document.getElementById('folderSearchClear');
+    if (searchInput) searchInput.value = '';
+    if (searchClear) searchClear.style.display = 'none';
     
     // 更新面包屑导航
     updateBreadcrumb(folderPath);
     
-    const folderView = document.getElementById('folderView');
-    
-    try {
-        // 重置状态
-        currentFolders = [];
-        currentFiles = [];
-        
-        // 显示加载提示
-        folderView.innerHTML = `
-            <div class="folder-loading">
-                <div class="loading-spinner"></div>
-                <p>正在加载文件夹...</p>
-            </div>
-        `;
-        
-        // 总是从服务器获取最新数据（不依赖缓存），添加时间戳避免浏览器缓存
-        const result = await apiRequest(`/api/folders?path=${encodeURIComponent(folderPath)}&_=${Date.now()}`, 'GET');
-        
-        if (result.success) {
-            currentFolders = result.folders || [];
-            currentFiles = result.files || [];
-            renderFolderSections();
-        } else {
-            throw new Error(result.error || '加载失败');
-        }
-        
-    } catch (error) {
-        console.error('加载文件夹内容失败:', error);
-        folderView.innerHTML = `
-            <div class="folder-header">
-                <button id="btnScanFolders" class="btn btn-primary btn-scan" onclick="scanFolders()">
-                    <i class="fas fa-search"></i> 扫描文件
-                </button>
-                <div id="cacheStatus" class="cache-status"></div>
-            </div>
-            <div class="folder-empty">
-                <i class="fas fa-exclamation-triangle"></i>
-                <p>加载失败</p>
-                <button onclick="goBack()" class="folder-back-btn">
-                    <i class="fas fa-arrow-left"></i> 返回
-                </button>
-            </div>
-        `;
-        showError('加载文件夹内容失败');
-    }
+    await loadFolderData(folderPath, 1, FOLDER_PAGE_SIZE);
 }
 
 // 返回上级文件夹
@@ -4006,53 +4101,17 @@ async function handleDropToFolder(targetFolderPath, event) {
         if (result.success) {
             showSuccess(`文件已移动到 "${targetFolderPath}"`);
             
-            // 获取源文件夹路径（从文件路径提取）
-            const sourceFolderPath = draggedFilePath.substring(0, Math.max(draggedFilePath.lastIndexOf('/'), draggedFilePath.lastIndexOf('\\')));
-            
-            // 1. 如果当前视图是源文件夹或根目录，移除文件并更新计数
-            if (currentFolderPath === sourceFolderPath.replace(/^music\//, '') || currentFolderPath === '') {
-                // 使用文件名来匹配
-                const draggedFileName = draggedFilePath.split('/').pop().split('\\').pop();
-                const fileIndex = currentFiles.findIndex(f => {
-                    const fileName = f.path.split('/').pop().split('\\').pop();
-                    return fileName === draggedFileName;
-                });
-                if (fileIndex !== -1) {
-                    currentFiles.splice(fileIndex, 1);
-                }
-                
-                // 如果当前在根目录，更新子文件夹计数
-                if (currentFolderPath === '') {
-                    // 移除 music/ 前缀以匹配 currentFolders 中的路径格式
-                    const relativeSourcePath = sourceFolderPath.replace(/^music\//, '');
-                    updateFolderCountsAfterMove(currentFolders, relativeSourcePath, -1);
-                }
-                renderFolderSections();
-            }
-            
-            // 2. 如果当前视图是目标文件夹，刷新内容
-            const relativeTargetPath = targetFolderPath.replace(/^\/music\//, '');
-            if (currentFolderPath === relativeTargetPath) {
-                const folderResult = await apiRequest(`/api/folders?path=${encodeURIComponent(targetFolderPath)}&_=${Date.now()}`, 'GET');
-                if (folderResult.success) {
-                    currentFiles = folderResult.files || [];
-                    currentFolders = folderResult.folders || [];
-                    renderFolderSections();
-                }
-            } else if (currentFolderPath === '') {
-                // 如果当前在根目录，更新目标文件夹的计数（加1）
-                updateFolderCountsAfterMove(currentFolders, relativeTargetPath, 1);
-                renderFolderSections();
-            }
-            
-            // 3. 刷新播放列表（更新文件路径）
+            // 刷新播放列表（更新文件路径）
             const playlistResult = await apiRequest('/api/playlist');
             if (playlistResult.playlist) {
                 currentPlaylist = playlistResult.playlist;
                 renderPlaylist();
             }
             
-            // 4. 刷新左侧导航栏的文件夹树（仅刷新导航栏，不重新加载当前视图）
+            // 重新加载当前视图
+            await loadFolderData(currentFolderPath, folderCurrentPage, FOLDER_PAGE_SIZE, folderSearchKeyword || undefined);
+            
+            // 刷新左侧导航栏的文件夹树（仅刷新导航栏，不重新加载当前视图）
             refreshFolderTreeOnly();
         } else {
             showError(result.error || '移动失败');
@@ -4219,51 +4278,17 @@ async function confirmMoveFiles() {
         if (result.success) {
             showSuccess(result.message);
             
-            // 1. 从当前文件夹视图中移除被移动的文件（如果当前视图是源文件夹）
-            selectedMusicFiles.forEach(filePath => {
-                // 使用文件名来匹配，避免路径格式问题
-                const movedFileName = filePath.split('/').pop().split('\\').pop();
-                const fileIndex = currentFiles.findIndex(f => {
-                    const fileName = f.path.split('/').pop().split('\\').pop();
-                    return fileName === movedFileName;
-                });
-                if (fileIndex !== -1) {
-                    currentFiles.splice(fileIndex, 1);
-                    
-                    // 更新当前文件夹视图中子文件夹的文件计数（减1）
-                    // 使用字符串操作获取目录路径（前端没有 path 模块）
-                    const dirPath = filePath.substring(0, Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\')));
-                    // 移除 music/ 前缀以匹配 currentFolders 中的路径格式
-                    const relativeDirPath = dirPath.replace(/^music\//, '');
-                    updateFolderCountsAfterMove(currentFolders, relativeDirPath, -1);
-                }
-            });
-            renderFolderSections(); // 重新渲染当前视图
-            
-            // 2. 如果当前视图是目标文件夹，刷新内容
-            // 移除 /music/ 前缀以匹配 currentFolderPath 的格式
-            const relativeMoveTarget = selectedMoveTarget.replace(/^\/music\//, '');
-            if (currentFolderPath === relativeMoveTarget) {
-                const folderResult = await apiRequest(`/api/folders?path=${encodeURIComponent(selectedMoveTarget)}&_=${Date.now()}`, 'GET');
-                if (folderResult.success) {
-                    currentFiles = folderResult.files || [];
-                    currentFolders = folderResult.folders || [];
-                    renderFolderSections();
-                }
-            } else if (currentFolderPath === '') {
-                // 如果当前在根目录，更新目标文件夹的计数
-                updateFolderCountsAfterMove(currentFolders, relativeMoveTarget, selectedMusicFiles.size);
-                renderFolderSections();
-            }
-            
-            // 4. 刷新播放列表（更新文件路径）
+            // 刷新播放列表（更新文件路径）
             const playlistResult = await apiRequest('/api/playlist');
             if (playlistResult.playlist) {
                 currentPlaylist = playlistResult.playlist;
                 renderPlaylist();
             }
             
-            // 5. 刷新文件夹树（仅刷新导航栏，不重新加载当前视图）
+            // 重新加载当前视图
+            await loadFolderData(currentFolderPath, folderCurrentPage, FOLDER_PAGE_SIZE, folderSearchKeyword || undefined);
+            
+            // 刷新文件夹树（仅刷新导航栏，不重新加载当前视图）
             refreshFolderTreeOnly();
             
             clearSelection();

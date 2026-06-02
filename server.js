@@ -1399,9 +1399,12 @@ app.get('/api/folders', async (req, res) => {
     try {
         const musicDir = path.join(__dirname, 'music');
         const folderPath = req.query.path ? decodeURIComponent(req.query.path) : '';
+        const page = parseInt(req.query.page) || 1;
+        const pageSize = parseInt(req.query.pageSize) || 20;
+        const searchKeyword = req.query.search ? decodeURIComponent(req.query.search).trim() : '';
 
         if (!fs.existsSync(musicDir)) {
-            return res.json({ success: true, folders: [], files: [], currentPath: '' });
+            return res.json({ success: true, folders: [], files: [], currentPath: '', totalFiles: 0, page: 1, pageSize: 20, totalPages: 0 });
         }
 
         // 构建当前完整路径
@@ -1418,9 +1421,8 @@ app.get('/api/folders', async (req, res) => {
         // 使用异步读取目录
         const entries = await fs.promises.readdir(currentFullPath, { withFileTypes: true });
 
-        // 非流式请求，一次性返回所有数据
         const folders = [];
-        const files = [];
+        const musicFiles = []; // 只存储文件路径，不立即解析元数据
 
         // 异步处理每个条目
         const promises = entries.map(async (entry) => {
@@ -1455,10 +1457,9 @@ app.get('/api/folders', async (req, res) => {
                     hasSubFolders: hasSubFolders
                 });
             } else if (entry.isFile() && MUSIC_EXTENSIONS.includes(path.extname(entry.name).toLowerCase())) {
-                const metadata = await getMusicMetadata(fullPath);
-                files.push({
-                    ...metadata,
-                    path: fullPath,
+                musicFiles.push({
+                    fullPath: fullPath,
+                    filename: entry.name,
                     folderPath: folderPath
                 });
             }
@@ -1467,15 +1468,75 @@ app.get('/api/folders', async (req, res) => {
         // 等待所有异步操作完成
         await Promise.all(promises);
 
-        // 按名称字母排序
+        // 按文件名排序（不依赖元数据）
         folders.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
-        files.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+        musicFiles.sort((a, b) => a.filename.localeCompare(b.filename, undefined, { sensitivity: 'base' }));
+
+        // 如果有搜索关键词，基于文件名过滤
+        let filteredFiles = musicFiles;
+        if (searchKeyword) {
+            const lowerKeyword = searchKeyword.toLowerCase();
+            
+            // 只基于文件名搜索（快速）
+            filteredFiles = musicFiles.filter(f => 
+                f.filename.toLowerCase().includes(lowerKeyword)
+            );
+            
+            // 搜索结果也需要分页，只解析当前页文件的元数据
+            const totalFiles = filteredFiles.length;
+            const totalPages = Math.ceil(totalFiles / pageSize);
+            const startIndex = (page - 1) * pageSize;
+            const endIndex = startIndex + pageSize;
+            const pageFiles = filteredFiles.slice(startIndex, endIndex);
+            
+            // 只解析当前页文件的元数据
+            const filesWithMetadata = await Promise.all(pageFiles.map(async (file) => {
+                const metadata = await getMusicMetadata(file.fullPath);
+                return {
+                    ...metadata,
+                    path: file.fullPath,
+                    folderPath: file.folderPath
+                };
+            }));
+            
+            return res.json({ 
+                success: true, 
+                folders: [],
+                files: filesWithMetadata,
+                currentPath: folderPath,
+                totalFiles: totalFiles,
+                page: page,
+                pageSize: pageSize,
+                totalPages: totalPages
+            });
+        }
+
+        // 无搜索时：只获取当前页的文件元数据
+        const totalFiles = musicFiles.length;
+        const totalPages = Math.ceil(totalFiles / pageSize);
+        const startIndex = (page - 1) * pageSize;
+        const endIndex = startIndex + pageSize;
+        const pageFiles = musicFiles.slice(startIndex, endIndex);
+        
+        // 只解析当前页文件的元数据
+        const filesWithMetadata = await Promise.all(pageFiles.map(async (file) => {
+            const metadata = await getMusicMetadata(file.fullPath);
+            return {
+                ...metadata,
+                path: file.fullPath,
+                folderPath: file.folderPath
+            };
+        }));
 
         res.json({ 
             success: true, 
             folders: folders,
-            files: files,
-            currentPath: folderPath
+            files: filesWithMetadata,
+            currentPath: folderPath,
+            totalFiles: totalFiles,
+            page: page,
+            pageSize: pageSize,
+            totalPages: totalPages
         });
     } catch (error) {
         console.error('获取文件夹列表失败:', error.message);

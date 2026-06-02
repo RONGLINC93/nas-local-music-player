@@ -1033,6 +1033,132 @@ body {
     font-size: 14px;
 }
 
+/* 文件夹卡片菜单 */
+.folder-card-menu-wrapper {
+    position: relative;
+    display: none;
+}
+
+.folder-card-menu-btn {
+    background-color: #f3f4f6;
+    color: #6b7280;
+}
+
+.folder-card-menu-btn:hover {
+    background-color: #e5e7eb;
+    color: #374151;
+}
+
+.folder-card-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 8px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    min-width: 140px;
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.folder-card-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-size: 13px;
+    color: #333;
+}
+
+.folder-card-menu-item:hover {
+    background: #f5f5f5;
+}
+
+.folder-card-menu-item i {
+    width: 16px;
+    text-align: center;
+    color: #666;
+    font-size: 13px;
+}
+
+.folder-card-menu-item-danger {
+    color: #ef4444;
+}
+
+.folder-card-menu-item-danger:hover {
+    background: #fef2f2;
+}
+
+.folder-card-menu-item-danger i {
+    color: #ef4444;
+}
+
+/* 批量操作菜单 */
+.batch-more-menu-wrapper {
+    position: relative;
+    display: none;
+}
+
+.batch-more-btn {
+    background-color: #f3f4f6;
+    color: #6b7280;
+}
+
+.batch-more-btn:hover {
+    background-color: #e5e7eb;
+    color: #374151;
+}
+
+.batch-more-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 8px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    min-width: 140px;
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.batch-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-size: 13px;
+    color: #333;
+}
+
+.batch-menu-item:hover {
+    background: #f5f5f5;
+}
+
+.batch-menu-item i {
+    width: 16px;
+    text-align: center;
+    color: #666;
+    font-size: 13px;
+}
+
+.batch-menu-item-danger {
+    color: #ef4444;
+}
+
+.batch-menu-item-danger:hover {
+    background: #fef2f2;
+}
+
+.batch-menu-item-danger i {
+    color: #ef4444;
+}
+
 /* 文件夹音乐列表 */
 .folder-music-list {
     padding: 10px;
@@ -1552,6 +1678,31 @@ body {
     .batch-download-btn,
     .batch-delete-btn {
         padding: 10px;
+    }
+    
+    /* 移动端隐藏文件夹卡片的单独操作按钮，只显示菜单按钮 */
+    .folder-card-actions .folder-play-btn,
+    .folder-card-actions .folder-rename-btn,
+    .folder-card-actions .folder-dissolve-btn,
+    .folder-card-actions .folder-delete-btn {
+        display: none;
+    }
+    
+    .folder-card-menu-wrapper {
+        display: block;
+    }
+    
+    /* 移动端隐藏批量操作栏的单独按钮，只显示菜单按钮 */
+    .batch-actions-right .batch-add-btn,
+    .batch-actions-right .batch-move-btn,
+    .batch-actions-right .batch-delete-btn,
+    .batch-actions-right .batch-download-btn,
+    .batch-actions-right .batch-convert-btn {
+        display: none;
+    }
+    
+    .batch-more-menu-wrapper {
+        display: block;
     }
 }
 
@@ -5718,6 +5869,11 @@ body {
     white-space: nowrap;
 }
 
+.pagination-controls-wrapper {
+    display: flex;
+    justify-content: center;
+}
+
 .pagination-controls {
     display: flex;
     align-items: center;
@@ -5764,6 +5920,66 @@ body {
     font-size: 13px;
 }
 
+.pagination-current-page {
+    display: none;
+    padding: 0 12px;
+    color: #6b7280;
+    font-size: 14px;
+    font-weight: 500;
+    min-width: 60px;
+    text-align: center;
+}
+
+.pagination-jump {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    margin-left: 12px;
+    padding-left: 12px;
+    border-left: 1px solid #e5e7eb;
+}
+
+.pagination-jump-input {
+    width: 60px;
+    padding: 4px 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 13px;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.pagination-jump-input:focus {
+    border-color: #3b82f6;
+}
+
+.pagination-jump-btn {
+    padding: 4px 12px;
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.pagination-jump-btn:hover {
+    background-color: #2563eb;
+}
+
+/* 桌面端样式 */
+@media (min-width: 769px) {
+    .pagination-current-page {
+        display: none;
+    }
+    
+    .pagination-jump {
+        display: flex;
+    }
+}
+
 .pagination-size {
     display: flex;
     align-items: center;
@@ -5808,21 +6024,41 @@ body {
     
     .pagination-info {
         order: 1;
+        text-align: center;
+    }
+    
+    .pagination-controls-wrapper {
+        order: 2;
+        width: 100%;
     }
     
     .pagination-controls {
-        order: 2;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         justify-content: center;
+        padding: 0;
+    }
+    
+    /* 移动端隐藏数字页码，只保留导航按钮 */
+    .pagination-controls .pagination-btn:not(.disabled):not(.mobile-visible) {
+        display: none;
+    }
+    
+    .pagination-ellipsis {
+        display: none;
+    }
+    
+    .pagination-current-page {
+        display: inline-block;
     }
     
     .pagination-size {
         order: 3;
+        justify-content: center;
     }
     
     .pagination-btn {
-        min-width: 28px;
-        height: 28px;
-        font-size: 12px;
+        min-width: 36px;
+        height: 36px;
+        font-size: 14px;
     }
 }

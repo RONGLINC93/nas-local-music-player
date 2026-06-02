@@ -269,6 +269,37 @@
                         <button onclick="batchConvertToMp3()" class="batch-action-btn batch-convert-btn" title="转MP3" disabled>
                             <i class="fas fa-exchange-alt"></i>
                         </button>
+                        <div class="batch-more-menu-wrapper">
+                            <button onclick="toggleBatchMoreMenu(event)" class="batch-action-btn batch-more-btn" title="更多操作">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <div id="batchMoreMenu" class="batch-more-menu" style="display: none;">
+                                <div class="batch-menu-item" onclick="createNewFolder(); closeBatchMoreMenu();">
+                                    <i class="fas fa-folder-plus"></i>
+                                    <span>新建文件夹</span>
+                                </div>
+                                <div class="batch-menu-item" onclick="batchAddToPlaylist(); closeBatchMoreMenu();" id="batchMenuAdd">
+                                    <i class="fas fa-plus"></i>
+                                    <span>加入播放列表</span>
+                                </div>
+                                <div class="batch-menu-item" onclick="batchMoveFiles(); closeBatchMoreMenu();" id="batchMenuMove">
+                                    <i class="fas fa-arrows-alt"></i>
+                                    <span>移动</span>
+                                </div>
+                                <div class="batch-menu-item" onclick="batchDownloadFiles(); closeBatchMoreMenu();" id="batchMenuDownload">
+                                    <i class="fas fa-download"></i>
+                                    <span>下载</span>
+                                </div>
+                                <div class="batch-menu-item" onclick="batchConvertToMp3(); closeBatchMoreMenu();" id="batchMenuConvert">
+                                    <i class="fas fa-exchange-alt"></i>
+                                    <span>转MP3</span>
+                                </div>
+                                <div class="batch-menu-item batch-menu-item-danger" onclick="batchDeleteFiles(); closeBatchMoreMenu();" id="batchMenuDelete">
+                                    <i class="fas fa-trash"></i>
+                                    <span>删除</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

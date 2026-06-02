@@ -3859,18 +3859,23 @@ function renderFolderPagination(totalItems, totalPages) {
     html += `显示 ${startItem}-${endItem} 条，共 ${totalItems} 条`;
     html += '</div>';
     
+    html += '<div class="pagination-controls-wrapper">';
     html += '<div class="pagination-controls">';
     
-    html += `<button class="pagination-btn ${folderCurrentPage === 1 ? 'disabled' : ''}" 
+    html += `<button class="pagination-btn mobile-visible ${folderCurrentPage === 1 ? 'disabled' : ''}" 
         onclick="changeFolderPage(1)" ${folderCurrentPage === 1 ? 'disabled' : ''}>
         <i class="fas fa-angle-double-left"></i>
     </button>`;
     
-    html += `<button class="pagination-btn ${folderCurrentPage === 1 ? 'disabled' : ''}" 
+    html += `<button class="pagination-btn mobile-visible ${folderCurrentPage === 1 ? 'disabled' : ''}" 
         onclick="changeFolderPage(${folderCurrentPage - 1})" ${folderCurrentPage === 1 ? 'disabled' : ''}>
         <i class="fas fa-angle-left"></i>
     </button>`;
     
+    // 显示当前页码信息（移动端使用）
+    html += `<span class="pagination-current-page">${folderCurrentPage} / ${totalPages}</span>`;
+    
+    // 桌面端显示页码数字
     const maxVisiblePages = 5;
     let startPage = Math.max(1, folderCurrentPage - Math.floor(maxVisiblePages / 2));
     let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
@@ -3898,16 +3903,24 @@ function renderFolderPagination(totalItems, totalPages) {
         html += `<button class="pagination-btn" onclick="changeFolderPage(${totalPages})">${totalPages}</button>`;
     }
     
-    html += `<button class="pagination-btn ${folderCurrentPage === totalPages ? 'disabled' : ''}" 
+    html += `<button class="pagination-btn mobile-visible ${folderCurrentPage === totalPages ? 'disabled' : ''}" 
         onclick="changeFolderPage(${folderCurrentPage + 1})" ${folderCurrentPage === totalPages ? 'disabled' : ''}>
         <i class="fas fa-angle-right"></i>
     </button>`;
     
-    html += `<button class="pagination-btn ${folderCurrentPage === totalPages ? 'disabled' : ''}" 
+    html += `<button class="pagination-btn mobile-visible ${folderCurrentPage === totalPages ? 'disabled' : ''}" 
         onclick="changeFolderPage(${totalPages})" ${folderCurrentPage === totalPages ? 'disabled' : ''}>
         <i class="fas fa-angle-double-right"></i>
     </button>`;
     
+    // 桌面端快速跳转输入框
+    html += '<div class="pagination-jump desktop-visible">';
+    html += `<input type="number" class="pagination-jump-input" id="folderJumpPage" 
+        min="1" max="${totalPages}" placeholder="页码" value="${folderCurrentPage}">`;
+    html += `<button class="pagination-jump-btn" onclick="jumpToFolderPage(${totalPages})">跳转</button>`;
+    html += '</div>';
+    
+    html += '</div>';
     html += '</div>';
     
     html += '<div class="pagination-size">';
@@ -3941,6 +3954,18 @@ async function changeFolderPageSize(size) {
     await loadFolderData(currentFolderPath, 1, FOLDER_PAGE_SIZE, folderSearchKeyword || undefined);
 }
 
+async function jumpToFolderPage(totalPages) {
+    const input = document.getElementById('folderJumpPage');
+    if (!input) return;
+    
+    let page = parseInt(input.value);
+    if (isNaN(page)) page = 1;
+    page = Math.max(1, Math.min(page, totalPages));
+    
+    input.value = page;
+    await changeFolderPage(page);
+}
+
 // 添加文件夹到视图
 function addFolderToView(folder) {
     const folderGrid = document.getElementById('folderGrid');
@@ -3964,9 +3989,11 @@ function addFileToView(track, index) {
 // 创建文件夹卡片 HTML
 function createFolderCardHTML(folder) {
     const escapedPath = folder.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const folderName = folder.name.replace(/'/g, "\\'");
     // 构建完整的目标路径（以 /music 开头）
     const fullTargetPath = folder.path.startsWith('/') ? folder.path : `/music/${folder.path}`;
     const escapedTargetPath = fullTargetPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const uniqueId = `folder-menu-${escapedPath.replace(/[^a-zA-Z0-9]/g, '-')}`;
     
     return `
         <div class="folder-card" 
@@ -3988,15 +4015,38 @@ function createFolderCardHTML(folder) {
                 <button onclick="event.stopPropagation(); playFolder('${escapedPath}')" class="folder-play-btn" title="播放此文件夹">
                     <i class="fas fa-play"></i>
                 </button>
-                <button onclick="event.stopPropagation(); openRenameFolderModal('${escapedPath}', '${folder.name.replace(/'/g, "\\'")}')" class="folder-icon-btn folder-rename-btn" title="重命名">
+                <button onclick="event.stopPropagation(); openRenameFolderModal('${escapedPath}', '${folderName}')" class="folder-icon-btn folder-rename-btn" title="重命名">
                     <i class="fas fa-edit"></i>
                 </button>
-                <button onclick="event.stopPropagation(); openDissolveFolderModal('${escapedPath}', '${folder.name.replace(/'/g, "\\'")}')" class="folder-icon-btn folder-dissolve-btn" title="解散">
+                <button onclick="event.stopPropagation(); openDissolveFolderModal('${escapedPath}', '${folderName}')" class="folder-icon-btn folder-dissolve-btn" title="解散">
                     <i class="fas fa-box-open"></i>
                 </button>
-                <button onclick="event.stopPropagation(); openDeleteFolderModal('${escapedPath}', '${folder.name.replace(/'/g, "\\'")}')" class="folder-icon-btn folder-delete-btn" title="删除">
+                <button onclick="event.stopPropagation(); openDeleteFolderModal('${escapedPath}', '${folderName}')" class="folder-icon-btn folder-delete-btn" title="删除">
                     <i class="fas fa-trash"></i>
                 </button>
+                <div class="folder-card-menu-wrapper">
+                    <button onclick="event.stopPropagation(); toggleFolderCardMenu(event, '${uniqueId}')" class="folder-icon-btn folder-card-menu-btn" title="更多操作">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <div id="${uniqueId}" class="folder-card-menu" style="display: none;">
+                        <div class="folder-card-menu-item" onclick="event.stopPropagation(); playFolder('${escapedPath}'); closeFolderCardMenu('${uniqueId}');">
+                            <i class="fas fa-play"></i>
+                            <span>播放</span>
+                        </div>
+                        <div class="folder-card-menu-item" onclick="event.stopPropagation(); openRenameFolderModal('${escapedPath}', '${folderName}'); closeFolderCardMenu('${uniqueId}');">
+                            <i class="fas fa-edit"></i>
+                            <span>重命名</span>
+                        </div>
+                        <div class="folder-card-menu-item" onclick="event.stopPropagation(); openDissolveFolderModal('${escapedPath}', '${folderName}'); closeFolderCardMenu('${uniqueId}');">
+                            <i class="fas fa-box-open"></i>
+                            <span>解散</span>
+                        </div>
+                        <div class="folder-card-menu-item folder-card-menu-item-danger" onclick="event.stopPropagation(); openDeleteFolderModal('${escapedPath}', '${folderName}'); closeFolderCardMenu('${uniqueId}');">
+                            <i class="fas fa-trash"></i>
+                            <span>删除</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     `;
@@ -4163,6 +4213,77 @@ function closeFolderMoreMenu() {
     if (menu) {
         menu.style.display = 'none';
     }
+}
+
+// 文件夹卡片菜单
+function toggleFolderCardMenu(event, menuId) {
+    event.stopPropagation();
+    const menu = document.getElementById(menuId);
+    if (menu) {
+        const isVisible = menu.style.display !== 'none';
+        menu.style.display = isVisible ? 'none' : 'block';
+        
+        if (!isVisible) {
+            setTimeout(() => {
+                document.addEventListener('click', function closeHandler(e) {
+                    const targetMenu = document.getElementById(menuId);
+                    if (targetMenu && !targetMenu.contains(e.target) && !e.target.classList.contains('folder-card-menu-btn')) {
+                        targetMenu.style.display = 'none';
+                    }
+                    document.removeEventListener('click', closeHandler);
+                }, { once: true });
+            }, 0);
+        }
+    }
+}
+
+function closeFolderCardMenu(menuId) {
+    const menu = document.getElementById(menuId);
+    if (menu) {
+        menu.style.display = 'none';
+    }
+}
+
+// 批量操作菜单
+function toggleBatchMoreMenu(event) {
+    event.stopPropagation();
+    const menu = document.getElementById('batchMoreMenu');
+    if (menu) {
+        const isVisible = menu.style.display !== 'none';
+        menu.style.display = isVisible ? 'none' : 'block';
+        
+        if (!isVisible) {
+            setTimeout(() => {
+                document.addEventListener('click', closeBatchMoreMenu, { once: true });
+            }, 0);
+        }
+    }
+}
+
+function closeBatchMoreMenu() {
+    const menu = document.getElementById('batchMoreMenu');
+    if (menu) {
+        menu.style.display = 'none';
+    }
+}
+
+// 更新批量菜单按钮状态
+function updateBatchMenuStatus() {
+    const hasSelection = selectedFiles.size > 0;
+    const menuItems = ['batchMenuAdd', 'batchMenuMove', 'batchMenuDownload', 'batchMenuConvert', 'batchMenuDelete'];
+    
+    menuItems.forEach(id => {
+        const item = document.getElementById(id);
+        if (item) {
+            if (id === 'batchMenuDelete' || id === 'batchMenuConvert') {
+                item.style.opacity = hasSelection ? '1' : '0.5';
+                item.style.pointerEvents = hasSelection ? 'auto' : 'none';
+            } else {
+                item.style.opacity = hasSelection ? '1' : '0.5';
+                item.style.pointerEvents = hasSelection ? 'auto' : 'none';
+            }
+        }
+    });
 }
 
 // 打开文件夹（优先使用缓存）
@@ -4438,6 +4559,8 @@ function updateBatchActions() {
             }
             btn.disabled = !hasSelection;
         });
+        
+        updateBatchMenuStatus();
     }
 }
 

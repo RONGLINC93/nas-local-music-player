@@ -1,6 +1,88 @@
 {
-  "timestamp": 1780364153077,
+  "timestamp": 1780371000880,
   "folders": [
+    {
+      "name": "123",
+      "path": "123",
+      "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\123",
+      "musicCount": 0,
+      "hasSubFolders": false,
+      "folders": [],
+      "files": []
+    },
+    {
+      "name": "1234",
+      "path": "1234",
+      "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\1234",
+      "musicCount": 0,
+      "hasSubFolders": false,
+      "folders": [],
+      "files": []
+    },
+    {
+      "name": "12345",
+      "path": "12345",
+      "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\12345",
+      "musicCount": 0,
+      "hasSubFolders": false,
+      "folders": [],
+      "files": []
+    },
+    {
+      "name": "123456",
+      "path": "123456",
+      "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\123456",
+      "musicCount": 0,
+      "hasSubFolders": false,
+      "folders": [],
+      "files": []
+    },
+    {
+      "name": "32121",
+      "path": "32121",
+      "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\32121",
+      "musicCount": 0,
+      "hasSubFolders": false,
+      "folders": [],
+      "files": []
+    },
+    {
+      "name": "3232",
+      "path": "3232",
+      "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\3232",
+      "musicCount": 0,
+      "hasSubFolders": false,
+      "folders": [
+        {
+          "name": "我的",
+          "path": "3232/我的",
+          "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\3232\\我的",
+          "musicCount": 0,
+          "hasSubFolders": false,
+          "folders": [],
+          "files": []
+        }
+      ],
+      "files": []
+    },
+    {
+      "name": "4312",
+      "path": "4312",
+      "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\4312",
+      "musicCount": 0,
+      "hasSubFolders": false,
+      "folders": [],
+      "files": []
+    },
+    {
+      "name": "我的",
+      "path": "我的",
+      "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\我的",
+      "musicCount": 0,
+      "hasSubFolders": false,
+      "folders": [],
+      "files": []
+    },
     {
       "name": "新建文件夹 (2)",
       "path": "新建文件夹 (2)",
@@ -410,6 +492,6 @@
     }
   ],
   "totalFiles": 40,
-  "totalFolders": 5,
+  "totalFolders": 14,
   "path": ""
 }

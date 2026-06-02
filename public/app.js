@@ -4735,8 +4735,85 @@ function selectMoveTarget(path, element) {
 
 async function confirmMoveFiles() {
     const btnConfirm = document.getElementById('btnConfirmMove');
-    if (!selectedMoveTarget || selectedMusicFiles.size === 0) return;
+    if (selectedMusicFiles.size === 0) return;
     if (btnConfirm && btnConfirm.disabled) return;
+    
+    // 检查是否有输入新文件夹名称
+    const newFolderInput = document.getElementById('newFolderInMoveInput');
+    const newFolderName = newFolderInput ? newFolderInput.value.trim() : '';
+    
+    let targetFolder = selectedMoveTarget;
+    
+    // 如果输入了新文件夹名称，先创建文件夹
+    if (newFolderName) {
+        // 检查非法字符
+        const invalidChars = /[\\/:*?"<>|]/;
+        if (invalidChars.test(newFolderName)) {
+            showError('文件夹名称包含非法字符');
+            return;
+        }
+        
+        // 确定父文件夹路径
+        const parentPath = selectedMoveTarget || '/music';
+        
+        try {
+            const createResponse = await fetch('/api/create-folder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    parentPath: parentPath,
+                    folderName: newFolderName
+                })
+            });
+            
+            const createResult = await createResponse.json();
+            if (!createResult.success) {
+                showError(createResult.error || '创建文件夹失败');
+                return;
+            }
+            
+            showSuccess(createResult.message);
+            
+            // 计算新文件夹的完整路径（需要以 /music 开头）
+            targetFolder = parentPath === '/music' ? `/music/${newFolderName}` : `${parentPath}/${newFolderName}`;
+            
+            // 更新 folderCacheData
+            if (folderCacheData) {
+                const targetPath = parentPath === '/music' ? '' : parentPath;
+                const newFolderData = {
+                    name: newFolderName,
+                    path: targetPath ? `${targetPath}/${newFolderName}` : newFolderName,
+                    fullPath: '',
+                    musicCount: 0,
+                    hasSubFolders: false,
+                    folders: [],
+                    files: []
+                };
+                
+                if (targetPath === '') {
+                    if (!folderCacheData.folders) folderCacheData.folders = [];
+                    folderCacheData.folders.push(newFolderData);
+                    folderCacheData.folders.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+                } else {
+                    const targetFolderObj = findFolderInCache(folderCacheData.folders, targetPath);
+                    if (targetFolderObj) {
+                        if (!targetFolderObj.folders) targetFolderObj.folders = [];
+                        targetFolderObj.folders.push(newFolderData);
+                        targetFolderObj.folders.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('创建文件夹失败:', error);
+            showError('创建文件夹失败');
+            return;
+        }
+    }
+    
+    if (!targetFolder) {
+        showError('请选择目标文件夹或输入新文件夹名称');
+        return;
+    }
     
     if (btnConfirm) {
         btnConfirm.disabled = true;
@@ -4749,7 +4826,7 @@ async function confirmMoveFiles() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
                 files: Array.from(selectedMusicFiles),
-                targetFolder: selectedMoveTarget
+                targetFolder: targetFolder
             })
         });
         
@@ -4791,6 +4868,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnConfirmMove = document.getElementById('btnConfirmMove');
     if (btnConfirmMove) {
         btnConfirmMove.addEventListener('click', confirmMoveFiles);
+    }
+    
+    // 监听新建文件夹输入框，输入内容时启用确认按钮
+    const newFolderInMoveInput = document.getElementById('newFolderInMoveInput');
+    if (newFolderInMoveInput) {
+        newFolderInMoveInput.addEventListener('input', () => {
+            const hasInput = newFolderInMoveInput.value.trim().length > 0;
+            if (hasInput && selectedMusicFiles.size > 0) {
+                btnConfirmMove.disabled = false;
+            } else if (!selectedMoveTarget) {
+                btnConfirmMove.disabled = true;
+            }
+        });
     }
 });
 

@@ -798,6 +798,19 @@ body {
     margin-left: 0;
 }
 
+.move-new-folder-input {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #e2e8f0;
+}
+
+.move-new-folder-input label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 14px;
+    color: #64748b;
+}
+
 .batch-select-all input[type="checkbox"] {
     width: 16px;
     height: 16px;

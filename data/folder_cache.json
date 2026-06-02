@@ -1,5 +1,5 @@
 {
-  "timestamp": 1780371000880,
+  "timestamp": 1780376383877,
   "folders": [
     {
       "name": "123",
@@ -89,7 +89,17 @@
       "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\新建文件夹 (2)",
       "musicCount": 0,
       "hasSubFolders": false,
-      "folders": [],
+      "folders": [
+        {
+          "name": "我的",
+          "path": "新建文件夹 (2)/我的",
+          "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\新建文件夹 (2)\\我的",
+          "musicCount": 0,
+          "hasSubFolders": false,
+          "folders": [],
+          "files": []
+        }
+      ],
       "files": []
     },
     {
@@ -492,6 +502,6 @@
     }
   ],
   "totalFiles": 40,
-  "totalFolders": 14,
+  "totalFolders": 15,
   "path": ""
 }

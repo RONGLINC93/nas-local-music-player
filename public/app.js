@@ -2917,6 +2917,10 @@ async function loadFolderData(folderPath, page, pageSize, search) {
             folderTotalPages = result.totalPages || 0;
             folderCurrentPage = result.page || 1;
             FOLDER_PAGE_SIZE = result.pageSize || 20;
+            
+            // 切换文件夹时清空选中状态
+            clearSelection();
+            
             renderFolderSections();
         } else {
             throw new Error(result.error || '加载失败');
@@ -4630,6 +4634,9 @@ function openMoveModal() {
     const btnConfirm = document.getElementById('btnConfirmMove');
     btnConfirm.disabled = true;
     
+    // 渲染待移动文件列表
+    renderMoveFileList();
+    
     // 加载并渲染文件夹树
     renderFolderTree();
     
@@ -4637,11 +4644,54 @@ function openMoveModal() {
     document.body.style.overflow = 'hidden';
 }
 
+function renderMoveFileList() {
+    const fileListEl = document.getElementById('moveFileList');
+    const fileCountEl = document.getElementById('moveFileCount');
+    
+    if (!fileListEl || !fileCountEl) return;
+    
+    const files = Array.from(selectedMusicFiles);
+    fileCountEl.textContent = files.length;
+    
+    if (files.length === 0) {
+        fileListEl.innerHTML = '<div class="move-file-item"><span>未选择文件</span></div>';
+        return;
+    }
+    
+    fileListEl.innerHTML = '';
+    files.forEach(filePath => {
+        const fileName = filePath.split(/[\\/]/).pop();
+        const item = document.createElement('div');
+        item.className = 'move-file-item';
+        item.innerHTML = `
+            <i class="fas fa-music"></i>
+            <span title="${filePath}">${fileName}</span>
+        `;
+        fileListEl.appendChild(item);
+    });
+}
+
 function closeMoveModal() {
     const modal = document.getElementById('moveModal');
     modal.classList.remove('show');
     document.body.style.overflow = '';
     selectedMoveTarget = null;
+    
+    // 清空新建文件夹输入框
+    const newFolderInput = document.getElementById('newFolderInMoveInput');
+    if (newFolderInput) {
+        newFolderInput.value = '';
+    }
+    
+    // 清空文件列表显示
+    const fileListEl = document.getElementById('moveFileList');
+    const fileCountEl = document.getElementById('moveFileCount');
+    if (fileListEl) {
+        fileListEl.innerHTML = '';
+    }
+    if (fileCountEl) {
+        fileCountEl.textContent = '0';
+    }
 }
 
 function renderFolderTree() {

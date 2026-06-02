@@ -798,6 +798,56 @@ body {
     margin-left: 0;
 }
 
+.move-file-list-header {
+    margin-bottom: 8px;
+}
+
+.move-file-list-header p {
+    margin: 0;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.move-file-list {
+    max-height: 150px;
+    overflow-y: auto;
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 8px;
+    margin-bottom: 12px;
+}
+
+.move-file-item {
+    display: flex;
+    align-items: center;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 13px;
+    transition: background-color 0.2s;
+}
+
+.move-file-item:hover {
+    background-color: #e2e8f0;
+}
+
+.move-file-item i {
+    margin-right: 8px;
+    color: #3b82f6;
+}
+
+.move-file-item span {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.move-divider {
+    height: 1px;
+    background: #e2e8f0;
+    margin: 16px 0;
+}
+
 .move-new-folder-input {
     margin-top: 12px;
     padding-top: 12px;

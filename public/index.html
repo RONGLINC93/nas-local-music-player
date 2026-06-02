@@ -866,6 +866,13 @@
                 <button onclick="closeMoveModal()" class="close-btn">×</button>
             </div>
             <div class="modal-body">
+                <div class="move-file-list-header">
+                    <p>待移动文件（<span id="moveFileCount">0</span> 个）：</p>
+                </div>
+                <div class="move-file-list" id="moveFileList">
+                    <!-- 文件列表将动态生成 -->
+                </div>
+                <div class="move-divider"></div>
                 <p>选择目标文件夹：</p>
                 <div class="folder-tree" id="folderTree">
                     <!-- 文件夹树将动态生成 -->

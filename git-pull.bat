@@ -1,24 +1,23 @@
 @echo off
-chcp 65001 >nul
-title Git Pull 一键拉取
+title Git Pull
 
 echo ======================================
-echo         Git Pull 一键拉取脚本
+echo         Git Pull Script
 echo ======================================
 echo.
 
-echo 📁 当前目录: %cd%
+echo Directory: %cd%
 echo.
 
-echo 🔄 拉取远程最新代码...
+echo Pulling...
 git pull
 
 if errorlevel 1 (
     echo.
-    echo ❌ 拉取失败
+    echo FAILED
 ) else (
     echo.
-    echo ✅ 拉取成功！
+    echo SUCCESS
 )
 
 echo.

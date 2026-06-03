@@ -1,5 +1,5 @@
 {
-  "timestamp": 1780396379979,
+  "timestamp": 1780447316474,
   "folders": [
     {
       "name": "1234",
@@ -7,7 +7,17 @@
       "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\1234",
       "musicCount": 0,
       "hasSubFolders": false,
-      "folders": [],
+      "folders": [
+        {
+          "name": "123123",
+          "path": "1234/123123",
+          "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\1234\\123123",
+          "musicCount": 0,
+          "hasSubFolders": false,
+          "folders": [],
+          "files": []
+        }
+      ],
       "files": []
     },
     {
@@ -115,6 +125,15 @@
       "name": "新建文件夹 (6)",
       "path": "新建文件夹 (6)",
       "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\新建文件夹 (6)",
+      "musicCount": 0,
+      "hasSubFolders": false,
+      "folders": [],
+      "files": []
+    },
+    {
+      "name": "银河快递",
+      "path": "银河快递",
+      "fullPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\银河快递",
       "musicCount": 0,
       "hasSubFolders": false,
       "folders": [],
@@ -484,6 +503,6 @@
     }
   ],
   "totalFiles": 40,
-  "totalFolders": 13,
+  "totalFolders": 15,
   "path": ""
 }

@@ -23,7 +23,7 @@
 
 ## 用户偏好 (User Preferences)
 - 当用户说"发布"时，执行完整发布流程（release.ps1）
-- 当用户说"上传更新文件"时，只执行 git push，不发布
+- 当用户说"推送"时，只执行 git push，不发布
 - **修改代码后，更新 CHANGELOG.md，不发布**
 
 ## 发布流程详解

@@ -6154,3 +6154,627 @@ body {
         font-size: 14px;
     }
 }
+
+/* ========== 在线音乐视图 ========== */
+.online-search-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+}
+
+.online-source-select {
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: white;
+    color: #374151;
+    font-size: 14px;
+    outline: none;
+    cursor: pointer;
+    min-width: 120px;
+    transition: border-color 0.2s;
+}
+
+.online-source-select:hover {
+    border-color: #9ca3af;
+}
+
+.online-source-select:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.online-search-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.online-search-input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.online-search-btn {
+    padding: 8px 16px;
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.online-search-btn:hover {
+    background-color: #2563eb;
+}
+
+.online-results-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.online-results {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 20px 20px;
+}
+
+.online-source-group {
+    margin-bottom: 20px;
+}
+
+.online-source-header {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1e3a8a;
+    padding: 10px 0;
+    border-bottom: 2px solid #e5e7eb;
+    margin-bottom: 10px;
+}
+
+.online-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid #f0f0f0;
+    gap: 12px;
+    transition: background-color 0.2s;
+}
+
+.online-item:hover {
+    background-color: #f9fafb;
+}
+
+.online-item-pic {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background-color: #e5e7eb;
+}
+
+.online-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.online-item-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-bottom: 2px;
+}
+
+.online-item-artist {
+    font-size: 12px;
+    color: #888;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.online-item-album {
+    font-size: 12px;
+    color: #999;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 150px;
+}
+
+.online-item-interval {
+    font-size: 12px;
+    color: #999;
+    flex-shrink: 0;
+    width: 50px;
+    text-align: right;
+}
+
+.online-item-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.online-play-btn,
+.online-download-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.online-play-btn {
+    background-color: #3b82f6;
+    color: white;
+}
+
+.online-play-btn:hover {
+    background-color: #2563eb;
+    transform: scale(1.1);
+}
+
+.online-download-btn {
+    background-color: #10b981;
+    color: white;
+}
+
+.online-download-btn:hover {
+    background-color: #059669;
+    transform: scale(1.1);
+}
+
+.online-loading {
+    text-align: center;
+    padding: 40px;
+    color: #6b7280;
+}
+
+.online-loading i {
+    font-size: 24px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 10px;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* 移动端在线音乐视图 */
+@media (max-width: 768px) {
+    .online-search-bar {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .online-source-select {
+        width: 100%;
+    }
+    
+    .online-search-input {
+        width: 100%;
+    }
+    
+    .online-search-btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .online-item {
+        padding: 8px;
+        gap: 8px;
+    }
+    
+    .online-item-pic {
+        width: 36px;
+        height: 36px;
+    }
+    
+    .online-item-album {
+        display: none;
+    }
+    
+    .online-item-actions {
+        gap: 4px;
+    }
+    
+    .online-play-btn,
+    .online-download-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 12px;
+    }
+}
+
+/* ========== 在线设置视图 ========== */
+.online-settings-section {
+    padding: 20px;
+    max-width: 800px;
+}
+
+.online-setting-card {
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.online-setting-card h4 {
+    font-size: 16px;
+    color: #1e3a8a;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.online-setting-card h4 i {
+    font-size: 18px;
+}
+
+.setting-description {
+    font-size: 13px;
+    color: #6b7280;
+    margin-bottom: 15px;
+}
+
+.source-file-list {
+    min-height: 100px;
+    margin-bottom: 15px;
+}
+
+.source-file-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid #f0f0f0;
+    gap: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.source-file-item:last-child {
+    border-bottom: none;
+}
+
+.source-file-item:hover {
+    background: #f9fafb;
+}
+
+.source-file-item.selected {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+}
+
+.source-file-checkbox {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border: 2px solid #d1d5db;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s;
+}
+
+.source-file-item.selected .source-file-checkbox {
+    background: #3b82f6;
+    border-color: #3b82f6;
+}
+
+.source-file-checkbox i {
+    font-size: 10px;
+    color: white;
+    display: none;
+}
+
+.source-file-item.selected .source-file-checkbox i {
+    display: block;
+}
+
+.source-file-status {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+
+.source-file-status.active {
+    background: #d1fae5;
+    color: #059669;
+}
+
+.source-file-status.inactive {
+    background: #f3f4f6;
+    color: #9ca3af;
+}
+
+.source-file-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    background: #f3f4f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #3b82f6;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.source-file-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.source-file-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.source-file-size {
+    font-size: 12px;
+    color: #999;
+}
+
+.source-file-actions-row {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.source-file-delete-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    background: #fee2e2;
+    color: #ef4444;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.source-file-delete-btn:hover {
+    background: #fecaca;
+}
+
+.source-file-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.source-upload-btn,
+.source-refresh-btn,
+.source-apply-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+}
+
+.source-upload-btn {
+    background: #3b82f6;
+    color: white;
+}
+
+.source-upload-btn:hover {
+    background: #2563eb;
+}
+
+.source-refresh-btn {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.source-refresh-btn:hover {
+    background: #e5e7eb;
+}
+
+.source-apply-btn {
+    background: #10b981;
+    color: white;
+}
+
+.source-apply-btn:hover {
+    background: #059669;
+}
+
+.setting-item {
+    margin-bottom: 15px;
+}
+
+.setting-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 6px;
+}
+
+.setting-select {
+    width: 100%;
+    max-width: 300px;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: white;
+    color: #374151;
+    font-size: 14px;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.setting-select:hover {
+    border-color: #9ca3af;
+}
+
+.setting-select:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+/* 上传音源文件模态框 */
+.upload-source-dropzone {
+    border: 2px dashed #d1d5db;
+    border-radius: 10px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #f9fafb;
+}
+
+.upload-source-dropzone:hover,
+.upload-source-dropzone.dragover {
+    border-color: #3b82f6;
+    background: #eff6ff;
+}
+
+.upload-source-dropzone i {
+    font-size: 48px;
+    color: #9ca3af;
+    margin-bottom: 10px;
+}
+
+.upload-source-dropzone p {
+    font-size: 14px;
+    color: #6b7280;
+    margin: 5px 0;
+}
+
+.upload-source-dropzone .upload-hint {
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+.upload-source-list {
+    margin-top: 15px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.upload-source-file-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 10px;
+    background: #f9fafb;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    gap: 10px;
+}
+
+.upload-source-file-name {
+    flex: 1;
+    font-size: 13px;
+    color: #374151;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.upload-source-file-remove {
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 50%;
+    background: #fee2e2;
+    color: #ef4444;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+}
+
+.upload-source-status {
+    margin-top: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.upload-progress-bar {
+    flex: 1;
+    height: 6px;
+    background: #e5e7eb;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.upload-progress-fill {
+    height: 100%;
+    background: #3b82f6;
+    border-radius: 3px;
+    transition: width 0.3s;
+}
+
+#uploadSourceStatusText {
+    font-size: 13px;
+    color: #6b7280;
+    white-space: nowrap;
+}
+
+/* 移动端在线设置 */
+@media (max-width: 768px) {
+    .online-settings-section {
+        padding: 15px;
+    }
+    
+    .online-setting-card {
+        padding: 15px;
+    }
+    
+    .source-file-actions {
+        flex-direction: column;
+    }
+    
+    .source-upload-btn,
+    .source-refresh-btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .setting-select {
+        max-width: 100%;
+    }
+}

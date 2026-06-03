@@ -25,6 +25,10 @@
                     <i class="fas fa-music nav-icon"></i>
                     <span>播放列表</span>
                 </div>
+                <div class="nav-item" data-view="online">
+                    <i class="fas fa-globe nav-icon"></i>
+                    <span>在线音乐</span>
+                </div>
                 <div class="nav-item" data-view="folder">
                     <i class="fas fa-folder nav-icon"></i>
                     <span>文件管理</span>
@@ -37,6 +41,10 @@
                 <div class="nav-item" data-view="device">
                     <i class="fas fa-volume-up nav-icon"></i>
                     <span>声卡管理</span>
+                </div>
+                <div class="nav-item" data-view="online-settings">
+                    <i class="fas fa-cog nav-icon"></i>
+                    <span>系统设置</span>
                 </div>
                 <div class="nav-item" data-view="faq">
                     <i class="fas fa-question-circle nav-icon"></i>
@@ -91,6 +99,107 @@
                             </div>
                         </div>
                         <div class="playlist" id="playlist"></div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- 在线音乐视图 -->
+            <div id="view-online" class="view">
+                <!-- 顶部栏 -->
+                <header class="top-bar">
+                    <div class="online-search-bar">
+                        <select id="onlineSourceSelect" class="online-source-select">
+                            <option value="">全部源</option>
+                            <option value="kw">酷我音乐</option>
+                            <option value="kg">酷狗音乐</option>
+                            <option value="tx">QQ音乐</option>
+                            <option value="wy">网易云音乐</option>
+                            <option value="mg">咪咕音乐</option>
+                        </select>
+                        <input type="text" id="onlineSearchInput" class="online-search-input" placeholder="搜索在线音乐..." onkeypress="if(event.key==='Enter')searchOnlineMusic()">
+                        <button onclick="searchOnlineMusic()" class="online-search-btn">
+                            <i class="fas fa-search"></i> 搜索
+                        </button>
+                    </div>
+                </header>
+
+                <!-- 内容区域 -->
+                <div class="content-area">
+                    <section class="online-results-section">
+                        <div class="section-header">
+                            <h2>搜索结果 <span class="count" id="onlineCount">(0 首)</span></h2>
+                        </div>
+                        <div class="online-results" id="onlineResults">
+                            <div class="empty-state">
+                                <i class="fas fa-globe"></i>
+                                <p>输入关键词搜索在线音乐</p>
+                                <p class="empty-hint">支持酷我、酷狗、QQ音乐、网易云、咪咕等音乐源</p>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- 系统设置视图 -->
+            <div id="view-online-settings" class="view">
+                <div class="content-area">
+                    <section class="online-settings-section">
+                        <div class="section-header">
+                            <h2>系统设置</h2>
+                        </div>
+                        
+                        <!-- 音源文件管理 -->
+                        <div class="online-setting-card">
+                            <h4><i class="fas fa-file-audio"></i> 音源文件管理</h4>
+                            <p class="setting-description">上传和管理在线音乐搜索所需的音源配置文件（.js 格式），勾选以启用</p>
+                            
+                            <div class="source-file-list" id="sourceFileList">
+                                <div class="empty-state">
+                                    <i class="fas fa-file-audio"></i>
+                                    <p>暂无音源文件</p>
+                                    <p class="empty-hint">请上传音源配置文件以启用在线搜索功能</p>
+                                </div>
+                            </div>
+                            
+                            <div class="source-file-actions">
+                                <button onclick="openUploadSourceModal()" class="source-upload-btn">
+                                    <i class="fas fa-upload"></i> 上传音源文件
+                                </button>
+                                <button onclick="refreshSourceFiles()" class="source-refresh-btn">
+                                    <i class="fas fa-sync-alt"></i> 刷新列表
+                                </button>
+                                <button onclick="applySelectedSources()" class="source-apply-btn">
+                                    <i class="fas fa-check"></i> 应用选中
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- 默认搜索设置 -->
+                        <div class="online-setting-card">
+                            <h4><i class="fas fa-sliders-h"></i> 搜索设置</h4>
+                            
+                            <div class="setting-item">
+                                <label class="setting-label">默认搜索源</label>
+                                <select id="defaultSourceSelect" class="setting-select" onchange="saveOnlineSettings()">
+                                    <option value="">全部源</option>
+                                    <option value="kw">酷我音乐</option>
+                                    <option value="kg">酷狗音乐</option>
+                                    <option value="tx">QQ音乐</option>
+                                    <option value="wy">网易云音乐</option>
+                                    <option value="mg">咪咕音乐</option>
+                                </select>
+                            </div>
+                            
+                            <div class="setting-item">
+                                <label class="setting-label">每页显示数量</label>
+                                <select id="pageSizeSelect" class="setting-select" onchange="saveOnlineSettings()">
+                                    <option value="10">10 首</option>
+                                    <option value="20" selected>20 首</option>
+                                    <option value="30">30 首</option>
+                                    <option value="50">50 首</option>
+                                </select>
+                            </div>
+                        </div>
                     </section>
                 </div>
             </div>
@@ -1490,6 +1599,39 @@
 
     <!-- 通知弹窗容器 -->
     <div id="notificationContainer" class="notification-container"></div>
+
+    <!-- 上传音源文件模态框 -->
+    <div id="uploadSourceModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-upload"></i> 上传音源文件</h3>
+                <button class="modal-close" onclick="closeUploadSourceModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="upload-source-dropzone" id="uploadSourceDropzone">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <p>拖拽音源文件到此处，或点击选择文件</p>
+                    <p class="upload-hint">支持 .js 格式的音源配置文件</p>
+                    <input type="file" id="uploadSourceInput" accept=".js" multiple style="display: none;" onchange="handleSourceFileSelect(event)">
+                </div>
+                <div class="upload-source-list" id="uploadSourceList"></div>
+                <div class="upload-source-status" id="uploadSourceStatus" style="display: none;">
+                    <div class="upload-progress-bar">
+                        <div class="upload-progress-fill" id="uploadSourceProgress"></div>
+                    </div>
+                    <span id="uploadSourceStatusText">上传中...</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeUploadSourceModal()">取消</button>
+                <button type="button" id="btnUploadSource" class="btn btn-primary" onclick="uploadSourceFiles()" disabled>
+                    <i class="fas fa-upload"></i> 开始上传
+                </button>
+            </div>
+        </div>
+    </div>
 
     <script src="app.js?v=1.0.1"></script>
 </body>

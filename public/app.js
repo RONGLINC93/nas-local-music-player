@@ -6025,4 +6025,510 @@ function clearPlaylistSelection() {
     }
 }
 
+// ==================== 在线音乐搜索和播放 ====================
+
+let onlineSearchResults = [];
+
+// 搜索在线音乐
+async function searchOnlineMusic() {
+    const keyword = document.getElementById('onlineSearchInput').value.trim();
+    const source = document.getElementById('onlineSourceSelect').value;
+    
+    if (!keyword) {
+        showNotification({ type: 'warning', message: '请输入搜索关键词' });
+        return;
+    }
+    
+    const resultsContainer = document.getElementById('onlineResults');
+    resultsContainer.innerHTML = '<div class="online-loading"><i class="fas fa-spinner"></i><p>正在搜索...</p></div>';
+    
+    try {
+        const response = await fetch('/api/online-search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ keyword, source })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            onlineSearchResults = result.results;
+            renderOnlineResults();
+        } else {
+            resultsContainer.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>搜索失败：${result.error}</p></div>`;
+        }
+    } catch (error) {
+        console.error('在线搜索失败:', error);
+        resultsContainer.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>搜索失败，请检查网络连接</p></div>';
+    }
+}
+
+// 存储完整的歌曲信息（用于播放）
+let onlineSongCache = {};
+
+// 渲染在线搜索结果
+function renderOnlineResults() {
+    const resultsContainer = document.getElementById('onlineResults');
+    const countElement = document.getElementById('onlineCount');
+    
+    let total = 0;
+    onlineSearchResults.forEach(r => total += r.list.length);
+    countElement.textContent = `(${total} 首)`;
+    
+    if (total === 0) {
+        resultsContainer.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>未找到相关音乐</p><p class="empty-hint">请尝试其他关键词</p></div>';
+        return;
+    }
+    
+    let html = '';
+    
+    onlineSearchResults.forEach(sourceResult => {
+        html += `<div class="online-source-group">
+            <div class="online-source-header">${sourceResult.sourceName} (${sourceResult.list.length} 首)</div>`;
+        
+        sourceResult.list.forEach((song, index) => {
+            // 缓存完整的歌曲信息
+            const cacheKey = `${song.source}_${song.songId}_${index}`;
+            onlineSongCache[cacheKey] = song;
+            
+            html += `
+                <div class="online-item" data-source="${song.source}" data-songid="${song.songId}">
+                    <img src="${song.picUrl || ''}" alt="" class="online-item-pic" onerror="this.style.display='none'">
+                    <div class="online-item-info">
+                        <div class="online-item-title">${song.name}</div>
+                        <div class="online-item-artist">${song.singer}</div>
+                        <div class="online-item-album">${song.albumName || ''}</div>
+                    </div>
+                    <div class="online-item-interval">${song.interval || '--:--'}</div>
+                    <div class="online-item-actions">
+                        <button class="online-play-btn" onclick="playOnlineSong('${cacheKey}')" title="播放">
+                            <i class="fas fa-play"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+    });
+    
+    resultsContainer.innerHTML = html;
+}
+
+// 播放在线歌曲
+async function playOnlineSong(cacheKey) {
+    const song = onlineSongCache[cacheKey];
+    if (!song) {
+        showNotification({ type: 'error', message: '歌曲信息丢失，请重新搜索' });
+        return;
+    }
+    
+    showNotification({ type: 'info', message: '正在获取播放链接...' });
+    
+    try {
+        const response = await fetch('/api/play-online', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                source: song.source,
+                songId: song.songId,
+                name: song.name,
+                singer: song.singer,
+                albumName: song.albumName || '',
+                picUrl: song.picUrl || '',
+                interval: song.interval || '',
+                // 传递完整的歌曲信息给自定义音源
+                songInfo: song
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification({ type: 'success', message: `正在播放：${name}` });
+            // 更新播放列表
+            const playlistResult = await apiRequest('/api/playlist');
+            if (playlistResult.playlist) {
+                currentPlaylist = playlistResult.playlist;
+                renderPlaylist();
+            }
+            // 同步播放状态
+            await syncPlayerStatus();
+        } else {
+            showNotification({ type: 'error', message: result.error || '播放失败' });
+        }
+    } catch (error) {
+        console.error('播放在线音乐失败:', error);
+        showNotification({ type: 'error', message: '播放失败，请重试' });
+    }
+}
+
+// HTML 转义
+function escapeHtml(str) {
+    return str
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '\\"')
+        .replace(/\\/g, '\\\\');
+}
+
+// ==================== 在线设置功能 ====================
+
+let selectedSourceFiles = [];
+
+// 打开上传音源文件模态框
+function openUploadSourceModal() {
+    const modal = document.getElementById('uploadSourceModal');
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+    
+    // 重置状态
+    selectedSourceFiles = [];
+    document.getElementById('uploadSourceList').innerHTML = '';
+    document.getElementById('uploadSourceStatus').style.display = 'none';
+    document.getElementById('btnUploadSource').disabled = true;
+}
+
+// 关闭上传音源文件模态框
+function closeUploadSourceModal() {
+    const modal = document.getElementById('uploadSourceModal');
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+    
+    selectedSourceFiles = [];
+    document.getElementById('uploadSourceList').innerHTML = '';
+    document.getElementById('uploadSourceStatus').style.display = 'none';
+    document.getElementById('uploadSourceInput').value = '';
+}
+
+// 处理音源文件选择
+function handleSourceFileSelect(event) {
+    const files = Array.from(event.target.files);
+    
+    files.forEach(file => {
+        if (file.name.endsWith('.js')) {
+            selectedSourceFiles.push(file);
+        }
+    });
+    
+    renderSelectedSourceFiles();
+    document.getElementById('btnUploadSource').disabled = selectedSourceFiles.length === 0;
+}
+
+// 渲染已选择的音源文件
+function renderSelectedSourceFiles() {
+    const list = document.getElementById('uploadSourceList');
+    
+    if (selectedSourceFiles.length === 0) {
+        list.innerHTML = '';
+        return;
+    }
+    
+    list.innerHTML = selectedSourceFiles.map((file, index) => `
+        <div class="upload-source-file-item">
+            <span class="upload-source-file-name">${file.name}</span>
+            <span class="upload-source-file-size">${formatFileSize(file.size)}</span>
+            <button class="upload-source-file-remove" onclick="removeSelectedSourceFile(${index})">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `).join('');
+}
+
+// 移除已选择的音源文件
+function removeSelectedSourceFile(index) {
+    selectedSourceFiles.splice(index, 1);
+    renderSelectedSourceFiles();
+    document.getElementById('btnUploadSource').disabled = selectedSourceFiles.length === 0;
+}
+
+// 上传音源文件
+async function uploadSourceFiles() {
+    if (selectedSourceFiles.length === 0) return;
+    
+    const statusDiv = document.getElementById('uploadSourceStatus');
+    const progressFill = document.getElementById('uploadSourceProgress');
+    const statusText = document.getElementById('uploadSourceStatusText');
+    const uploadBtn = document.getElementById('btnUploadSource');
+    
+    statusDiv.style.display = 'flex';
+    uploadBtn.disabled = true;
+    
+    let uploaded = 0;
+    
+    for (const file of selectedSourceFiles) {
+        try {
+            statusText.textContent = `正在上传 ${file.name}...`;
+            
+            const content = await file.text();
+            
+            const response = await fetch('/api/upload-source', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename: file.name, content })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                uploaded++;
+            } else {
+                showNotification({ type: 'error', message: `${file.name} 上传失败：${result.error}` });
+            }
+            
+            progressFill.style.width = `${(uploaded / selectedSourceFiles.length) * 100}%`;
+        } catch (error) {
+            showNotification({ type: 'error', message: `${file.name} 上传失败` });
+        }
+    }
+    
+    statusText.textContent = `成功上传 ${uploaded}/${selectedSourceFiles.length} 个文件`;
+    
+    setTimeout(() => {
+        closeUploadSourceModal();
+        refreshSourceFiles();
+        showNotification({ type: 'success', message: `成功上传 ${uploaded} 个音源文件` });
+    }, 1000);
+}
+
+// 刷新音源文件列表
+async function refreshSourceFiles() {
+    try {
+        const response = await fetch('/api/source-files');
+        const result = await response.json();
+        
+        if (result.success) {
+            renderSourceFileList(result.files);
+        }
+    } catch (error) {
+        console.error('获取音源文件列表失败:', error);
+    }
+}
+
+// 渲染音源文件列表
+function renderSourceFileList(files) {
+    const list = document.getElementById('sourceFileList');
+    
+    if (!files || files.length === 0) {
+        list.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-file-audio"></i>
+                <p>暂无音源文件</p>
+                <p class="empty-hint">请上传音源配置文件以启用在线搜索功能</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // 获取已激活的音源列表（后端返回的是不带.js的ID）
+    const activeSources = window.activeSources || [];
+    
+    list.innerHTML = files.map(file => {
+        // 去掉文件名的.js扩展名，与后端返回的ID比较
+        const fileId = file.name.replace('.js', '');
+        const isActive = activeSources.includes(fileId);
+        return `
+        <div class="source-file-item ${isActive ? 'selected' : ''}" data-filename="${file.name}" onclick="toggleSourceFile('${file.name}')">
+            <div class="source-file-checkbox">
+                <i class="fas fa-check"></i>
+            </div>
+            <div class="source-file-icon">
+                <i class="fas fa-file-code"></i>
+            </div>
+            <div class="source-file-info">
+                <div class="source-file-name">${file.name}</div>
+                <div class="source-file-size">${formatFileSize(file.size)}</div>
+            </div>
+            <span class="source-file-status ${isActive ? 'active' : 'inactive'}">${isActive ? '已启用' : '未启用'}</span>
+            <div class="source-file-actions-row">
+                <button class="source-file-delete-btn" onclick="event.stopPropagation(); deleteSourceFile('${file.name}')" title="删除">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    }).join('');
+}
+
+// 切换音源文件选中状态
+function toggleSourceFile(filename) {
+    if (!window.selectedSourceFiles) {
+        window.selectedSourceFiles = [];
+    }
+    
+    const index = window.selectedSourceFiles.indexOf(filename);
+    if (index > -1) {
+        window.selectedSourceFiles.splice(index, 1);
+    } else {
+        window.selectedSourceFiles.push(filename);
+    }
+    
+    // 更新UI
+    const item = document.querySelector(`.source-file-item[data-filename="${filename}"]`);
+    if (item) {
+        item.classList.toggle('selected');
+        const status = item.querySelector('.source-file-status');
+        if (status) {
+            const isSelected = window.selectedSourceFiles.includes(filename);
+            status.className = `source-file-status ${isSelected ? 'active' : 'inactive'}`;
+            status.textContent = isSelected ? '已选中' : '未选中';
+        }
+    }
+}
+
+// 应用选中的音源
+async function applySelectedSources() {
+    if (!window.selectedSourceFiles || window.selectedSourceFiles.length === 0) {
+        showNotification({ type: 'warning', message: '请至少选择一个音源文件' });
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/apply-sources', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sources: window.selectedSourceFiles })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification({ type: 'success', message: `已启用 ${window.selectedSourceFiles.length} 个音源` });
+            // 更新激活的音源ID列表（不带.js）
+            window.activeSources = window.selectedSourceFiles.map(f => f.replace('.js', ''));
+            refreshSourceFiles();
+        } else {
+            showNotification({ type: 'error', message: result.error });
+        }
+    } catch (error) {
+        showNotification({ type: 'error', message: '应用音源失败' });
+    }
+}
+
+// 删除音源文件
+async function deleteSourceFile(filename) {
+    if (!confirm(`确定要删除音源文件 "${filename}" 吗？`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/source-files/${filename}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification({ type: 'success', message: '文件已删除' });
+            refreshSourceFiles();
+        } else {
+            showNotification({ type: 'error', message: result.error });
+        }
+    } catch (error) {
+        showNotification({ type: 'error', message: '删除失败' });
+    }
+}
+
+// 获取在线设置
+async function loadOnlineSettings() {
+    try {
+        const response = await fetch('/api/online-settings');
+        const result = await response.json();
+        
+        if (result.success) {
+            const { defaultSource, pageSize, activeSources } = result.settings;
+            
+            document.getElementById('defaultSourceSelect').value = defaultSource || '';
+            document.getElementById('pageSizeSelect').value = pageSize || 20;
+            
+            // 保存激活的音源ID列表（不带.js）
+            if (activeSources && activeSources.length > 0) {
+                window.activeSources = activeSources;
+                // 转换为带.js的文件名，用于前端选中状态
+                window.selectedSourceFiles = activeSources.map(id => id.endsWith('.js') ? id : id + '.js');
+            }
+        }
+    } catch (error) {
+        console.error('获取在线设置失败:', error);
+    }
+}
+
+// 保存在线设置
+async function saveOnlineSettings() {
+    const defaultSource = document.getElementById('defaultSourceSelect').value;
+    const pageSize = document.getElementById('pageSizeSelect').value;
+    
+    try {
+        const response = await fetch('/api/online-settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ defaultSource, pageSize })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification({ type: 'success', message: '设置已保存' });
+        }
+    } catch (error) {
+        showNotification({ type: 'error', message: '保存失败' });
+    }
+}
+
+// 格式化文件大小
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+// 初始化拖拽上传
+function initSourceDragDrop() {
+    const dropzone = document.getElementById('uploadSourceDropzone');
+    if (!dropzone) return;
+    
+    dropzone.addEventListener('click', () => {
+        document.getElementById('uploadSourceInput').click();
+    });
+    
+    dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropzone.classList.add('dragover');
+    });
+    
+    dropzone.addEventListener('dragleave', () => {
+        dropzone.classList.remove('dragover');
+    });
+    
+    dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+        
+        const files = Array.from(e.dataTransfer.files);
+        files.forEach(file => {
+            if (file.name.endsWith('.js')) {
+                selectedSourceFiles.push(file);
+            }
+        });
+        
+        renderSelectedSourceFiles();
+        document.getElementById('btnUploadSource').disabled = selectedSourceFiles.length === 0;
+    });
+}
+
+// 切换到系统设置视图时加载设置
+const originalSwitchView = switchView;
+switchView = function(viewName) {
+    originalSwitchView(viewName);
+    
+    if (viewName === 'online-settings') {
+        // 先加载设置（获取 activeSources），再刷新文件列表（使用 activeSources 显示选中状态）
+        loadOnlineSettings().then(() => {
+            refreshSourceFiles();
+        });
+        setTimeout(initSourceDragDrop, 100);
+    }
+};
+
 

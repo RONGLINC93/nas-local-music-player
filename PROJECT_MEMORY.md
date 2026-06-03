@@ -27,7 +27,7 @@
 - **修改代码后，更新 CHANGELOG.md，不发布**
 
 ## 发布流程详解
-1. **版本递增**: 解析 version.json，将最后一位版本号 +1
+1. **版本递增**: 解析 version.json、package-lock.json、package.json、PROJECT_MEMORY.md（已发布版本号、当前版本号），将最后一位版本号 +1
 2. **代码提交**: 自动 git add → git commit → git push
 3. **创建Tag**: git tag -a v{版本号} → git push origin {tag}
 4. **读取日志**: 从 CHANGELOG.md 提取 ## [版本号] 对应的内容

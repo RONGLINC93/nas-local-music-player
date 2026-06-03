@@ -8,6 +8,60 @@ console.log('');
 console.log('📁 当前目录:', process.cwd());
 console.log('');
 
+// 获取用户输入的提交消息
+const args = process.argv.slice(2);
+let message;
+
+if (args.length > 0) {
+    message = args.join(' ');
+} else {
+    // 自动生成摘要
+    try {
+        const statusOutput = execSync('git status --porcelain', { encoding: 'utf-8' });
+        const lines = statusOutput.trim().split('\n').filter(l => l);
+        
+        if (lines.length === 0) {
+            console.log('⚠️ 没有需要提交的更改');
+            process.exit(0);
+        }
+        
+        // 分析更改类型
+        const added = lines.filter(l => l.startsWith('A') || l.startsWith('??')).length;
+        const modified = lines.filter(l => l.startsWith('M')).length;
+        const deleted = lines.filter(l => l.startsWith('D')).length;
+        
+        // 分析文件类型
+        const files = lines.map(l => l.substring(3).trim());
+        const jsFiles = files.filter(f => f.endsWith('.js')).length;
+        const cssFiles = files.filter(f => f.endsWith('.css')).length;
+        const htmlFiles = files.filter(f => f.endsWith('.html')).length;
+        const jsonFiles = files.filter(f => f.endsWith('.json')).length;
+        const otherFiles = files.length - jsFiles - cssFiles - htmlFiles - jsonFiles;
+        
+        // 生成摘要
+        const parts = [];
+        if (added > 0) parts.push(`新增${added}个文件`);
+        if (modified > 0) parts.push(`修改${modified}个文件`);
+        if (deleted > 0) parts.push(`删除${deleted}个文件`);
+        
+        const typeParts = [];
+        if (jsFiles > 0) typeParts.push(`JS(${jsFiles})`);
+        if (cssFiles > 0) typeParts.push(`CSS(${cssFiles})`);
+        if (htmlFiles > 0) typeParts.push(`HTML(${htmlFiles})`);
+        if (jsonFiles > 0) typeParts.push(`JSON(${jsonFiles})`);
+        if (otherFiles > 0) typeParts.push(`其他(${otherFiles})`);
+        
+        const now = new Date();
+        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        
+        message = `${parts.join('、')} [${typeParts.join('、')}] - ${timeStr}`;
+    } catch (error) {
+        const now = new Date();
+        const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        message = `更新代码 - ${timeStr}`;
+    }
+}
+
 console.log('🔍 检查文件状态...');
 try {
     const statusOutput = execSync('git status', { encoding: 'utf-8' });
@@ -23,16 +77,18 @@ try {
     console.log(error.stdout || error.message);
 }
 
-const now = new Date();
-const message = `Update: ${now.getFullYear()}-${String(now.getMonth()+1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-
 console.log(`📝 提交更改，消息: ${message}`);
 try {
     execSync(`git commit -m "${message}"`, { encoding: 'utf-8' });
 } catch (error) {
-    console.log(error.stdout || error.message);
-    console.log('❌ 提交失败');
-    process.exit(1);
+    const output = error.stdout || error.message;
+    if (output.includes('nothing to commit')) {
+        console.log('⚠️ 没有需要提交的更改');
+    } else {
+        console.log(output);
+        console.log('❌ 提交失败');
+        process.exit(1);
+    }
 }
 
 console.log('📤 推送到远程仓库...');
@@ -49,6 +105,8 @@ try {
 console.log('');
 console.log('======================================');
 
+// 等待用户按任意键退出
+console.log('按任意键退出...');
 process.stdin.setRawMode(true);
 process.stdin.resume();
 process.stdin.on('data', () => {

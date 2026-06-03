@@ -623,7 +623,7 @@ body {
 .folder-grid {
     padding: 10px;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+   /* grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));*/
     gap: 4px;
 }
 
@@ -1014,6 +1014,30 @@ body {
 .folder-rename-btn:hover {
     background: #3b82f6;
     border-color: #3b82f6;
+    color: white;
+}
+
+.folder-add-btn:hover {
+    background: #10b981;
+    border-color: #10b981;
+    color: white;
+}
+
+.folder-move-btn:hover {
+    background: #8b5cf6;
+    border-color: #8b5cf6;
+    color: white;
+}
+
+.folder-download-btn:hover {
+    background: #06b6d4;
+    border-color: #06b6d4;
+    color: white;
+}
+
+.folder-convert-btn:hover {
+    background: #ec4899;
+    border-color: #ec4899;
     color: white;
 }
 
@@ -1682,6 +1706,10 @@ body {
     
     /* 移动端隐藏文件夹卡片的单独操作按钮，只显示菜单按钮 */
     .folder-card-actions .folder-play-btn,
+    .folder-card-actions .folder-add-btn,
+    .folder-card-actions .folder-move-btn,
+    .folder-card-actions .folder-download-btn,
+    .folder-card-actions .folder-convert-btn,
     .folder-card-actions .folder-rename-btn,
     .folder-card-actions .folder-dissolve-btn,
     .folder-card-actions .folder-delete-btn {
@@ -1690,6 +1718,15 @@ body {
     
     .folder-card-menu-wrapper {
         display: block;
+    }
+    
+    /* 移动端菜单使用 fixed 定位，避免被 overflow 裁剪 */
+    .folder-card-menu {
+        position: fixed !important;
+        top: auto !important;
+        right: auto !important;
+        margin-top: 0 !important;
+        z-index: 10000 !important;
     }
     
     /* 移动端隐藏批量操作栏的单独按钮，只显示菜单按钮 */
@@ -4500,6 +4537,61 @@ body {
 
 .dissolve-warning i {
     color: #f59e0b;
+    font-size: 16px;
+}
+
+/* 移动文件夹样式 */
+.move-folder-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    background: #f5f3ff;
+    border-radius: 12px;
+    margin-bottom: 20px;
+}
+
+.move-folder-info .folder-name-display {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1f2937;
+    text-align: center;
+}
+
+/* 转换文件夹样式 */
+.convert-folder-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    background: #fdf2f8;
+    border-radius: 12px;
+    margin-bottom: 20px;
+}
+
+.convert-folder-info .folder-name-display {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1f2937;
+    text-align: center;
+}
+
+.convert-hint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: #fce7f3;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #9d174d;
+    width: 100%;
+}
+
+.convert-hint i {
+    color: #ec4899;
     font-size: 16px;
 }
 

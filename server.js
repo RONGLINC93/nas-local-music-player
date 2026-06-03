@@ -2131,6 +2131,225 @@ app.post('/api/rename-folder', async (req, res) => {
     }
 });
 
+// 移动文件夹
+app.post('/api/move-folder', async (req, res) => {
+    try {
+        const { folderPath, targetFolder } = req.body;
+        
+        if (!folderPath || !targetFolder) {
+            return res.status(400).json({ success: false, error: '缺少参数' });
+        }
+        
+        const musicDir = path.join(__dirname, 'music');
+        const normalizedPath = folderPath.replace(/\//g, path.sep);
+        const oldFullPath = path.join(musicDir, normalizedPath);
+        
+        // 安全检查
+        if (!oldFullPath.startsWith(musicDir)) {
+            return res.status(400).json({ success: false, error: '无效的路径' });
+        }
+        
+        if (!fs.existsSync(oldFullPath)) {
+            return res.status(404).json({ success: false, error: '文件夹不存在' });
+        }
+        
+        // 构建目标路径
+        let fullTargetPath = targetFolder;
+        if (targetFolder.startsWith('/music')) {
+            const relativePath = targetFolder.substring('/music'.length);
+            fullTargetPath = path.join(musicDir, relativePath);
+        }
+        
+        // 确保目标文件夹存在
+        if (!fs.existsSync(fullTargetPath)) {
+            fs.mkdirSync(fullTargetPath, { recursive: true });
+        }
+        
+        const folderName = path.basename(oldFullPath);
+        const newFullPath = path.join(fullTargetPath, folderName);
+        
+        // 检查目标是否已存在
+        if (fs.existsSync(newFullPath)) {
+            return res.status(400).json({ success: false, error: '目标位置已存在同名文件夹' });
+        }
+        
+        // 移动文件夹
+        fs.renameSync(oldFullPath, newFullPath);
+        console.log(`📁 移动文件夹: ${oldFullPath} -> ${newFullPath}`);
+        
+        // 更新播放列表中文件的路径
+        let updatedCount = 0;
+        currentPlaylist = currentPlaylist.map(track => {
+            if (track.path.startsWith(oldFullPath)) {
+                const relativePath = track.path.substring(oldFullPath.length);
+                track.path = newFullPath + relativePath;
+                updatedCount++;
+                return track;
+            }
+            return track;
+        });
+        
+        fs.writeFileSync(PLAYLIST_CACHE_FILE, JSON.stringify(currentPlaylist, null, 2));
+        
+        // 更新缓存
+        if (fs.existsSync(FOLDER_CACHE_FILE)) {
+            try {
+                const cacheContent = fs.readFileSync(FOLDER_CACHE_FILE, 'utf8');
+                const cacheData = JSON.parse(cacheContent);
+                
+                const oldRelativePath = normalizedPath.replace(/^[\\/]/, '').replace(/\\/g, '/');
+                const targetRelativePath = fullTargetPath.substring(musicDir.length).replace(/^[\\/]/, '').replace(/\\/g, '/');
+                const newRelativePath = targetRelativePath ? `${targetRelativePath}/${folderName}` : folderName;
+                
+                const folderToMove = findAndRemoveFolderFromCache(cacheData.folders, oldRelativePath);
+                if (folderToMove) {
+                    folderToMove.path = newRelativePath;
+                    addFolderToCache(cacheData.folders, folderToMove, targetRelativePath);
+                }
+                
+                cacheData.timestamp = Date.now();
+                fs.writeFileSync(FOLDER_CACHE_FILE, JSON.stringify(cacheData, null, 2));
+            } catch (e) {
+                console.error('更新缓存失败:', e);
+            }
+        }
+        
+        res.json({
+            success: true,
+            message: `已将文件夹 "${folderName}" 移动到 "${targetFolder}"`
+        });
+    } catch (error) {
+        console.error('移动文件夹失败:', error);
+        res.status(500).json({ success: false, error: '移动文件夹失败: ' + error.message });
+    }
+});
+
+// 批量转换文件夹为MP3
+app.post('/api/batch-convert-folder-mp3', async (req, res) => {
+    try {
+        const { folderPath, bitrate } = req.body;
+        
+        if (!folderPath) {
+            return res.status(400).json({ success: false, error: '缺少文件夹路径' });
+        }
+        
+        const musicDir = path.join(__dirname, 'music');
+        
+        // 处理路径：如果以 /music 开头，去掉前缀
+        let normalizedPath = folderPath.replace(/\//g, path.sep);
+        if (normalizedPath.startsWith(path.sep + 'music' + path.sep) || normalizedPath === path.sep + 'music') {
+            normalizedPath = normalizedPath.substring(('music' + path.sep).length + 1); // 去掉 /music/ 前缀
+            if (!normalizedPath) normalizedPath = '';
+        }
+        
+        const fullPath = normalizedPath ? path.join(musicDir, normalizedPath) : musicDir;
+        
+        // 安全检查
+        if (!fullPath.startsWith(musicDir)) {
+            return res.status(400).json({ success: false, error: '无效的路径' });
+        }
+        
+        if (!fs.existsSync(fullPath)) {
+            return res.status(404).json({ success: false, error: '文件夹不存在' });
+        }
+        
+        const stat = fs.statSync(fullPath);
+        if (!stat.isDirectory()) {
+            return res.status(400).json({ success: false, error: '路径不是文件夹' });
+        }
+        
+        // 递归收集所有非MP3音乐文件
+        const nonMp3Extensions = ['.flac', '.wav', '.ogg', '.m4a', '.aac', '.wma'];
+        const filesToConvert = [];
+        
+        function collectFiles(dirPath) {
+            const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+            for (const entry of entries) {
+                const entryPath = path.join(dirPath, entry.name);
+                if (entry.isDirectory()) {
+                    collectFiles(entryPath);
+                } else if (entry.isFile()) {
+                    const ext = path.extname(entry.name).toLowerCase();
+                    if (nonMp3Extensions.includes(ext)) {
+                        filesToConvert.push(entryPath);
+                    }
+                }
+            }
+        }
+        
+        collectFiles(fullPath);
+        
+        if (filesToConvert.length === 0) {
+            return res.json({ success: true, message: '文件夹中没有需要转换的文件' });
+        }
+        
+        // 复用已有的批量转换逻辑
+        const taskIds = [];
+        
+        for (const filePath of filesToConvert) {
+            if (!fs.existsSync(filePath)) {
+                continue;
+            }
+            
+            const ext = path.extname(filePath).toLowerCase();
+            if (ext === '.mp3') {
+                continue;
+            }
+            
+            const dir = path.dirname(filePath);
+            const nameWithoutExt = path.basename(filePath).replace(/\.[^/.]+$/, '');
+            let outputPath = path.join(dir, nameWithoutExt + '.mp3');
+            
+            let counter = 1;
+            while (fs.existsSync(outputPath)) {
+                outputPath = path.join(dir, `${nameWithoutExt}_${counter}.mp3`);
+                counter++;
+            }
+            
+            const taskId = Date.now().toString(36) + Math.random().toString(36).substr(2);
+            taskOrderCounter++;
+            const task = {
+                id: taskId,
+                orderIndex: taskOrderCounter,
+                filePath,
+                outputPath,
+                bitrate: bitrate || '192',
+                status: 'queued',
+                progress: 0,
+                message: '等待转换',
+                startTime: Date.now()
+            };
+            
+            convertQueue.push(task);
+            taskIds.push(taskId);
+        }
+        
+        if (taskIds.length === 0) {
+            return res.json({ 
+                success: false, 
+                error: '没有需要转换的文件（请选择非MP3格式的音乐文件）',
+                totalTasks: 0
+            });
+        }
+        
+        // 启动worker处理队列
+        for (let i = 0; i < maxConvertWorkers; i++) {
+            processConvertQueue();
+        }
+        
+        res.json({ 
+            success: true, 
+            taskIds,
+            totalTasks: taskIds.length,
+            message: `已将文件夹中的 ${taskIds.length} 个文件添加到转换队列`
+        });
+        
+    } catch (error) {
+        console.error('转换文件夹失败:', error);
+        res.status(500).json({ success: false, error: '转换失败: ' + error.message });
+    }
+});
+
 // 重命名音乐文件
 app.post('/api/rename-file', async (req, res) => {
     try {
@@ -2351,6 +2570,98 @@ app.post('/api/add-to-playlist', async (req, res) => {
     }
 });
 
+// 将文件夹中的所有音乐文件添加到播放列表（递归扫描子文件夹）
+app.post('/api/add-folder-to-playlist', async (req, res) => {
+    try {
+        const { folderPath } = req.body;
+        
+        if (!folderPath) {
+            return res.status(400).json({ success: false, error: '缺少文件夹路径' });
+        }
+        
+        const musicDir = path.join(__dirname, 'music');
+        const normalizedPath = folderPath.replace(/\//g, path.sep);
+        const fullPath = path.join(musicDir, normalizedPath);
+        
+        // 安全检查：确保路径在 music 目录下
+        if (!fullPath.startsWith(musicDir)) {
+            return res.status(400).json({ success: false, error: '无效的路径' });
+        }
+        
+        if (!fs.existsSync(fullPath)) {
+            return res.status(404).json({ success: false, error: '文件夹不存在' });
+        }
+        
+        const stat = fs.statSync(fullPath);
+        if (!stat.isDirectory()) {
+            return res.status(400).json({ success: false, error: '路径不是文件夹' });
+        }
+        
+        // 递归获取文件夹中的所有音乐文件
+        const musicExtensions = ['.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac', '.wma'];
+        const musicFiles = [];
+        
+        async function collectMusicFiles(dirPath) {
+            const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
+            for (const entry of entries) {
+                const entryPath = path.join(dirPath, entry.name);
+                if (entry.isDirectory()) {
+                    await collectMusicFiles(entryPath);
+                } else if (entry.isFile() && musicExtensions.includes(path.extname(entry.name).toLowerCase())) {
+                    musicFiles.push(entryPath);
+                }
+            }
+        }
+        
+        await collectMusicFiles(fullPath);
+        
+        if (musicFiles.length === 0) {
+            return res.json({ success: true, message: '文件夹中没有音乐文件' });
+        }
+        
+        let addedCount = 0;
+        let skippedCount = 0;
+        
+        // 添加每个音乐文件到播放列表
+        for (const filePath of musicFiles) {
+            // 检查是否已在播放列表中
+            const existingIndex = currentPlaylist.findIndex(track => track.path === filePath);
+            if (existingIndex >= 0) {
+                skippedCount++;
+                continue;
+            }
+            
+            try {
+                const metadata = await getMusicMetadata(filePath);
+                currentPlaylist.push(metadata);
+                addedCount++;
+            } catch (error) {
+                console.error(`添加文件失败: ${filePath}`, error.message);
+            }
+        }
+        
+        // 按标题字母排序
+        currentPlaylist.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+        
+        // 更新播放列表缓存
+        try {
+            fs.writeFileSync(PLAYLIST_CACHE_FILE, JSON.stringify(currentPlaylist, null, 2));
+        } catch (error) {
+            console.error('更新播放列表缓存失败:', error.message);
+        }
+        
+        console.log(`📋 添加文件夹到播放列表：${folderPath}，添加 ${addedCount} 首，跳过 ${skippedCount} 首`);
+        res.json({
+            success: true,
+            message: `已将文件夹中的 ${addedCount} 首歌曲添加到播放列表${skippedCount > 0 ? `，跳过 ${skippedCount} 首已存在的歌曲` : ''}`
+        });
+        
+    } catch (error) {
+        console.error('添加文件夹失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // 共享的文件下载函数
 function sendFileDownload(res, filePath) {
     try {
@@ -2383,6 +2694,77 @@ app.get('/api/download', (req, res) => {
     }
     
     sendFileDownload(res, filePath);
+});
+
+// 下载文件夹（打包为ZIP）
+app.get('/api/download-folder', (req, res) => {
+    try {
+        const folderPath = decodeURIComponent(req.query.path);
+        
+        const musicDir = path.join(__dirname, 'music');
+        const normalizedPath = folderPath.replace(/\//g, path.sep);
+        const fullPath = path.join(musicDir, normalizedPath);
+        
+        // 安全检查
+        if (!fullPath.startsWith(musicDir)) {
+            return res.status(403).json({ success: false, error: '访问被拒绝' });
+        }
+        
+        if (!fs.existsSync(fullPath)) {
+            return res.status(404).json({ success: false, error: '文件夹不存在' });
+        }
+        
+        const stat = fs.statSync(fullPath);
+        if (!stat.isDirectory()) {
+            return res.status(400).json({ success: false, error: '路径不是文件夹' });
+        }
+        
+        const folderName = path.basename(fullPath);
+        
+        // 递归收集所有文件
+        const musicExtensions = ['.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac', '.wma'];
+        const files = [];
+        
+        function collectFiles(dirPath, relativePath) {
+            const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+            for (const entry of entries) {
+                const entryPath = path.join(dirPath, entry.name);
+                const entryRelative = relativePath ? path.join(relativePath, entry.name) : entry.name;
+                if (entry.isDirectory()) {
+                    collectFiles(entryPath, entryRelative);
+                } else if (entry.isFile()) {
+                    files.push({ fullPath: entryPath, relativePath: entryRelative });
+                }
+            }
+        }
+        
+        collectFiles(fullPath, '');
+        
+        if (files.length === 0) {
+            return res.status(404).json({ success: false, error: '文件夹中没有文件' });
+        }
+        
+        // 使用 adm-zip 打包
+        const zip = new AdmZip();
+        
+        for (const file of files) {
+            const fileContent = fs.readFileSync(file.fullPath);
+            zip.addFile(file.relativePath.replace(/\\/g, '/'), fileContent);
+        }
+        
+        const zipBuffer = zip.toBuffer();
+        
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(folderName)}.zip"`);
+        res.setHeader('Content-Length', zipBuffer.length);
+        res.send(zipBuffer);
+        
+        console.log(`📦 下载文件夹: ${folderName} (${files.length} 个文件)`);
+        
+    } catch (error) {
+        console.error('下载文件夹失败:', error);
+        res.status(500).json({ success: false, error: '下载失败: ' + error.message });
+    }
 });
 
 // 批量加入播放列表 API
@@ -2441,8 +2823,8 @@ app.post('/api/create-folder', (req, res) => {
         // 处理父路径
         let fullParentPath = parentPath;
         if (parentPath.startsWith('/music')) {
-            const relativePath = parentPath.substring('/music'.length);
-            fullParentPath = path.join(MUSIC_DIR, relativePath);
+            const relativePath = parentPath.substring('/music'.length).replace(/^\//, '').replace(/\\/g, path.sep);
+            fullParentPath = relativePath ? path.join(MUSIC_DIR, relativePath) : MUSIC_DIR;
         } else if (!parentPath.startsWith(MUSIC_DIR)) {
             return res.status(400).json({ success: false, error: '父路径无效' });
         }

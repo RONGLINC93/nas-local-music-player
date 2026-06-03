@@ -4015,6 +4015,18 @@ function createFolderCardHTML(folder) {
                 <button onclick="event.stopPropagation(); playFolder('${escapedPath}')" class="folder-play-btn" title="播放此文件夹">
                     <i class="fas fa-play"></i>
                 </button>
+                <button onclick="event.stopPropagation(); addFolderToPlaylist('${escapedPath}')" class="folder-icon-btn folder-add-btn" title="加入播放列表">
+                    <i class="fas fa-plus"></i>
+                </button>
+                <button onclick="event.stopPropagation(); moveFolder('${escapedPath}', '${folderName}')" class="folder-icon-btn folder-move-btn" title="移动">
+                    <i class="fas fa-arrows-alt"></i>
+                </button>
+                <button onclick="event.stopPropagation(); downloadFolder('${escapedPath}')" class="folder-icon-btn folder-download-btn" title="下载">
+                    <i class="fas fa-download"></i>
+                </button>
+                <button onclick="event.stopPropagation(); openConvertFolderToMp3Modal('${escapedPath}', '${folderName}')" class="folder-icon-btn folder-convert-btn" title="转MP3">
+                    <i class="fas fa-exchange-alt"></i>
+                </button>
                 <button onclick="event.stopPropagation(); openRenameFolderModal('${escapedPath}', '${folderName}')" class="folder-icon-btn folder-rename-btn" title="重命名">
                     <i class="fas fa-edit"></i>
                 </button>
@@ -4032,6 +4044,22 @@ function createFolderCardHTML(folder) {
                         <div class="folder-card-menu-item" onclick="event.stopPropagation(); playFolder('${escapedPath}'); closeFolderCardMenu('${uniqueId}');">
                             <i class="fas fa-play"></i>
                             <span>播放</span>
+                        </div>
+                        <div class="folder-card-menu-item" onclick="event.stopPropagation(); addFolderToPlaylist('${escapedPath}'); closeFolderCardMenu('${uniqueId}');">
+                            <i class="fas fa-plus"></i>
+                            <span>加入播放列表</span>
+                        </div>
+                        <div class="folder-card-menu-item" onclick="event.stopPropagation(); moveFolder('${escapedPath}', '${folderName}'); closeFolderCardMenu('${uniqueId}');">
+                            <i class="fas fa-arrows-alt"></i>
+                            <span>移动</span>
+                        </div>
+                        <div class="folder-card-menu-item" onclick="event.stopPropagation(); downloadFolder('${escapedPath}'); closeFolderCardMenu('${uniqueId}');">
+                            <i class="fas fa-download"></i>
+                            <span>下载</span>
+                        </div>
+                        <div class="folder-card-menu-item" onclick="event.stopPropagation(); openConvertFolderToMp3Modal('${escapedPath}', '${folderName}'); closeFolderCardMenu('${uniqueId}');">
+                            <i class="fas fa-exchange-alt"></i>
+                            <span>转MP3</span>
                         </div>
                         <div class="folder-card-menu-item" onclick="event.stopPropagation(); openRenameFolderModal('${escapedPath}', '${folderName}'); closeFolderCardMenu('${uniqueId}');">
                             <i class="fas fa-edit"></i>
@@ -4218,24 +4246,75 @@ function closeFolderMoreMenu() {
 // 文件夹卡片菜单
 function toggleFolderCardMenu(event, menuId) {
     event.stopPropagation();
+    
+    // 关闭所有其他菜单
+    document.querySelectorAll('.folder-card-menu').forEach(m => {
+        if (m.id !== menuId) {
+            m.style.display = 'none';
+        }
+    });
+    
     const menu = document.getElementById(menuId);
     if (menu) {
         const isVisible = menu.style.display !== 'none';
         menu.style.display = isVisible ? 'none' : 'block';
         
         if (!isVisible) {
-            setTimeout(() => {
-                document.addEventListener('click', function closeHandler(e) {
-                    const targetMenu = document.getElementById(menuId);
-                    if (targetMenu && !targetMenu.contains(e.target) && !e.target.classList.contains('folder-card-menu-btn')) {
-                        targetMenu.style.display = 'none';
-                    }
-                    document.removeEventListener('click', closeHandler);
-                }, { once: true });
-            }, 0);
+            // 移动端使用 fixed 定位，需要计算位置
+            if (window.innerWidth <= 768) {
+                const btn = event.currentTarget;
+                const rect = btn.getBoundingClientRect();
+                const menuWidth = 160; // 菜单预估宽度
+                const menuHeight = 350; // 菜单预估高度
+                
+                // 让菜单右边缘对齐按钮右边缘
+                let leftPos = rect.right - menuWidth;
+                
+                // 确保菜单不会超出屏幕左侧
+                if (leftPos < 10) {
+                    leftPos = 10;
+                }
+                
+                // 检查菜单是否会超出屏幕底部
+                const spaceBelow = window.innerHeight - rect.bottom;
+                if (spaceBelow < menuHeight) {
+                    // 空间不够，向上展开
+                    menu.style.top = 'auto';
+                    menu.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+                } else {
+                    // 向下展开
+                    menu.style.top = (rect.bottom + 4) + 'px';
+                    menu.style.bottom = 'auto';
+                }
+                
+                menu.style.left = leftPos + 'px';
+                menu.style.right = 'auto';
+            }
         }
     }
 }
+
+// 全局点击关闭所有菜单
+document.addEventListener('click', function(e) {
+    // 关闭文件夹卡片菜单
+    if (!e.target.classList.contains('folder-card-menu-btn') && !e.target.closest('.folder-card-menu')) {
+        document.querySelectorAll('.folder-card-menu').forEach(m => {
+            m.style.display = 'none';
+        });
+    }
+    
+    // 关闭批量操作菜单
+    if (!e.target.closest('.batch-more-menu-wrapper') && !e.target.closest('.batch-more-menu')) {
+        const batchMenu = document.getElementById('batchMoreMenu');
+        if (batchMenu) batchMenu.style.display = 'none';
+    }
+    
+    // 关闭顶部栏菜单
+    if (!e.target.closest('.top-bar-more-wrapper') && !e.target.closest('.top-bar-more-menu')) {
+        const topMenu = document.getElementById('topBarMoreMenu');
+        if (topMenu) topMenu.style.display = 'none';
+    }
+});
 
 function closeFolderCardMenu(menuId) {
     const menu = document.getElementById(menuId);
@@ -4513,6 +4592,179 @@ async function addToPlaylist(filePath) {
     }
 }
 
+// 将文件夹添加到播放列表
+async function addFolderToPlaylist(folderPath) {
+    try {
+        const result = await apiRequest('/api/add-folder-to-playlist', 'POST', { folderPath });
+        
+        if (!result.success) {
+            showError(result.error || '添加失败');
+            return;
+        }
+        
+        showSuccess(result.message);
+        
+        // 刷新播放列表视图
+        const playlistResult = await apiRequest('/api/playlist');
+        if (playlistResult.playlist) {
+            currentPlaylist = playlistResult.playlist;
+            renderPlaylist();
+        }
+        
+    } catch (error) {
+        console.error('添加失败:', error);
+        showError('添加失败');
+    }
+}
+
+// 下载文件夹（打包为ZIP）
+function downloadFolder(folderPath) {
+    const folderName = folderPath.split(/[\\/]/).pop();
+    const downloadUrl = `/api/download-folder?path=${encodeURIComponent(folderPath)}`;
+    
+    showNotification({
+        type: 'info',
+        message: `正在打包下载：${folderName}`,
+        duration: 2000
+    });
+    
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = `${folderName}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// 移动文件夹
+function moveFolder(folderPath, folderName) {
+    const modal = document.getElementById('moveFolderModal');
+    const pathInput = document.getElementById('moveFolderPath');
+    const nameDisplay = document.getElementById('moveFolderNameDisplay');
+    const targetInput = document.getElementById('moveFolderTargetInput');
+    const btnConfirm = document.getElementById('btnConfirmMoveFolder');
+    
+    pathInput.value = folderPath;
+    nameDisplay.textContent = folderName;
+    targetInput.value = '';
+    btnConfirm.disabled = true;
+    
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+    
+    // 监听输入框变化
+    targetInput.addEventListener('input', function() {
+        btnConfirm.disabled = !this.value.trim();
+    });
+}
+
+function closeMoveFolderModal() {
+    const modal = document.getElementById('moveFolderModal');
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+// 确认移动文件夹
+document.addEventListener('DOMContentLoaded', function() {
+    const btnConfirmMoveFolder = document.getElementById('btnConfirmMoveFolder');
+    if (btnConfirmMoveFolder) {
+        btnConfirmMoveFolder.addEventListener('click', async function() {
+            const folderPath = document.getElementById('moveFolderPath').value;
+            const targetFolder = document.getElementById('moveFolderTargetInput').value.trim();
+            
+            if (!folderPath || !targetFolder) {
+                showError('请填写完整信息');
+                return;
+            }
+            
+            btnConfirmMoveFolder.disabled = true;
+            btnConfirmMoveFolder.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 移动中...';
+            
+            try {
+                const result = await apiRequest('/api/move-folder', 'POST', { folderPath, targetFolder });
+                
+                if (result.success) {
+                    showSuccess(result.message);
+                    closeMoveFolderModal();
+                    // 从缓存中删除原文件夹
+                    removeFolderFromCache(folderPath);
+                    await loadFolderData(currentFolderPath, folderCurrentPage, FOLDER_PAGE_SIZE, folderSearchKeyword || undefined);
+                    refreshFolderTreeOnly();
+                } else {
+                    showError(result.error || '移动失败');
+                }
+            } catch (error) {
+                console.error('移动文件夹失败:', error);
+                showError('移动失败');
+            } finally {
+                btnConfirmMoveFolder.disabled = false;
+                btnConfirmMoveFolder.innerHTML = '<i class="fas fa-arrows-alt"></i> 确认移动';
+            }
+        });
+    }
+});
+
+// 转换文件夹为MP3
+function openConvertFolderToMp3Modal(folderPath, folderName) {
+    const modal = document.getElementById('convertFolderToMp3Modal');
+    const pathInput = document.getElementById('convertFolderPath');
+    const nameDisplay = document.getElementById('convertFolderName');
+    
+    pathInput.value = folderPath;
+    nameDisplay.textContent = folderName;
+    
+    // 重置按钮状态
+    const btn = document.getElementById('btnConfirmConvertFolder');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-cog"></i> 开始转换';
+    
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeConvertFolderToMp3Modal() {
+    if (isConverting) return;
+    const modal = document.getElementById('convertFolderToMp3Modal');
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+// 确认转换文件夹为MP3
+document.addEventListener('DOMContentLoaded', function() {
+    const btnConfirmConvertFolder = document.getElementById('btnConfirmConvertFolder');
+    if (btnConfirmConvertFolder) {
+        btnConfirmConvertFolder.addEventListener('click', async function() {
+            const folderPath = document.getElementById('convertFolderPath').value;
+            const quality = document.getElementById('convertFolderQuality').value;
+            
+            if (!folderPath) {
+                showError('文件夹路径为空');
+                return;
+            }
+            
+            btnConfirmConvertFolder.disabled = true;
+            btnConfirmConvertFolder.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 添加中...';
+            
+            try {
+                const result = await apiRequest('/api/batch-convert-folder-mp3', 'POST', { folderPath, bitrate: quality });
+                
+                if (result.success) {
+                    showSuccess(result.message);
+                    closeConvertFolderToMp3Modal();
+                } else {
+                    showError(result.error || '转换失败');
+                }
+            } catch (error) {
+                console.error('转换文件夹失败:', error);
+                showError('转换失败');
+            } finally {
+                btnConfirmConvertFolder.disabled = false;
+                btnConfirmConvertFolder.innerHTML = '<i class="fas fa-cog"></i> 开始转换';
+            }
+        });
+    }
+});
+
 // 多选功能相关变量
 let lastClickedFileIndex = -1;
 let isCtrlPressed = false;
@@ -4649,7 +4901,7 @@ async function confirmCreateFolder() {
         btnConfirm.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 创建中...';
     }
     
-    const parentPath = currentFolderPath || '/music';
+    const parentPath = currentFolderPath ? `/music/${currentFolderPath}` : '/music';
     
     try {
         const response = await fetch('/api/create-folder', {

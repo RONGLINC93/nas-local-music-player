@@ -1,6 +1,6 @@
 {
   "name": "nas-local-music-player",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "NAS本地音乐播放器 - 通过网页控制播放",
   "main": "server.js",
   "scripts": {

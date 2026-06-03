@@ -9,16 +9,18 @@ echo.
 echo Directory: %cd%
 echo.
 
-echo Pulling...
+echo Pulling latest code...
 git pull
 
 if errorlevel 1 (
     echo.
     echo FAILED
-) else (
-    echo.
-    echo SUCCESS
+    pause
+    exit /b 1
 )
+
+echo.
+echo SUCCESS
 
 echo.
 echo ======================================

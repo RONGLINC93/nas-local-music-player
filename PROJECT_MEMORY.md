@@ -3,7 +3,7 @@
 ## 项目信息
 - **项目名称**: NAS本地音乐播放器
 - **GitHub仓库**: https://github.com/RONGLINC93/nas-local-music-player
-- **当前版本**: 1.3.0
+- **当前版本**: 1.2.1
 - **已发布版本**: 1.2.0
 
 ## 硬约束 (Hard Constraints)

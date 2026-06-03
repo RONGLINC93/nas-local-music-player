@@ -16,6 +16,24 @@
     "filename": "01 Funky Broadway Melody 320kbps_1 - 副本.mp3"
   },
   {
+    "title": "屋顶",
+    "artist": "周杰伦, 温岚, 吴宗宪",
+    "album": "男女情歌对唱冠军全记录",
+    "duration": 319,
+    "path": "online://wy/5257138",
+    "playUrl": "",
+    "picUrl": "",
+    "source": "wy",
+    "sourceName": "网易云音乐",
+    "isOnline": true,
+    "songInfo": {
+      "songId": "5257138",
+      "name": "屋顶",
+      "singer": "周杰伦, 温岚, 吴宗宪",
+      "albumName": "男女情歌对唱冠军全记录"
+    }
+  },
+  {
     "title": "Empty Love",
     "artist": "Lulleaux;Kid Princess",
     "album": "Empty Love (feat. Kid Princess)",
@@ -62,5 +80,41 @@
     "duration": 141.84489795918367,
     "path": "C:\\Users\\CRL\\Desktop\\NAS本地音乐播放器\\music\\The Kid LAROI、Justin Bieber - STAY (Explicit)_1.mp3",
     "filename": "The Kid LAROI、Justin Bieber - STAY (Explicit)_1.mp3"
+  },
+  {
+    "title": "The Way I Still Love You",
+    "artist": "undefined, 101e",
+    "album": "吉他指弹纯音乐合辑",
+    "duration": 213,
+    "path": "online://tx/376724039",
+    "playUrl": "http://sjy.stream.qqmusic.qq.com/C400003mAan70zUy5O.m4a?guid=1234567890&vkey=13074E5D2B0263277A5CA8B8905CA30E6B27109917365EFE1B56E16D86F810853EDF454192956570A3382FB62EA22C3C18FE56D0A7A433EB&uin=0&fromtag=3",
+    "picUrl": "https://y.gtimg.cn/music/photo_new/T002R300x300M000003gilvX3kqhz1.jpg",
+    "source": "tx",
+    "sourceName": "QQ音乐",
+    "isOnline": true,
+    "songInfo": {
+      "songId": 376724039,
+      "name": "The Way I Still Love You",
+      "singer": "undefined, 101e",
+      "albumName": "吉他指弹纯音乐合辑"
+    }
+  },
+  {
+    "title": "岁月如笔写春秋 (Cover 河南三妹5233)",
+    "artist": "蔡蔡",
+    "album": "",
+    "duration": 248,
+    "path": "online://wy/3387284569",
+    "playUrl": "http://m701.music.126.net/20260603224633/ab293746034449c8903020fa27e85ef0/jdymusic/obj/wo3DlMOGwrbDjj7DisKw/80517054893/1139/d15f/8764/d16f750368a1a7ec34596dd28118f2e3.mp3?vuutv=TXOekNzj9pnzacFYFc0Yi2Q1emA3BhrYf7th18vZgo3mthRYjaHdE7RArnG1emq4K4b0UThG16yx8y2owaAsP3KlrhSTmAfvyc+B7Pfevhg=&cdntag=bWFyaz1vc193ZWIscXVhbGl0eV9zdGFuZGFyZA",
+    "picUrl": "http://p2.music.126.net/FhGbLawJV2YYmIHKqO8iCw==/109951173294010099.jpg",
+    "source": "wy",
+    "sourceName": "网易云音乐",
+    "isOnline": true,
+    "songInfo": {
+      "songId": "3387284569",
+      "name": "岁月如笔写春秋 (Cover 河南三妹5233)",
+      "singer": "蔡蔡",
+      "albumName": ""
+    }
   }
 ]

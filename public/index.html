@@ -107,7 +107,18 @@
             <div id="view-online" class="view">
                 <!-- 顶部栏 -->
                 <header class="top-bar">
-                    <div class="online-search-bar">
+                    <!-- Tab切换 -->
+                    <div class="online-tabs">
+                        <button class="online-tab active" id="tabRank" onclick="switchOnlineTab('rank')">
+                            <i class="fas fa-chart-line"></i> 排行榜
+                        </button>
+                        <button class="online-tab" id="tabSearch" onclick="switchOnlineTab('search')">
+                            <i class="fas fa-search"></i> 搜索
+                        </button>
+                    </div>
+                    
+                    <!-- 搜索区域（默认隐藏） -->
+                    <div class="online-search-bar" id="onlineSearchBar" style="display: none;">
                         <select id="onlineSourceSelect" class="online-source-select">
                             <option value="">全部源</option>
                             <option value="kw">酷我音乐</option>
@@ -116,16 +127,43 @@
                             <option value="wy">网易云音乐</option>
                             <option value="mg">咪咕音乐</option>
                         </select>
-                        <input type="text" id="onlineSearchInput" class="online-search-input" placeholder="搜索在线音乐..." onkeypress="if(event.key==='Enter')searchOnlineMusic()">
-                        <button onclick="searchOnlineMusic()" class="online-search-btn">
-                            <i class="fas fa-search"></i> 搜索
-                        </button>
+                        <div class="online-search-wrapper">
+                            <input type="text" id="onlineSearchInput" class="online-search-input" placeholder="搜索在线音乐..." onkeypress="if(event.key==='Enter')searchOnlineMusic()">
+                            <button onclick="searchOnlineMusic()" class="online-search-btn">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
                     </div>
                 </header>
 
                 <!-- 内容区域 -->
                 <div class="content-area">
-                    <section class="online-results-section">
+                    <!-- 排行榜区域 -->
+                    <section class="online-rank-section" id="onlineRankSection">
+                        <div class="section-header">
+                            <h2>排行榜 <span class="count" id="rankCount">(0 首)</span></h2>
+                            <div class="rank-controls">
+                                <select id="rankTypeSelect" class="rank-type-select" onchange="loadRankList()">
+                                    <option value="hot">热门榜</option>
+                                    <option value="new">新歌榜</option>
+                                    <option value="soaring">飙升榜</option>
+                                    <option value="original">原创榜</option>
+                                </select>
+                                <button onclick="refreshRankList()" class="rank-refresh-btn" title="刷新排行榜">
+                                    <i class="fas fa-refresh"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="online-results" id="rankResults">
+                            <div class="empty-state">
+                                <i class="fas fa-chart-line"></i>
+                                <p>加载排行榜中...</p>
+                            </div>
+                        </div>
+                    </section>
+                    
+                    <!-- 搜索结果区域（默认隐藏） -->
+                    <section class="online-results-section" id="onlineResultsSection" style="display: none;">
                         <div class="section-header">
                             <h2>搜索结果 <span class="count" id="onlineCount">(0 首)</span></h2>
                         </div>
@@ -142,12 +180,14 @@
 
             <!-- 系统设置视图 -->
             <div id="view-online-settings" class="view">
+                <!-- 顶部栏 -->
+                <header class="top-bar">
+                     <h2>系统设置</h2>
+                </header>
+
+                <!-- 内容区域 -->
                 <div class="content-area">
-                    <section class="online-settings-section">
-                        <div class="section-header">
-                            <h2>系统设置</h2>
-                        </div>
-                        
+                    <section class="online-settings-section">                        
                         <!-- 音源文件管理 -->
                         <div class="online-setting-card">
                             <h4><i class="fas fa-file-audio"></i> 音源文件管理</h4>
@@ -752,6 +792,25 @@
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+                    
+                        <!-- 免责声明 -->
+                        <div class="disclaimer-section">
+                            <h4><i class="fas fa-shield-alt"></i> 免责声明</h4>
+                            
+                            <div class="disclaimer-content">
+                                <p><strong>1. 版权声明</strong></p>
+                                <p>本软件仅提供音乐播放功能，不提供任何音乐资源。用户上传的音乐文件需确保拥有合法版权或使用授权。对于用户上传的侵权内容，本软件不承担任何法律责任。</p>
+                                
+                                <p><strong>2. 在线音乐</strong></p>
+                                <p>在线音乐搜索功能通过第三方音源获取音乐信息和播放链接，所有音乐版权归相应的音乐平台和版权方所有。本软件仅提供技术展示，不存储或分发任何音乐文件。请遵守相关平台的使用条款和版权法规。</p>
+                                
+                                <p><strong>3. 自定义音源</strong></p>
+                                <p>自定义音源由第三方开发者提供，本软件不对其内容、合法性和安全性负责。使用自定义音源产生的任何后果由用户自行承担。</p>
+                                
+                                <p><strong>4. 使用规范</strong></p>
+                                <p>本软件仅供个人学习和非商业用途。禁止用于商业盈利或其他非法用途。使用本软件即表示您同意遵守上述声明。</p>
+                            </div>
                         </div>
 
                         <div class="footer">

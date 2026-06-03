@@ -2,12 +2,66 @@ const fs = require('fs');
 const path = require('path');
 const AdmZip = require('adm-zip');
 
+// 从 .gitignore 文件加载忽略规则
+function loadGitIgnoreRules(gitIgnorePath) {
+  const rules = [];
+  if (fs.existsSync(gitIgnorePath)) {
+    const content = fs.readFileSync(gitIgnorePath, 'utf8');
+    const lines = content.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      // 跳过空行和注释
+      if (trimmed === '' || trimmed.startsWith('#')) {
+        continue;
+      }
+      rules.push(trimmed);
+    }
+  }
+  return rules;
+}
+
+// 检查文件是否应该被忽略
+function shouldIgnore(file, rules) {
+    for (const rule of rules) {
+    let pattern = rule;
+    let isDirectory = false;
+    
+    // 处理目录规则（末尾带 /）
+    if (pattern.endsWith('/')) {
+      isDirectory = true;
+      pattern = pattern.slice(0, -1);
+    }
+    
+    // 处理通配符规则（如 *.log）
+    if (pattern.startsWith('*.')) {
+      const extension = pattern.slice(1); // 去掉 *，得到 .log
+      if (file.endsWith(extension)) {
+        return true;
+      }
+    } else if (isDirectory) {
+      // 目录规则：检查文件名是否匹配
+      if (file === pattern) {
+        return true;
+      }
+    } else {
+      // 文件规则：检查文件名是否匹配
+      if (file === pattern) {
+        return true;
+      }
+    }
+  }
+  
+  return false;
+}
+
 function createZipPackage(outputPath) {
   const rootDir = __dirname;
   const zip = new AdmZip();
+  const gitIgnoreRules = loadGitIgnoreRules(path.join(rootDir, '.gitignore'));
   
   console.log('开始打包文件...');
   console.log('输出文件:', outputPath);
+  console.log('加载的忽略规则:', gitIgnoreRules);
   
   function walkDirectory(dir) {
     const files = fs.readdirSync(dir);
@@ -16,19 +70,9 @@ function createZipPackage(outputPath) {
       const filePath = path.join(dir, file);
       const stat = fs.statSync(filePath);
       
-      const excludeFiles = ['.env', 'PROJECT_MEMORY.md', 'release.ps1'];
-      if (stat.isFile() && excludeFiles.includes(file)) {
+      // 使用 .gitignore 规则检查是否跳过
+      if (shouldIgnore(file, gitIgnoreRules)) {
         console.log('跳过:', file);
-        continue;
-      }
-      
-      if ((dir === rootDir && stat.isFile() && file.endsWith('.zip'))) {
-        console.log('跳过:', file);
-        continue;
-      }
-      
-      if (stat.isDirectory() && (file === 'music' || file === '.git')) {
-        console.log('跳过目录:', file);
         continue;
       }
       

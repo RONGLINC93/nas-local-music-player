@@ -282,6 +282,15 @@ function renderPlaylist() {
             item.classList.add('selected');
         }
         
+        // 生成来源标签
+        const sourceBadge = track.isOnline 
+            ? `<span class="playlist-item-source online" title="${track.sourceName || '在线音乐'}">
+                <i class="fas fa-globe"></i> ${track.sourceName || '在线'}
+               </span>`
+            : `<span class="playlist-item-source local" title="本地音乐">
+                <i class="fas fa-hard-drive"></i> 本地
+               </span>`;
+        
         item.innerHTML = `
             <div class="playlist-item-checkbox">
                 <input type="checkbox" 
@@ -291,7 +300,7 @@ function renderPlaylist() {
             <div class="playlist-item-index">
                 ${index === currentIndex && isPlaying ? '<i class="fas fa-play playing-icon"></i>' : index + 1}
             </div>
-            <div class="playlist-item-title">${track.title}</div>
+            <div class="playlist-item-title">${track.title}${sourceBadge}</div>
             <div class="playlist-item-artist">${track.artist || '-'}</div>
             <div class="playlist-item-duration">${formatDuration(track.duration)}</div>
             <div class="playlist-item-actions">
@@ -2840,11 +2849,12 @@ async function endDrag(e) {
 }
 
 window.onload = async () => {
-    // 加载核心界面（播放状态、声卡、音量）
+    // 加载核心界面（播放状态、声卡、音量、在线设置）
     await Promise.all([
         loadStatus(),
         loadAudioDevices(),
-        loadVolume()
+        loadVolume(),
+        loadOnlineSettings()
     ]);
     updatePlayModeButton();
     initProgressDrag();
@@ -2858,6 +2868,13 @@ window.onload = async () => {
         console.log('所有数据加载完成');
     }).catch(error => {
         console.error('后台加载失败:', error);
+    });
+    
+    // 后台异步预加载排行榜数据
+    preloadAllRanks().then(() => {
+        console.log('排行榜数据预加载完成');
+    }).catch(error => {
+        console.error('排行榜预加载失败:', error);
     });
 };
 
@@ -6028,6 +6045,212 @@ function clearPlaylistSelection() {
 // ==================== 在线音乐搜索和播放 ====================
 
 let onlineSearchResults = [];
+let onlineRankResults = [];
+let rankCache = {};  // 排行榜缓存 { type: results }
+
+// Tab切换
+function switchOnlineTab(tab) {
+    const rankTab = document.getElementById('tabRank');
+    const searchTab = document.getElementById('tabSearch');
+    const rankSection = document.getElementById('onlineRankSection');
+    const searchSection = document.getElementById('onlineResultsSection');
+    const searchBar = document.getElementById('onlineSearchBar');
+    
+    if (tab === 'rank') {
+        rankTab.classList.add('active');
+        searchTab.classList.remove('active');
+        rankSection.style.display = 'block';
+        searchSection.style.display = 'none';
+        searchBar.style.display = 'none';
+        
+        // 检查缓存，如果有就直接显示
+        const rankType = document.getElementById('rankTypeSelect').value;
+        if (rankCache[rankType]) {
+            onlineRankResults = rankCache[rankType];
+            renderRankResults();
+        } else {
+            loadRankList();
+        }
+    } else {
+        searchTab.classList.add('active');
+        rankTab.classList.remove('active');
+        searchSection.style.display = 'block';
+        rankSection.style.display = 'none';
+        searchBar.style.display = 'flex';
+    }
+}
+
+// 加载排行榜
+async function loadRankList(rankType = null) {
+    const type = rankType || document.getElementById('rankTypeSelect').value;
+    const resultsContainer = document.getElementById('rankResults');
+    
+    // 检查缓存
+    if (rankCache[type]) {
+        onlineRankResults = rankCache[type];
+        if (!rankType) {
+            renderRankResults();
+        }
+        return;
+    }
+    
+    // 只有用户主动触发时显示加载状态
+    if (!rankType) {
+        resultsContainer.innerHTML = '<div class="online-loading"><i class="fas fa-spinner"></i><p>正在加载排行榜...</p></div>';
+    }
+    
+    try {
+        const response = await fetch('/api/online-rank', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            rankCache[type] = result.results;  // 缓存数据
+            onlineRankResults = result.results;
+            if (!rankType) {
+                renderRankResults();
+            }
+        } else {
+            console.error('加载排行榜失败:', result.error);
+            if (!rankType) {
+                resultsContainer.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>加载失败：${result.error}</p></div>`;
+            }
+        }
+    } catch (error) {
+        console.error('加载排行榜失败:', error);
+        if (!rankType) {
+            resultsContainer.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>加载失败，请检查网络连接</p></div>';
+        }
+    }
+}
+
+// 预加载所有排行榜类型（后台静默加载）
+async function preloadAllRanks() {
+    const rankTypes = ['hot', 'new', 'soaring', 'original'];
+    for (const type of rankTypes) {
+        await loadRankList(type);
+        await new Promise(resolve => setTimeout(resolve, 500));
+    }
+}
+
+// 刷新排行榜（清除缓存并重新加载）
+async function refreshRankList() {
+    const refreshBtn = document.querySelector('.rank-refresh-btn');
+    const rankType = document.getElementById('rankTypeSelect').value;
+    
+    refreshBtn?.classList.add('refreshing');
+    
+    try {
+        delete rankCache[rankType];  // 清除缓存
+        await loadRankList();
+    } catch (error) {
+        console.error('刷新排行榜失败:', error);
+    } finally {
+        refreshBtn?.classList.remove('refreshing');
+    }
+}
+
+// 获取平台名称映射
+function getSourceName(source) {
+    const sourceNames = {
+        'kw': '酷我',
+        'kg': '酷狗',
+        'tx': 'QQ',
+        'wy': '网易云',
+        'mg': '咪咕'
+    };
+    return sourceNames[source] || source;
+}
+
+// 获取平台颜色
+function getSourceColor(source) {
+    const colors = {
+        'kw': '#ff6a00',
+        'kg': '#ff4757',
+        'tx': '#10b981',
+        'wy': '#e01d2c',
+        'mg': '#ffc107'
+    };
+    return colors[source] || '#6b7280';
+}
+
+// 渲染排行榜结果
+function renderRankResults() {
+    const resultsContainer = document.getElementById('rankResults');
+    const countElement = document.getElementById('rankCount');
+    
+    // 将所有平台的音乐合并到一个列表
+    let allSongs = [];
+    onlineRankResults.forEach(sourceResult => {
+        sourceResult.list.forEach((song, index) => {
+            allSongs.push({
+                ...song,
+                sourceName: sourceResult.sourceName,
+                globalIndex: allSongs.length
+            });
+        });
+    });
+    
+    const total = allSongs.length;
+    countElement.textContent = `(${total} 首)`;
+    
+    if (total === 0) {
+        resultsContainer.innerHTML = '<div class="empty-state"><i class="fas fa-chart-line"></i><p>暂无排行榜数据</p></div>';
+        return;
+    }
+    
+    let html = '';
+    
+    allSongs.forEach((song, index) => {
+        const cacheKey = `rank_${song.source}_${song.songId}_${index}`;
+        onlineSongCache[cacheKey] = song;
+        
+        // 排名标识
+        let rankBadge = '';
+        if (index === 0) {
+            rankBadge = '<span class="rank-badge rank-1">1</span>';
+        } else if (index === 1) {
+            rankBadge = '<span class="rank-badge rank-2">2</span>';
+        } else if (index === 2) {
+            rankBadge = '<span class="rank-badge rank-3">3</span>';
+        } else {
+            rankBadge = `<span class="rank-badge rank-other">${index + 1}</span>`;
+        }
+        
+        // 平台标识
+        const sourceColor = getSourceColor(song.source);
+        const sourceName = getSourceName(song.source);
+        
+        html += `
+            <div class="online-item" data-source="${song.source}" data-songid="${song.songId}">
+                ${rankBadge}
+                <img src="${song.picUrl || ''}" alt="" class="online-item-pic" onerror="this.style.display='none'">
+                <div class="online-item-info">
+                    <div class="online-item-title-row">
+                        <div class="online-item-title">${song.name}</div>
+                        <span class="online-source-tag" style="background-color: ${sourceColor}">${sourceName}</span>
+                    </div>
+                    <div class="online-item-artist">${song.singer}</div>
+                    <div class="online-item-album">${song.albumName || ''}</div>
+                </div>
+                <div class="online-item-interval">${formatDuration(song.interval)}</div>
+                <div class="online-item-actions">
+                    <button class="online-play-btn" onclick="playOnlineSong('${cacheKey}')" title="播放">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <button class="online-add-btn" onclick="addToPlaylistFromOnline('${cacheKey}')" title="添加到播放列表">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+            </div>`;
+    });
+    
+    resultsContainer.innerHTML = html;
+}
 
 // 搜索在线音乐
 async function searchOnlineMusic() {
@@ -6071,8 +6294,18 @@ function renderOnlineResults() {
     const resultsContainer = document.getElementById('onlineResults');
     const countElement = document.getElementById('onlineCount');
     
-    let total = 0;
-    onlineSearchResults.forEach(r => total += r.list.length);
+    // 将所有平台的音乐合并到一个列表
+    let allSongs = [];
+    onlineSearchResults.forEach(sourceResult => {
+        sourceResult.list.forEach((song, index) => {
+            allSongs.push({
+                ...song,
+                sourceName: sourceResult.sourceName
+            });
+        });
+    });
+    
+    const total = allSongs.length;
     countElement.textContent = `(${total} 首)`;
     
     if (total === 0) {
@@ -6082,37 +6315,86 @@ function renderOnlineResults() {
     
     let html = '';
     
-    onlineSearchResults.forEach(sourceResult => {
-        html += `<div class="online-source-group">
-            <div class="online-source-header">${sourceResult.sourceName} (${sourceResult.list.length} 首)</div>`;
+    allSongs.forEach((song, index) => {
+        // 缓存完整的歌曲信息
+        const cacheKey = `${song.source}_${song.songId}_${index}`;
+        onlineSongCache[cacheKey] = song;
         
-        sourceResult.list.forEach((song, index) => {
-            // 缓存完整的歌曲信息
-            const cacheKey = `${song.source}_${song.songId}_${index}`;
-            onlineSongCache[cacheKey] = song;
-            
-            html += `
-                <div class="online-item" data-source="${song.source}" data-songid="${song.songId}">
-                    <img src="${song.picUrl || ''}" alt="" class="online-item-pic" onerror="this.style.display='none'">
-                    <div class="online-item-info">
+        // 序号标识
+        let indexBadge = `<span class="rank-badge rank-other">${index + 1}</span>`;
+        
+        // 平台标识
+        const sourceColor = getSourceColor(song.source);
+        const sourceName = getSourceName(song.source);
+        
+        html += `
+            <div class="online-item" data-source="${song.source}" data-songid="${song.songId}">
+                ${indexBadge}
+                <img src="${song.picUrl || ''}" alt="" class="online-item-pic" onerror="this.style.display='none'">
+                <div class="online-item-info">
+                    <div class="online-item-title-row">
                         <div class="online-item-title">${song.name}</div>
-                        <div class="online-item-artist">${song.singer}</div>
-                        <div class="online-item-album">${song.albumName || ''}</div>
+                        <span class="online-source-tag" style="background-color: ${sourceColor}">${sourceName}</span>
                     </div>
-                    <div class="online-item-interval">${song.interval || '--:--'}</div>
-                    <div class="online-item-actions">
-                        <button class="online-play-btn" onclick="playOnlineSong('${cacheKey}')" title="播放">
-                            <i class="fas fa-play"></i>
-                        </button>
-                    </div>
+                    <div class="online-item-artist">${song.singer}</div>
+                    <div class="online-item-album">${song.albumName || ''}</div>
                 </div>
-            `;
-        });
-        
-        html += '</div>';
+                <div class="online-item-interval">${formatDuration(song.interval)}</div>
+                <div class="online-item-actions">
+                    <button class="online-play-btn" onclick="playOnlineSong('${cacheKey}')" title="播放">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <button class="online-add-btn" onclick="addToPlaylistFromOnline('${cacheKey}')" title="添加到播放列表">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+            </div>
+        `;
     });
     
     resultsContainer.innerHTML = html;
+}
+
+// 添加在线音乐到播放列表（不播放）
+async function addToPlaylistFromOnline(cacheKey) {
+    const song = onlineSongCache[cacheKey];
+    if (!song) {
+        showNotification({ type: 'error', message: '歌曲信息丢失，请重新搜索' });
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/add-online-to-playlist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                source: song.source,
+                songId: song.songId,
+                name: song.name,
+                singer: song.singer,
+                albumName: song.albumName || '',
+                picUrl: song.picUrl || '',
+                interval: song.interval || ''
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification({ type: 'success', message: result.message });
+            // 刷新播放列表视图
+            const playlistResult = await apiRequest('/api/playlist');
+            if (playlistResult.playlist) {
+                currentPlaylist = playlistResult.playlist;
+                renderPlaylist();
+            }
+        } else {
+            showNotification({ type: 'error', message: result.error || '添加失败' });
+        }
+    } catch (error) {
+        console.error('添加失败:', error);
+        showNotification({ type: 'error', message: '添加失败，请重试' });
+    }
 }
 
 // 播放在线歌曲
@@ -6145,7 +6427,7 @@ async function playOnlineSong(cacheKey) {
         const result = await response.json();
         
         if (result.success) {
-            showNotification({ type: 'success', message: `正在播放：${name}` });
+            showNotification({ type: 'success', message: `正在播放：${song.name}` });
             // 更新播放列表
             const playlistResult = await apiRequest('/api/playlist');
             if (playlistResult.playlist) {
@@ -6153,9 +6435,71 @@ async function playOnlineSong(cacheKey) {
                 renderPlaylist();
             }
             // 同步播放状态
-            await syncPlayerStatus();
+            await syncStatusWithServer();
+            // 启动进度更新
+            startProgressUpdate();
         } else {
-            showNotification({ type: 'error', message: result.error || '播放失败' });
+            // 当前平台无法播放，尝试从其他平台搜索同一首歌曲
+            const platforms = ['kw', 'kg', 'tx', 'wy', 'mg'];
+            const currentIndex = platforms.indexOf(song.source);
+            const otherPlatforms = platforms.filter((_, i) => i !== currentIndex);
+            
+            // 尝试其他平台搜索并播放
+            for (const platform of otherPlatforms) {
+                try {
+                    showNotification({ type: 'info', message: `尝试从${getSourceName(platform)}获取...` });
+                    
+                    // 先搜索该平台的同名歌曲
+                    const searchResponse = await fetch('/api/online-search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            keyword: `${song.name} ${song.singer}`,
+                            source: platform,
+                            page: 1,
+                            limit: 5
+                        })
+                    });
+                    
+                    const searchResult = await searchResponse.json();
+                    
+                    if (searchResult.success && searchResult.results.length > 0 && searchResult.results[0].list.length > 0) {
+                        // 找到匹配的歌曲，尝试播放
+                        const foundSong = searchResult.results[0].list[0];
+                        const altResponse = await fetch('/api/play-online', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                source: platform,
+                                songId: foundSong.songId,
+                                name: foundSong.name,
+                                singer: foundSong.singer,
+                                albumName: foundSong.albumName || '',
+                                picUrl: foundSong.picUrl || '',
+                                interval: foundSong.interval || ''
+                            })
+                        });
+                        
+                        const altResult = await altResponse.json();
+                        
+                        if (altResult.success) {
+                            showNotification({ type: 'success', message: `正在播放：${foundSong.name}（${getSourceName(platform)}）` });
+                            const playlistResult = await apiRequest('/api/playlist');
+                            if (playlistResult.playlist) {
+                                currentPlaylist = playlistResult.playlist;
+                                renderPlaylist();
+                            }
+                            await syncStatusWithServer();
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    console.log(`尝试${getSourceName(platform)}失败:`, e.message);
+                }
+            }
+            
+            // 所有平台都失败
+            showNotification({ type: 'error', message: result.error || '该歌曲暂无法播放（版权限制或需要付费）' });
         }
     } catch (error) {
         console.error('播放在线音乐失败:', error);
@@ -6321,11 +6665,16 @@ function renderSourceFileList(files) {
     
     // 获取已激活的音源列表（后端返回的是不带.js的ID）
     const activeSources = window.activeSources || [];
+    // 获取当前会话选中的音源文件列表（带.js）
+    const selectedSourceFiles = window.selectedSourceFiles || [];
     
     list.innerHTML = files.map(file => {
         // 去掉文件名的.js扩展名，与后端返回的ID比较
         const fileId = file.name.replace('.js', '');
-        const isActive = activeSources.includes(fileId);
+        // 同时检查两个数组：后端激活的和当前选中的
+        const isActive = activeSources.includes(fileId) || selectedSourceFiles.includes(file.name);
+        const displayName = file.displayName || file.name.replace('.js', '');
+        const versionInfo = file.version ? ` v${file.version}` : '';
         return `
         <div class="source-file-item ${isActive ? 'selected' : ''}" data-filename="${file.name}" onclick="toggleSourceFile('${file.name}')">
             <div class="source-file-checkbox">
@@ -6335,10 +6684,10 @@ function renderSourceFileList(files) {
                 <i class="fas fa-file-code"></i>
             </div>
             <div class="source-file-info">
-                <div class="source-file-name">${file.name}</div>
-                <div class="source-file-size">${formatFileSize(file.size)}</div>
+                <div class="source-file-name">${displayName}${versionInfo}</div>
+                <div class="source-file-size">${file.name}</div>
             </div>
-            <span class="source-file-status ${isActive ? 'active' : 'inactive'}">${isActive ? '已启用' : '未启用'}</span>
+            <span class="source-file-status ${isActive ? 'active' : 'inactive'}">${isActive ? '已选中' : '未选中'}</span>
             <div class="source-file-actions-row">
                 <button class="source-file-delete-btn" onclick="event.stopPropagation(); deleteSourceFile('${file.name}')" title="删除">
                     <i class="fas fa-trash"></i>
@@ -6528,6 +6877,15 @@ switchView = function(viewName) {
             refreshSourceFiles();
         });
         setTimeout(initSourceDragDrop, 100);
+    } else if (viewName === 'online') {
+        // 进入在线音乐页面时，检查缓存，有缓存直接显示
+        const rankType = document.getElementById('rankTypeSelect').value;
+        if (rankCache[rankType]) {
+            onlineRankResults = rankCache[rankType];
+            renderRankResults();
+        } else {
+            loadRankList();
+        }
     }
 };
 

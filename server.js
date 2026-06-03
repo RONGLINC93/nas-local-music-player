@@ -3757,7 +3757,7 @@ app.post('/api/batch-download', async (req, res) => {
     }
 });
 
-app.get('/api/play/:index', (req, res) => {
+app.get('/api/play/:index', async (req, res) => {
     const index = parseInt(req.params.index);
     if (index < 0 || index >= currentPlaylist.length) {
         return res.status(400).json({ error: '无效的索引' });
@@ -3776,23 +3776,93 @@ app.get('/api/play/:index', (req, res) => {
         });
     }
 
-    // 先停止当前播放
-    stopMusic();
-
     // 设置新的播放索引
     currentIndex = index;
-    isPlaying = true;
 
     console.log(`🎵 切换歌曲：${track.title}`);
 
-    // 立即开始播放，不延迟
-    playMusic(track.path).then(() => {
-        res.json({
-            success: true,
-            current: track,
-            index: currentIndex
+    // 判断是否是在线音乐
+    if (track.isOnline || track.path.startsWith('online://')) {
+        try {
+            // 先停止当前播放
+            stopMusic();
+            
+            // 获取播放链接（传递完整的歌曲信息，包括可能保存的 songInfo）
+            const songInfo = track.songInfo || { 
+                songId: track.path.split('/')[2], 
+                name: track.title, 
+                singer: track.artist, 
+                albumName: track.album 
+            };
+            let playUrl = await getMusicPlayUrl(track.source, songInfo, '128');
+            
+            // 如果当前平台无法获取播放链接，尝试其他平台
+            if (!playUrl) {
+                console.log(`当前平台 ${track.sourceName} 无法获取播放链接，尝试其他平台...`);
+                
+                // 定义可用平台
+                const platforms = ['kw', 'kg', 'tx', 'wy', 'mg'];
+                const currentIndexInPlatforms = platforms.indexOf(track.source);
+                const otherPlatforms = currentIndexInPlatforms >= 0 
+                    ? platforms.filter((_, i) => i !== currentIndexInPlatforms)
+                    : platforms;
+                
+                // 尝试其他平台
+                for (const platform of otherPlatforms) {
+                    try {
+                        const platformName = ONLINE_SOURCES.find(s => s.id === platform)?.name || platform;
+                        console.log(`尝试从 ${platformName} 获取播放链接...`);
+                        
+                        // 使用完整的歌曲信息
+                        playUrl = await getMusicPlayUrl(platform, songInfo, '128');
+                        
+                        if (playUrl) {
+                            // 更新歌曲的来源信息
+                            track.source = platform;
+                            track.sourceName = platformName;
+                            console.log(`成功从 ${platformName} 获取播放链接`);
+                            break;
+                        }
+                    } catch (e) {
+                        console.log(`尝试 ${platform} 失败:`, e.message);
+                    }
+                }
+            }
+            
+            if (!playUrl) {
+                return res.json({ success: false, error: '无法获取播放链接（版权限制或需要付费）' });
+            }
+            
+            // 更新播放链接
+            track.playUrl = playUrl;
+            currentDuration = track.duration;
+            playbackStartTime = Date.now();
+            isPlaying = true;
+            
+            console.log(`🎵 在线播放：${track.title} (${track.sourceName})`);
+            
+            // 播放在线音乐流
+            playOnlineMusic(playUrl);
+            
+            res.json({
+                success: true,
+                current: track,
+                index: currentIndex
+            });
+        } catch (error) {
+            console.error('在线播放失败:', error.message);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    } else {
+        // 播放本地音乐（playMusic 内部会处理 stopMusic 和 isPlaying）
+        playMusic(track.path).then(() => {
+            res.json({
+                success: true,
+                current: track,
+                index: currentIndex
+            });
         });
-    });
+    }
 });
 
 app.get('/api/pause', (req, res) => {
@@ -3815,7 +3885,7 @@ app.get('/api/stop', (req, res) => {
 });
 
 // 跳转到指定时间
-app.get('/api/seek', (req, res) => {
+app.get('/api/seek', async (req, res) => {
     const time = parseFloat(req.query.time);
     
     if (isNaN(time) || time < 0) {
@@ -3845,19 +3915,54 @@ app.get('/api/seek', (req, res) => {
     }
     pausedElapsed = seekTime;
     
-    // 重新开始播放（从指定位置）
-    setTimeout(() => {
-        const track = currentPlaylist[currentIndex];
-        if (track) {
-            playMusicFromPosition(track.path, seekTime, isPlaying);
-        }
-    }, 100);
+    // 获取当前歌曲
+    const track = currentPlaylist[currentIndex];
     
-    res.json({ 
-        success: true, 
-        seekTime: seekTime,
-        duration: maxTime
-    });
+    // 判断是否是在线音乐
+    if (track.isOnline || track.path.startsWith('online://')) {
+        // 在线音乐无法精确跳转，只能重新播放
+        try {
+            const playUrl = await getMusicPlayUrl(track.source, { 
+                songId: track.path.split('/')[2], 
+                name: track.title, 
+                singer: track.artist, 
+                albumName: track.album 
+            }, '128');
+            
+            if (!playUrl) {
+                return res.json({ success: false, error: '无法获取播放链接' });
+            }
+            
+            // 更新播放链接
+            track.playUrl = playUrl;
+            
+            // 重新开始播放（在线音乐暂时不支持精确跳转）
+            if (isPlaying) {
+                playbackStartTime = Date.now();
+                playOnlineMusic(playUrl);
+            }
+            
+            res.json({ 
+                success: true, 
+                seekTime: seekTime,
+                duration: maxTime
+            });
+        } catch (error) {
+            console.error('在线播放跳转失败:', error.message);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    } else {
+        // 本地音乐：重新开始播放（从指定位置）
+        setTimeout(() => {
+            playMusicFromPosition(track.path, seekTime, isPlaying);
+        }, 100);
+        
+        res.json({ 
+            success: true, 
+            seekTime: seekTime,
+            duration: maxTime
+        });
+    }
 });
 
 // 从指定位置播放
@@ -3971,7 +4076,7 @@ app.get('/api/download/:index', (req, res) => {
     sendFileDownload(res, filePath);
 });
 
-app.get('/api/next', (req, res) => {
+app.get('/api/next', async (req, res) => {
     if (currentPlaylist.length === 0) {
         return res.json({ success: false, message: '播放列表为空' });
     }
@@ -3996,13 +4101,77 @@ app.get('/api/next', (req, res) => {
 
     const track = currentPlaylist[nextIndex];
     currentIndex = nextIndex;
-    isPlaying = true;
-    playMusic(track.path).then(() => {
-        res.json({ success: true, current: track, index: currentIndex, isPlaying: isPlaying });
-    });
+
+    // 先停止当前播放
+    stopMusic();
+
+    // 判断是否是在线音乐
+    if (track.isOnline || track.path.startsWith('online://')) {
+        try {
+            // 使用完整的歌曲信息
+            const songInfo = track.songInfo || { 
+                songId: track.path.split('/')[2], 
+                name: track.title, 
+                singer: track.artist, 
+                albumName: track.album 
+            };
+            let playUrl = await getMusicPlayUrl(track.source, songInfo, '128');
+            
+            // 如果当前平台无法获取播放链接，尝试其他平台
+            if (!playUrl) {
+                console.log(`当前平台 ${track.sourceName} 无法获取播放链接，尝试其他平台...`);
+                
+                const platforms = ['kw', 'kg', 'tx', 'wy', 'mg'];
+                const currentIndexInPlatforms = platforms.indexOf(track.source);
+                const otherPlatforms = currentIndexInPlatforms >= 0 
+                    ? platforms.filter((_, i) => i !== currentIndexInPlatforms)
+                    : platforms;
+                
+                for (const platform of otherPlatforms) {
+                    try {
+                        const platformName = ONLINE_SOURCES.find(s => s.id === platform)?.name || platform;
+                        console.log(`尝试从 ${platformName} 获取播放链接...`);
+                        
+                        playUrl = await getMusicPlayUrl(platform, songInfo, '128');
+                        
+                        if (playUrl) {
+                            track.source = platform;
+                            track.sourceName = platformName;
+                            console.log(`成功从 ${platformName} 获取播放链接`);
+                            break;
+                        }
+                    } catch (e) {
+                        console.log(`尝试 ${platform} 失败:`, e.message);
+                    }
+                }
+            }
+            
+            if (!playUrl) {
+                return res.json({ success: false, error: '无法获取播放链接（版权限制或需要付费）' });
+            }
+            
+            track.playUrl = playUrl;
+            currentDuration = track.duration;
+            playbackStartTime = Date.now();
+            isPlaying = true;
+            
+            console.log(`🎵 在线播放：${track.title} (${track.sourceName})`);
+            playOnlineMusic(playUrl);
+            
+            res.json({ success: true, current: track, index: currentIndex, isPlaying: isPlaying });
+        } catch (error) {
+            console.error('在线播放失败:', error.message);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    } else {
+        // 播放本地音乐（playMusic 内部会处理 stopMusic 和 isPlaying）
+        playMusic(track.path).then(() => {
+            res.json({ success: true, current: track, index: currentIndex, isPlaying: true });
+        });
+    }
 });
 
-app.get('/api/previous', (req, res) => {
+app.get('/api/previous', async (req, res) => {
     if (currentPlaylist.length === 0) {
         return res.json({ success: false, message: '播放列表为空' });
     }
@@ -4027,10 +4196,74 @@ app.get('/api/previous', (req, res) => {
 
     const track = currentPlaylist[prevIndex];
     currentIndex = prevIndex;
-    isPlaying = true;
-    playMusic(track.path).then(() => {
-        res.json({ success: true, current: track, index: currentIndex, isPlaying: isPlaying });
-    });
+
+    // 先停止当前播放
+    stopMusic();
+
+    // 判断是否是在线音乐
+    if (track.isOnline || track.path.startsWith('online://')) {
+        try {
+            // 使用完整的歌曲信息
+            const songInfo = track.songInfo || { 
+                songId: track.path.split('/')[2], 
+                name: track.title, 
+                singer: track.artist, 
+                albumName: track.album 
+            };
+            let playUrl = await getMusicPlayUrl(track.source, songInfo, '128');
+            
+            // 如果当前平台无法获取播放链接，尝试其他平台
+            if (!playUrl) {
+                console.log(`当前平台 ${track.sourceName} 无法获取播放链接，尝试其他平台...`);
+                
+                const platforms = ['kw', 'kg', 'tx', 'wy', 'mg'];
+                const currentIndexInPlatforms = platforms.indexOf(track.source);
+                const otherPlatforms = currentIndexInPlatforms >= 0 
+                    ? platforms.filter((_, i) => i !== currentIndexInPlatforms)
+                    : platforms;
+                
+                for (const platform of otherPlatforms) {
+                    try {
+                        const platformName = ONLINE_SOURCES.find(s => s.id === platform)?.name || platform;
+                        console.log(`尝试从 ${platformName} 获取播放链接...`);
+                        
+                        playUrl = await getMusicPlayUrl(platform, songInfo, '128');
+                        
+                        if (playUrl) {
+                            track.source = platform;
+                            track.sourceName = platformName;
+                            console.log(`成功从 ${platformName} 获取播放链接`);
+                            break;
+                        }
+                    } catch (e) {
+                        console.log(`尝试 ${platform} 失败:`, e.message);
+                    }
+                }
+            }
+            
+            if (!playUrl) {
+                return res.json({ success: false, error: '无法获取播放链接（版权限制或需要付费）' });
+            }
+            
+            track.playUrl = playUrl;
+            currentDuration = track.duration;
+            playbackStartTime = Date.now();
+            isPlaying = true;
+            
+            console.log(`🎵 在线播放：${track.title} (${track.sourceName})`);
+            playOnlineMusic(playUrl);
+            
+            res.json({ success: true, current: track, index: currentIndex, isPlaying: isPlaying });
+        } catch (error) {
+            console.error('在线播放失败:', error.message);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    } else {
+        // 播放本地音乐（playMusic 内部会处理 stopMusic 和 isPlaying）
+        playMusic(track.path).then(() => {
+            res.json({ success: true, current: track, index: currentIndex, isPlaying: true });
+        });
+    }
 });
 
 app.get('/api/status', async (req, res) => {
@@ -4252,18 +4485,35 @@ function pauseMusic() {
     }
     if (currentPlayer) {
         if (process.platform === 'win32') {
-            // Windows: 停止 ffplay 进程（恢复时重新播放）
-            exec('taskkill /f /im ffplay.exe', (err) => {
-                if (err) {
-                    console.log('⚠️ 停止 ffplay 失败:', err.message);
-                } else {
-                    console.log('✅ ffplay 已停止（暂停）');
-                }
-            });
+            // Windows: 同步停止 ffplay 进程（恢复时重新播放）
+            const { execSync } = require('child_process');
+            try {
+                execSync('taskkill /f /im ffplay.exe', { stdio: 'ignore' });
+                console.log('✅ ffplay 已停止（暂停）');
+            } catch (e) {
+                // 忽略错误，进程可能已经不存在
+            }
             currentPlayer = null;
         } else {
-            // Linux/Docker 使用 kill -STOP
-            currentPlayer.kill('SIGSTOP');
+            if (IS_DOCKER && currentPlayer._aplayProcess) {
+                // Docker环境：需要同时停止 ffmpeg 和 aplay
+                try {
+                    currentPlayer._aplayProcess.kill('SIGKILL');
+                    console.log('✅ aplay 已停止（暂停）');
+                } catch (e) {
+                    // 忽略错误
+                }
+                try {
+                    currentPlayer.kill('SIGKILL');
+                    console.log('✅ ffmpeg 已停止（暂停）');
+                } catch (e) {
+                    // 忽略错误
+                }
+                currentPlayer = null;
+            } else {
+                // Linux/Docker 使用 kill -STOP
+                currentPlayer.kill('SIGSTOP');
+            }
         }
     }
 }
@@ -4312,18 +4562,18 @@ function stopMusic() {
                     // 忽略错误，进程可能已经不存在
                 }
             } else {
-                // 立即停止 aplay
-                currentPlayer.kill('SIGKILL');
-
-                // 如果是 ffmpeg+aplay 的管道，也需要停止 ffmpeg
-                if (currentPlayer.spawnargs && currentPlayer.spawnargs.includes('S16_LE')) {
-                    // 这是 aplay 进程，立即停止 ffmpeg
-                    exec('pkill -9 -f "ffmpeg.*pipe" || true', (err) => {
-                        if (err) {
-                            // 忽略错误，ffmpeg 可能已经停止
-                        }
-                    });
+                // Docker环境：需要同时停止 ffmpeg 和 aplay
+                if (IS_DOCKER && currentPlayer._aplayProcess) {
+                    try {
+                        currentPlayer._aplayProcess.kill('SIGKILL');
+                        console.log('✅ aplay 已停止');
+                    } catch (e) {
+                        // 忽略错误
+                    }
                 }
+                // 立即停止主进程
+                currentPlayer.kill('SIGKILL');
+                console.log('✅ 播放器已停止');
             }
         } catch (err) {
             // 忽略错误，进程可能已经不存在
@@ -5584,7 +5834,9 @@ function loadCustomSources(filterFiles = null) {
                 
                 // 尝试 LX Music 音源格式（使用 lx.send 注册）
                 const registeredSources = {};
-                const lxMock = {
+                
+                // 创建 lx 环境数据
+                const lxDataInside = {
                     version: '2.0.0',
                     env: 'desktop',
                     platform: 'web',
@@ -5595,27 +5847,44 @@ function loadCustomSources(filterFiles = null) {
                     EVENT_NAMES: {
                         request: 'request',
                         inited: 'inited',
+                    }
+                };
+                
+                // 构建 lx 工具集
+                const lxUtils = {
+                    buffer: {
+                        from: (d, e) => Buffer.from(d, e),
+                        bufToString: (b, f) => Buffer.isBuffer(b) ? b.toString(f) : Buffer.from(b, 'binary').toString(f)
                     },
-                    utils: {
-                        buffer: {
-                            from: (d, e) => Buffer.from(d, e),
-                            bufToString: (b, f) => Buffer.isBuffer(b) ? b.toString(f) : Buffer.from(b, 'binary').toString(f)
-                        },
-                        crypto: {
-                            md5: (str) => require('crypto').createHash('md5').update(str || '').digest('hex'),
-                        },
+                    crypto: {
+                        md5: (str) => require('crypto').createHash('md5').update(str || '').digest('hex'),
                     },
+                };
+                
+                // 核心 lx 对象
+                const lxObject = {
+                    ...lxDataInside,
+                    utils: lxUtils,
                     request: (url, options, callback) => {
                         const method = (options?.method || 'get').toLowerCase();
                         const timeout = options?.timeout || 15000;
                         const headers = options?.headers || {};
+                        
+                        // 过滤掉值为 undefined 或 null 的请求头
+                        const validHeaders = {};
+                        Object.keys(headers).forEach(key => {
+                            const value = headers[key];
+                            if (value !== undefined && value !== null) {
+                                validHeaders[key] = value;
+                            }
+                        });
                         
                         const parsedUrl = new URL(url);
                         const reqOptions = {
                             hostname: parsedUrl.hostname,
                             path: parsedUrl.pathname + parsedUrl.search,
                             method: method.toUpperCase(),
-                            headers,
+                            headers: validHeaders,
                             timeout
                         };
                         
@@ -5653,30 +5922,11 @@ function loadCustomSources(filterFiles = null) {
                     on: () => {}
                 };
                 
-                // 在沙箱环境中执行音源脚本
-                const sandboxCode = `
-                    (function() {
-                        var lx = ${JSON.stringify(JSON.stringify(lxMock))};
-                        // 重建 lx 对象（因为 JSON 会丢失函数）
-                        lx = {
-                            version: '2.0.0',
-                            env: 'desktop',
-                            platform: 'web',
-                            currentScriptInfo: lx.currentScriptInfo,
-                            EVENT_NAMES: lx.EVENT_NAMES,
-                            utils: lx.utils,
-                            request: lx.request,
-                            send: lx.send,
-                            on: lx.on
-                        };
-                        ${content}
-                    })()
-                `;
-                
                 // 使用 vm 模块执行
                 const vm = require('vm');
-                const context = vm.createContext({
-                    lx: lxMock,
+                
+                // 创建 sandbox，参考 lx-music-sync-server 的实现
+                const sandbox = {
                     console: {
                         log: () => {},
                         error: console.error,
@@ -5709,8 +5959,22 @@ function loadCustomSources(filterFiles = null) {
                     Promise,
                     Function,
                     eval: (code) => eval(code),
-                });
+                    // 关键：设置 global/window/globalThis 都指向 sandbox 自身
+                    lx: lxObject,
+                    global: null,
+                    window: null,
+                    globalThis: null,
+                    atob: (s) => Buffer.from(s, 'base64').toString('binary'),
+                    btoa: (s) => Buffer.from(s, 'binary').toString('base64'),
+                    crypto: require('crypto'),
+                };
+                sandbox.global = sandbox;
+                sandbox.window = sandbox;
+                sandbox.globalThis = sandbox;
                 
+                const context = vm.createContext(sandbox);
+                
+                // 直接执行脚本内容，因为 lx 已经通过 sandbox 提供了
                 vm.runInContext(content, context, { timeout: 10000 });
                 
                 // 检查是否注册了音源
@@ -5768,8 +6032,6 @@ function loadActiveSourcesOnStart() {
     loadCustomSources();
 }
 
-loadActiveSourcesOnStart();
-
 // 支持的在线音乐源
 const ONLINE_SOURCES = [
     { id: 'kw', name: '酷我音乐' },
@@ -5787,8 +6049,24 @@ app.get('/api/source-files', (req, res) => {
             .map(f => {
                 const filePath = path.join(sourceFilesDir, f);
                 const stats = fs.statSync(filePath);
+                const content = fs.readFileSync(filePath, 'utf-8');
+                
+                // 尝试从脚本注释中提取元数据
+                let sourceName = f.replace('.js', '');
+                let sourceVersion = '';
+                const commentMatch = content.match(/\/\*[*!]([\s\S]*?)\*\//);
+                if (commentMatch) {
+                    const comment = commentMatch[1];
+                    const nameMatch = comment.match(/@name\s+(.+)/);
+                    if (nameMatch) sourceName = nameMatch[1].trim();
+                    const verMatch = comment.match(/@version\s+(.+)/);
+                    if (verMatch) sourceVersion = verMatch[1].trim();
+                }
+                
                 return {
                     name: f,
+                    displayName: sourceName,
+                    version: sourceVersion,
                     size: stats.size,
                     createdAt: stats.birthtime,
                     modifiedAt: stats.mtime
@@ -5899,9 +6177,6 @@ app.get('/api/online-settings', (req, res) => {
             settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
         }
         
-        // 返回当前激活的音源ID列表（不带.js）
-        settings.activeSources = activeSourceIds;
-        
         res.json({ success: true, settings });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -5926,6 +6201,80 @@ app.post('/api/online-settings', (req, res) => {
         fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
         res.json({ success: true, message: '设置已保存' });
     } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 获取在线音乐排行榜
+app.post('/api/online-rank', async (req, res) => {
+    try {
+        const { type = 'hot', page = 1, limit = 20 } = req.body;
+        
+        const results = [];
+        
+        // 优先使用自定义音源
+        if (Object.keys(customSources).length > 0) {
+            const searchPromises = Object.keys(customSources).map(async (src) => {
+                try {
+                    const customSource = customSources[src];
+                    if (customSource && typeof customSource.search === 'function') {
+                        // 使用排行榜相关关键词搜索
+                        let keyword = '';
+                        switch(type) {
+                            case 'hot': keyword = '热门歌曲'; break;
+                            case 'new': keyword = '新歌'; break;
+                            case 'soaring': keyword = '飙升榜'; break;
+                            case 'original': keyword = '原创音乐'; break;
+                            default: keyword = '热门歌曲';
+                        }
+                        const searchResults = await customSource.search(keyword, page, limit);
+                        if (searchResults && searchResults.length > 0) {
+                            results.push({
+                                source: src,
+                                sourceName: customSource.name || src,
+                                list: searchResults
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.error(`自定义音源 ${src} 排行榜获取失败:`, error.message);
+                }
+            });
+            
+            await Promise.all(searchPromises);
+        }
+        
+        // 如果没有自定义音源或自定义音源没有结果，使用内置音源
+        if (results.length === 0) {
+            const sources = ['kw', 'kg', 'tx', 'wy', 'mg'];
+            
+            const searchPromises = sources.map(async (src) => {
+                try {
+                    // 使用真正的排行榜API，而不是关键词搜索
+                    const searchResults = await getMusicRank(src, type, page, limit);
+                    if (searchResults && searchResults.length > 0) {
+                        results.push({
+                            source: src,
+                            sourceName: ONLINE_SOURCES.find(s => s.id === src)?.name || src,
+                            list: searchResults
+                        });
+                    }
+                } catch (error) {
+                    console.error(`获取 ${src} 排行榜失败:`, error.message);
+                }
+            });
+            
+            await Promise.all(searchPromises);
+        }
+        
+        res.json({
+            success: true,
+            type,
+            total: results.reduce((sum, r) => sum + r.list.length, 0),
+            results
+        });
+    } catch (error) {
+        console.error('获取排行榜失败:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });
@@ -6027,6 +6376,65 @@ app.post('/api/online-play-url', async (req, res) => {
 });
 
 // 播放在线音乐
+// 添加在线音乐到播放列表（不播放）
+app.post('/api/add-online-to-playlist', async (req, res) => {
+    try {
+        const { source, songId, name, singer, albumName, picUrl, interval, songInfo } = req.body;
+        
+        if (!source || !songId) {
+            return res.status(400).json({ success: false, error: '缺少参数' });
+        }
+        
+        // 创建在线音乐元数据（保存完整的 songInfo）
+        const onlineTrack = {
+            title: name || '未知歌曲',
+            artist: singer || '未知艺术家',
+            album: albumName || '',
+            duration: parseInt(String(interval)) || 0,
+            path: `online://${source}/${songId}`,
+            playUrl: '', // 播放时再获取
+            picUrl: picUrl || '',
+            source,
+            sourceName: ONLINE_SOURCES.find(s => s.id === source)?.name || source,
+            isOnline: true,
+            songInfo: songInfo || { songId, name, singer, albumName } // 保存完整的歌曲信息
+        };
+        
+        // 检查是否已存在
+        const existingIndex = currentPlaylist.findIndex(track => track.path === onlineTrack.path);
+        
+        if (existingIndex >= 0) {
+            return res.json({ success: true, message: '已在播放列表中', added: false });
+        }
+        
+        // 添加到播放列表
+        currentPlaylist.push(onlineTrack);
+        
+        // 按标题字母排序
+        currentPlaylist.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+        
+        // 更新播放列表缓存（保存在线音乐）
+        try {
+            fs.writeFileSync(PLAYLIST_CACHE_FILE, JSON.stringify(currentPlaylist, null, 2));
+        } catch (error) {
+            console.error('更新播放列表缓存失败:', error.message);
+        }
+        
+        console.log(`📥 添加在线音乐到播放列表：${onlineTrack.title} (${onlineTrack.sourceName})`);
+        
+        res.json({
+            success: true,
+            message: '添加成功',
+            added: true,
+            index: currentPlaylist.length - 1,
+            track: onlineTrack
+        });
+    } catch (error) {
+        console.error('添加在线音乐失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 app.post('/api/play-online', async (req, res) => {
     try {
         const { source, songId, name, singer, albumName, picUrl, interval, songInfo } = req.body;
@@ -6045,28 +6453,38 @@ app.post('/api/play-online', async (req, res) => {
         // 停止当前播放
         stopMusic();
         
-        // 创建在线音乐元数据
+        // 创建在线音乐元数据（保存完整的 songInfo）
         const onlineTrack = {
             title: name || '未知歌曲',
             artist: singer || '未知艺术家',
             album: albumName || '',
-            duration: interval || 0,
+            duration: parseInt(String(interval)) || 0,
             path: `online://${source}/${songId}`,
             playUrl,
             picUrl: picUrl || '',
             source,
             sourceName: ONLINE_SOURCES.find(s => s.id === source)?.name || source,
-            isOnline: true
+            isOnline: true,
+            songInfo: songInfo || { songId, name, singer, albumName } // 保存完整的歌曲信息
         };
         
         // 检查是否在播放列表中
         const existingIndex = currentPlaylist.findIndex(track => track.path === onlineTrack.path);
         
         if (existingIndex >= 0) {
+            // 更新已存在的歌曲信息（包括 songInfo）
+            currentPlaylist[existingIndex] = onlineTrack;
             currentIndex = existingIndex;
         } else {
             currentPlaylist.push(onlineTrack);
             currentIndex = currentPlaylist.length - 1;
+        }
+        
+        // 更新播放列表缓存（保存在线音乐）
+        try {
+            fs.writeFileSync(PLAYLIST_CACHE_FILE, JSON.stringify(currentPlaylist, null, 2));
+        } catch (error) {
+            console.error('更新播放列表缓存失败:', error.message);
         }
         
         isPlaying = true;
@@ -6097,206 +6515,948 @@ app.get('/api/online-sources', (req, res) => {
     });
 });
 
-// 在线音乐搜索函数
-async function searchMusicOnline(source, keyword, page = 1, limit = 20) {
-    return new Promise((resolve, reject) => {
-        let url = '';
-        let headers = {};
-        let parseResponse = null;
-        
+// 网易云音乐加密函数（参考 lx-music-sync-server）
+const crypto = require('crypto');
+const iv = Buffer.from('0102030405060708');
+const presetKey = Buffer.from('0CoJUm6Qyw8W8jud');
+const linuxapiKey = Buffer.from('rFgB&h#%2?^eDg:Q');
+const base62 = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+const publicKey = '-----BEGIN PUBLIC KEY-----\nMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDgtQn2JZ34ZC28NWYpAUd98iZ37BUrX/aKzmFbt7clFSs6sXqHauqKWqdtLkF2KexO40H1YTX8z2lSgBBOAxLsvaklV8k4cBFK9snQXE9/DDaFt6Rr7iVZMldczhC0JNgTz+SHXT6CBHuX3e9SdB1Ua44oncaTWz7OBGLbCiK45wIDAQAB\n-----END PUBLIC KEY-----';
+const eapiKey = 'e82ckenh8dichen8';
+
+const aesEncrypt = (buffer, mode, key, iv) => {
+    const cipher = crypto.createCipheriv(mode, key, iv);
+    return Buffer.concat([cipher.update(buffer), cipher.final()]);
+};
+
+const rsaEncrypt = (buffer, key) => {
+    buffer = Buffer.concat([Buffer.alloc(128 - buffer.length), buffer]);
+    return crypto.publicEncrypt({ key, padding: crypto.constants.RSA_NO_PADDING }, buffer);
+};
+
+function weapiEncrypt(object) {
+    const text = JSON.stringify(object);
+    const secretKey = crypto.randomBytes(16).map(n => base62.charAt(n % 62).charCodeAt(0));
+    const firstEncrypt = aesEncrypt(Buffer.from(text), 'aes-128-cbc', presetKey, iv);
+    const params = aesEncrypt(Buffer.from(firstEncrypt.toString('base64')), 'aes-128-cbc', Buffer.from(secretKey), iv).toString('base64');
+    const encSecKey = rsaEncrypt(Buffer.from(secretKey).reverse(), publicKey).toString('hex');
+    return { params, encSecKey };
+}
+
+function eapiEncrypt(url, object) {
+    const text = typeof object === 'object' ? JSON.stringify(object) : object;
+    const message = `nobody${url}use${text}md5forencrypt`;
+    const digest = crypto.createHash('md5').update(message).digest('hex');
+    const data = `${url}-36cd479b6b5-${text}-36cd479b6b5-${digest}`;
+    return {
+        params: aesEncrypt(Buffer.from(data), 'aes-128-ecb', eapiKey, '').toString('hex').toUpperCase(),
+    };
+}
+
+// 获取音乐排行榜（参考 lx-music-sync-server）
+async function getMusicRank(source, type, page = 1, limit = 20) {
+    try {
         switch (source) {
-            case 'kw': // 酷我音乐
-                url = `https://search.kuwo.cn/r.s?client=kt&all=${encodeURIComponent(keyword)}&pn=${page - 1}&rn=${limit}&uid=794762570&ver=kuwo_9.2.0.8&corp=kuwo&plat=pc&vipver=1&issubtitle=1&ft=music&newver=1`;
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                    'Accept': 'application/json',
-                    'Referer': 'https://www.kuwo.cn/'
-                };
-                parseResponse = (data) => {
-                    try {
-                        const xml = data;
-                        const results = [];
-                        const musicReg = /<music\b[^>]*>/g;
-                        let match;
-                        while ((match = musicReg.exec(xml)) !== null) {
-                            const musicXml = match[0];
-                            const getAttr = (attr) => {
-                                const regex = new RegExp(`${attr}="([^"]*)"`, 'i');
-                                const m = regex.exec(musicXml);
-                                return m ? m[1] : '';
-                            };
-                            results.push({
-                                songId: getAttr('MUSICRID').replace('MUSIC_', ''),
-                                name: decodeHTML(getAttr('NAME') || ''),
-                                singer: decodeHTML(getAttr('ARTIST') || ''),
-                                albumName: decodeHTML(getAttr('ALBUM') || ''),
-                                albumId: getAttr('ALBUMID') || '',
-                                interval: formatDuration(getAttr('DURATION') || '0'),
-                                picUrl: `https://img4.kuwo.cn/star/albumcover/300${getAttr('MVPIC') || ''}`,
-                                source: 'kw',
-                                quality: '128'
-                            });
-                        }
-                        resolve(results);
-                    } catch (error) {
-                        reject(error);
+            case 'wy': {
+                // 网易云音乐排行榜 - 使用 weapi 加密
+                const wyTypes = { hot: '3778678', new: '3779629', soaring: '19723756', original: '2884035' };
+                const id = wyTypes[type] || '3778678';
+                const encrypted = weapiEncrypt({ id, n: limit, p: page });
+                
+                const options = {
+                    protocol: 'https:',
+                    hostname: 'music.163.com',
+                    path: '/weapi/v3/playlist/detail',
+                    method: 'POST',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Referer': 'https://music.163.com/discover/toplist',
+                        'Content-Length': Buffer.byteLength(new URLSearchParams(encrypted).toString())
                     }
                 };
-                break;
                 
-            case 'kg': // 酷狗音乐
-                url = `https://complexsearch.kugou.com/v2/search/song?keyword=${encodeURIComponent(keyword)}&page=${page}&pagesize=${limit}&bitrate=0&isfuzzy=0&inputtype=0&platform=WebFilter&userid=0&clientver=2000&iscorrection=1&privilege_filter=0&srcappid=2919&clienttime=${Date.now()}&signature=`;
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                    'Referer': 'https://www.kugou.com/'
-                };
-                parseResponse = (data) => {
-                    try {
-                        const json = JSON.parse(data);
-                        if (json.data && json.data.lists) {
-                            resolve(json.data.lists.map(item => ({
-                                songId: item.FileHash || '',
-                                name: item.SongName || '',
-                                singer: item.SingerName || '',
-                                albumName: item.AlbumName || '',
-                                albumId: item.AlbumID || '',
-                                interval: formatDuration(String(item.Duration || '0')),
-                                picUrl: item.Image ? item.Image.replace('{size}', '400') : '',
-                                source: 'kg',
-                                quality: '128'
-                            })));
-                        } else {
-                            resolve([]);
-                        }
-                    } catch (error) {
-                        reject(error);
-                    }
-                };
-                break;
-                
-            case 'tx': // QQ音乐
-                url = `https://c.y.qq.com/soso/fcgi-bin/client_search_cp?format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=h5&needNewCode=1&w=${encodeURIComponent(keyword)}&p=${page}&n=${limit}`;
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                    'Referer': 'https://y.qq.com/'
-                };
-                parseResponse = (data) => {
-                    try {
-                        const json = JSON.parse(data);
-                        if (json.data && json.data.song && json.data.song.list) {
-                            resolve(json.data.song.list.map(item => ({
-                                songId: item.songid || item.songmid || '',
-                                name: item.songname || '',
-                                singer: item.singer ? item.singer.map(s => s.name).join(', ') : '',
-                                albumName: item.albumname || '',
-                                albumId: item.albumid || '',
-                                interval: formatDuration(String(item.interval || '0')),
-                                picUrl: item.albummid ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${item.albummid}.jpg` : '',
-                                source: 'tx',
-                                quality: '128'
-                            })));
-                        } else {
-                            resolve([]);
-                        }
-                    } catch (error) {
-                        reject(error);
-                    }
-                };
-                break;
-                
-            case 'wy': // 网易云音乐
-                url = `https://music.163.com/api/search/get/web?csrf_token=&s=${encodeURIComponent(keyword)}&offset=${(page - 1) * limit}&limit=${limit}&type=1`;
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                    'Referer': 'https://music.163.com/'
-                };
-                parseResponse = (data) => {
-                    try {
-                        const json = JSON.parse(data);
-                        if (json.result && json.result.songs) {
-                            resolve(json.result.songs.map(item => ({
+                try {
+                    const { body } = await httpRequest(options, new URLSearchParams(encrypted).toString());
+                    const json = JSON.parse(body);
+                    
+                    if (json.code === 200 && json.playlist?.trackIds) {
+                        // 获取完整歌曲信息
+                        const trackIds = json.playlist.trackIds.slice(0, limit).map(t => t.id);
+                        const detailEncrypted = weapiEncrypt({ 
+                            c: '[' + trackIds.map(id => ('{"id":' + id + '}')).join(',') + ']',
+                            ids: '[' + trackIds.join(',') + ']'
+                        });
+                        
+                        const detailOptions = {
+                            protocol: 'https:',
+                            hostname: 'music.163.com',
+                            path: '/weapi/v3/song/detail',
+                            method: 'POST',
+                            headers: {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                                'Referer': 'https://music.163.com/',
+                                'Content-Length': Buffer.byteLength(new URLSearchParams(detailEncrypted).toString())
+                            }
+                        };
+                        
+                        const { body: detailBody } = await httpRequest(detailOptions, new URLSearchParams(detailEncrypted).toString());
+                        const detailJson = JSON.parse(detailBody);
+                        
+                        if (detailJson.code === 200 && detailJson.songs) {
+                            return detailJson.songs.map(item => ({
                                 songId: String(item.id),
                                 name: item.name || '',
-                                singer: item.artists ? item.artists.map(a => a.name).join(', ') : '',
-                                albumName: item.album ? item.album.name : '',
-                                albumId: item.album ? String(item.album.id) : '',
-                                interval: formatDuration(String(Math.floor((item.duration || 0) / 1000))),
-                                picUrl: item.album && item.album.picUrl ? item.album.picUrl : '',
+                                singer: item.ar.map(a => a.name).join('/'),
+                                albumName: item.al.name || '',
+                                albumId: String(item.al.id),
+                                interval: Math.floor(item.dt / 1000),
+                                picUrl: item.al.picUrl || '',
                                 source: 'wy',
                                 quality: '128'
-                            })));
-                        } else {
-                            resolve([]);
+                            }));
                         }
-                    } catch (error) {
-                        reject(error);
+                    }
+                } catch (e) {
+                    console.error('网易云请求失败:', e.message);
+                }
+                return [];
+            }
+            
+            case 'kw': {
+                // 酷我音乐排行榜
+                const kwTypes = { hot: '16', new: '17', soaring: '93', original: '278' };
+                const options = {
+                    protocol: 'https:',
+                    hostname: 'www.kuwo.cn',
+                    path: `/api/www/bang/bang/musicList?bangId=${kwTypes[type] || '16'}&pn=${page}&rn=${limit}&httpsStatus=1`,
+                    method: 'GET',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Referer': 'https://www.kuwo.cn/bang/'
                     }
                 };
-                break;
                 
-            case 'mg': // 咪咕音乐
-                url = `https://m.music.migu.cn/migu/remoting/scr_search_tag?keyword=${encodeURIComponent(keyword)}&type=2&rows=${limit}&pgc=${page}`;
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                    'Referer': 'https://m.music.migu.cn/'
-                };
-                parseResponse = (data) => {
-                    try {
-                        const json = JSON.parse(data);
-                        if (json.musics) {
-                            resolve(json.musics.map(item => ({
-                                songId: item.copyrightId || item.id || '',
-                                name: item.songName || item.title || '',
-                                singer: item.singerName || item.artist || '',
-                                albumName: item.albumName || item.album || '',
-                                albumId: item.albumId || '',
-                                interval: item.duration || '',
-                                picUrl: item.cover ? `https:${item.cover}` : '',
-                                source: 'mg',
-                                quality: '128'
-                            })));
-                        } else {
-                            resolve([]);
-                        }
-                    } catch (error) {
-                        reject(error);
+                const { body } = await httpRequest(options);
+                const json = JSON.parse(body);
+                
+                if (json.data?.musicList) {
+                    return json.data.musicList.map(item => ({
+                        songId: String(item.id),
+                        name: item.name || '',
+                        singer: item.artist || '',
+                        albumName: item.album || '',
+                        albumId: String(item.albumId || ''),
+                        interval: item.duration || 0,
+                        picUrl: item.pic || '',
+                        source: 'kw',
+                        quality: '128'
+                    }));
+                }
+                return [];
+            }
+            
+            case 'kg': {
+                // 酷狗音乐排行榜 - 参考lx-music-sync-server使用的API
+                const kgTypes = { hot: '8888', new: '59703', soaring: '6666', original: '30972' };
+                const url = `http://mobilecdnbj.kugou.com/api/v3/rank/song?version=9108&ranktype=1&plat=0&pagesize=${limit}&area_code=1&page=${page}&rankid=${kgTypes[type] || '8888'}&with_res_tag=0&show_portrait_mv=1`;
+                const urlObj = new URL(url);
+                
+                const options = {
+                    protocol: urlObj.protocol,
+                    hostname: urlObj.hostname,
+                    path: urlObj.pathname + urlObj.search,
+                    method: 'GET',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
                     }
                 };
-                break;
                 
+                const { body } = await httpRequest(options);
+                const json = JSON.parse(body);
+                
+                if (json.errcode === 0 && json.data?.info) {
+                    return json.data.info.map(item => {
+                        const filename = item.filename || '';
+                        const singer = filename.split(' - ')[0] || '';
+                        return ({
+                            songId: String(item.audio_id),
+                            name: item.songname || '',
+                            singer: singer,
+                            albumName: item.remark || '',
+                            albumId: String(item.album_id || ''),
+                            interval: item.duration || 0,
+                            picUrl: (item.album_sizable_cover || '').replace('{size}', '400'),
+                            source: 'kg',
+                            quality: '128',
+                            hash: item.hash || ''
+                        });
+                    });
+                }
+                return [];
+            }
+            
+            case 'tx': {
+                // QQ音乐排行榜
+                const txTypes = { hot: '26', new: '27', soaring: '28', original: '29' };
+                const url = `https://c.y.qq.com/v8/fcg-bin/fcg_v8_toplist_cp.fcg?topid=${txTypes[type] || '26'}&page=${page}&size=${limit}`;
+                const urlObj = new URL(url);
+                
+                const options = {
+                    protocol: urlObj.protocol,
+                    hostname: urlObj.hostname,
+                    path: urlObj.pathname + urlObj.search,
+                    method: 'GET',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Referer': 'https://y.qq.com/n/ryqq/toplist'
+                    }
+                };
+                
+                const { body } = await httpRequest(options);
+                const match = body.match(/^MusicJsonCallback\((.+)\)$/);
+                
+                if (match) {
+                    const json = JSON.parse(match[1]);
+                    if (json.data?.songlist) {
+                        return json.data.songlist.map(item => ({
+                            songId: String(item.songid || item.songmid || ''),
+                            name: item.songname || '',
+                            singer: item.singer ? item.singer.map(s => s.name).join('/') : '',
+                            albumName: item.albumname || '',
+                            albumId: String(item.albumid || ''),
+                            interval: item.interval || 0,
+                            picUrl: item.albummid ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${item.albummid}.jpg` : '',
+                            source: 'tx',
+                            quality: '128'
+                        }));
+                    }
+                }
+                return [];
+            }
+            
+            case 'mg': {
+                // 咪咕音乐排行榜
+                const mgTypes = { hot: '299', new: '300', soaring: '301', original: '302' };
+                const url = `https://m.music.migu.cn/migu/remoting/playlist_getTagSong?tagId=${mgTypes[type] || '299'}&pageNo=${page}&pageSize=${limit}`;
+                const urlObj = new URL(url);
+                
+                const options = {
+                    protocol: urlObj.protocol,
+                    hostname: urlObj.hostname,
+                    path: urlObj.pathname + urlObj.search,
+                    method: 'GET',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Referer': 'https://music.migu.cn/v3'
+                    }
+                };
+                
+                const { body } = await httpRequest(options);
+                const match = body.match(/jsonp_\d+\((.+)\)/);
+                
+                if (match) {
+                    const json = JSON.parse(match[1]);
+                    if (json?.result?.songList) {
+                        return json.result.songList.slice(0, limit).map(item => ({
+                            songId: item.songId || String(item.id || ''),
+                            name: item.songName || item.title || '',
+                            singer: item.singerName || item.artist || '',
+                            albumName: item.albumName || item.album || '',
+                            albumId: String(item.albumId || ''),
+                            interval: parseInt(String(item.duration || '0')) || 0,
+                            picUrl: item.cover ? `https://images.music.migu.cn/${item.cover}` : '',
+                            source: 'mg',
+                            quality: '128'
+                        }));
+                    }
+                }
+                return [];
+            }
+            
             default:
-                resolve([]);
-                return;
+                return [];
+        }
+    } catch (error) {
+        console.error(`获取 ${source} 排行榜出错:`, error.message);
+        return [];
+    }
+}
+
+// 简化的HTTP请求函数（参考 lx-music-sync-server）
+const httpRequest = (options, postData = null) => {
+    return new Promise((resolve, reject) => {
+        const protocol = options.protocol === 'https:' ? https : http;
+        const req = protocol.request(options, (res) => {
+            let data = '';
+            res.on('data', (chunk) => {
+                data += chunk;
+            });
+            res.on('end', () => {
+                resolve({ statusCode: res.statusCode, body: data });
+            });
+        });
+        
+        req.on('error', (e) => {
+            reject(e);
+        });
+        
+        if (postData) {
+            req.write(postData);
+        }
+        req.end();
+    });
+};
+
+// 在线音乐搜索函数（参考 lx-music-sync-server）
+async function searchMusicOnline(source, keyword, page = 1, limit = 20) {
+    try {
+        switch (source) {
+            case 'kw': {
+                // 酷我音乐搜索（参考lx-music-sync-server）
+                const url = `http://search.kuwo.cn/r.s?client=kt&all=${encodeURIComponent(keyword)}&pn=${page - 1}&rn=${limit}&uid=794762570&ver=kwplayer_ar_9.2.2.1&vipver=1&show_copyright_off=1&newver=1&ft=music&cluster=0&strategy=2012&encoding=utf8&rformat=json&vermerge=1&mobi=1&issubtitle=1`;
+                const urlObj = new URL(url);
+                const options = {
+                    protocol: urlObj.protocol,
+                    hostname: urlObj.hostname,
+                    path: urlObj.pathname + urlObj.search,
+                    method: 'GET',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                    }
+                };
+                
+                const { body } = await httpRequest(options);
+                const json = JSON.parse(body);
+                
+                if (json.abslist && json.abslist.length > 0) {
+                    return json.abslist.map(item => {
+                        const songId = (item.MUSICRID || '').replace('MUSIC_', '');
+                        let picUrl = item.prob_albumpic || '';
+                        if (!picUrl && item.web_albumpic_short) {
+                            picUrl = `https://img4.kuwo.cn/star/albumcover/1000${item.web_albumpic_short}`;
+                        }
+                        
+                        return {
+                            songId: songId,
+                            name: item.SONGNAME || '',
+                            singer: item.ARTIST || '',
+                            albumName: item.ALBUM || '',
+                            albumId: String(item.ALBUMID || ''),
+                            interval: parseInt(String(item.DURATION || '0')) || 0,
+                            picUrl: picUrl,
+                            source: 'kw',
+                            quality: '128'
+                        };
+                    });
+                }
+                return [];
+            }
+            
+            case 'kg': {
+                // 酷狗音乐搜索（参考 lx-music-sync-server）
+                const url = `https://songsearch.kugou.com/song_search_v2?keyword=${encodeURIComponent(keyword)}&page=${page}&pagesize=${limit}&userid=0&clientver=&platform=WebFilter&filter=2&iscorrection=1&privilege_filter=0&area_code=1`;
+                const urlObj = new URL(url);
+                const options = {
+                    protocol: urlObj.protocol,
+                    hostname: urlObj.hostname,
+                    path: urlObj.pathname + urlObj.search,
+                    method: 'GET',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                    }
+                };
+                
+                const { body } = await httpRequest(options);
+                const json = JSON.parse(body);
+                if (json.error_code === 0 && json.data?.lists) {
+                    return json.data.lists.map(item => ({
+                        songId: item.Audioid || '',
+                        name: item.SongName || '',
+                        singer: item.Singers?.map(s => s.name).join('、') || item.SingerName || '',
+                        albumName: item.AlbumName || '',
+                        albumId: String(item.AlbumID || ''),
+                        interval: item.Duration || 0,
+                        picUrl: (item.Image || item.trans_param?.union_cover || '').replace('{size}', '400'),
+                        source: 'kg',
+                        quality: '128',
+                        hash: item.FileHash || ''
+                    }));
+                }
+                return [];
+            }
+            
+            case 'tx': {
+                // QQ音乐搜索
+                const url = `https://c.y.qq.com/soso/fcgi-bin/client_search_cp?format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=h5&needNewCode=1&w=${encodeURIComponent(keyword)}&p=${page}&n=${limit}`;
+                const urlObj = new URL(url);
+                const options = {
+                    protocol: urlObj.protocol,
+                    hostname: urlObj.hostname,
+                    path: urlObj.pathname + urlObj.search,
+                    method: 'GET',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Referer': 'https://y.qq.com/n/ryqq/search'
+                    }
+                };
+                
+                const { body } = await httpRequest(options);
+                const match = body.match(/^MusicJsonCallback\((.+)\)$/);
+                if (match) {
+                    const json = JSON.parse(match[1]);
+                    if (json.data && json.data.song && json.data.song.list) {
+                        return json.data.song.list.map(item => ({
+                            songId: String(item.songid || item.songmid || ''),
+                            name: item.songname || '',
+                            singer: item.singer ? item.singer.map(s => s.name).join('/') : '',
+                            albumName: item.albumname || '',
+                            albumId: String(item.albumid || ''),
+                            interval: item.interval || 0,
+                            picUrl: item.albummid ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${item.albummid}.jpg` : '',
+                            source: 'tx',
+                            quality: '128'
+                        }));
+                    }
+                }
+                return [];
+            }
+            
+            case 'wy': {
+                // 网易云音乐搜索（使用eapi加密，参考lx-music-sync-server）
+                const url = '/api/search/song/list/page';
+                const encrypted = eapiEncrypt(url, {
+                    keyword: keyword,
+                    needCorrect: '1',
+                    channel: 'typing',
+                    offset: limit * (page - 1),
+                    scene: 'normal',
+                    total: page == 1,
+                    limit: limit,
+                });
+                
+                const options = {
+                    protocol: 'http:',
+                    hostname: 'interface.music.163.com',
+                    path: '/eapi/batch',
+                    method: 'POST',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.90 Safari/537.36',
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'origin': 'https://music.163.com',
+                        'Content-Length': Buffer.byteLength(new URLSearchParams(encrypted).toString())
+                    }
+                };
+                
+                const { body } = await httpRequest(options, new URLSearchParams(encrypted).toString());
+                const json = JSON.parse(body);
+                
+                if (json.code === 200 && json.data?.resources) {
+                    return json.data.resources.map(item => {
+                        const song = item.baseInfo.simpleSongData;
+                        return {
+                            songId: String(song.id),
+                            name: song.name || '',
+                            singer: song.ar ? song.ar.map(a => a.name).join('、') : '',
+                            albumName: song.al?.name || '',
+                            albumId: String(song.al?.id || ''),
+                            interval: Math.floor((song.dt || 0) / 1000) || 0,
+                            picUrl: song.al?.picUrl || '',
+                            source: 'wy',
+                            quality: '128'
+                        };
+                    });
+                }
+                return [];
+            }
+            
+            case 'mg': {
+                // 咪咕音乐搜索（参考lx-music-sync-server）
+                const time = Date.now().toString();
+                const deviceId = '963B7AA0D21511ED807EE5846EC87D20';
+                const signatureMd5 = '6cdc72a439cef99a3418d2a78aa28c73';
+                const signStr = `${keyword}${signatureMd5}yyapp2d16148780a1dcc7408e06336b98cfd50${deviceId}${time}`;
+                const sign = crypto.createHash('md5').update(signStr).digest('hex');
+                
+                const url = `https://jadeite.migu.cn/music_search/v3/search/searchAll?isCorrect=0&isCopyright=1&searchSwitch=%7B%22song%22%3A1%2C%22album%22%3A0%2C%22singer%22%3A0%2C%22tagSong%22%3A1%2C%22mvSong%22%3A0%2C%22bestShow%22%3A1%2C%22songlist%22%3A0%2C%22lyricSong%22%3A0%7D&pageSize=${limit}&text=${encodeURIComponent(keyword)}&pageNo=${page}&sort=0&sid=USS`;
+                const urlObj = new URL(url);
+                const options = {
+                    protocol: urlObj.protocol,
+                    hostname: urlObj.hostname,
+                    path: urlObj.pathname + urlObj.search,
+                    method: 'GET',
+                    headers: {
+                        'uiVersion': 'A_music_3.6.1',
+                        'deviceId': deviceId,
+                        'timestamp': time,
+                        'sign': sign,
+                        'channel': '0146921',
+                        'User-Agent': 'Mozilla/5.0 (Linux; U; Android 11.0.0; zh-cn; MI 11 Build/OPR1.170623.032) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30'
+                    }
+                };
+                
+                const { body } = await httpRequest(options);
+                const json = JSON.parse(body);
+                
+                if (json.code === '000000' && json.songResultData?.resultList) {
+                    const results = [];
+                    const ids = new Set();
+                    
+                    json.songResultData.resultList.forEach(group => {
+                        group.forEach(item => {
+                            if (!item.songId || !item.copyrightId || ids.has(item.copyrightId)) return;
+                            ids.add(item.copyrightId);
+                            
+                            let img = item.img3 || item.img2 || item.img1 || '';
+                            if (img && !/https?:/.test(img)) {
+                                img = 'http://d.musicapp.migu.cn' + img;
+                            }
+                            
+                            const singerList = item.singerList || [];
+                            const singer = singerList.map(s => s.name).join('/') || '';
+                            
+                            results.push({
+                                songId: String(item.songId),
+                                name: item.name || '',
+                                singer: singer,
+                                albumName: item.album || '',
+                                albumId: String(item.albumId || ''),
+                                interval: parseInt(String(item.duration || '0')) || 0,
+                                picUrl: img,
+                                source: 'mg',
+                                quality: '128',
+                                copyrightId: String(item.copyrightId)
+                            });
+                        });
+                    });
+                    
+                    return results;
+                }
+                return [];
+            }
+            
+            default:
+                return [];
+        }
+    } catch (error) {
+        console.error(`搜索 ${source} 音乐出错:`, error.message);
+        return [];
+    }
+}
+
+// LX Music 自定义音源沙箱环境
+const vm = require('vm');
+const zlib = require('zlib');
+const util = require('util');
+const inflate = util.promisify(zlib.inflate);
+const deflate = util.promisify(zlib.deflate);
+
+// 彻底切断与沙箱上下文的联系
+function decontextify(obj) {
+    if (obj === null || obj === undefined) return obj;
+    if (typeof obj !== 'object') return obj;
+    try {
+        if (Buffer.isBuffer(obj) || obj instanceof Uint8Array) {
+            return Buffer.from(Uint8Array.from(obj));
+        }
+    } catch (e) { }
+    if (Array.isArray(obj)) {
+        try {
+            return obj.map(item => decontextify(item));
+        } catch (e) {
+            return [];
+        }
+    }
+    if (obj instanceof Error) {
+        const err = new Error(obj.message);
+        err.stack = obj.stack;
+        return err;
+    }
+    try {
+        const newObj = {};
+        const keys = Object.keys(obj);
+        for (const key of keys) {
+            try {
+                newObj[key] = decontextify(obj[key]);
+            } catch (e) { }
+        }
+        return newObj;
+    } catch (e) {
+        try {
+            const str = JSON.stringify(obj);
+            return str ? JSON.parse(str) : String(obj);
+        } catch (e2) {
+            return String(obj);
+        }
+    }
+}
+
+// 创建 lx.request 包装器（使用原生 http/https）
+function createLxRequest() {
+    const httpModule = require('http');
+    const httpsModule = require('https');
+    
+    return (url, options, callback) => {
+        const safeOptions = decontextify(options || {});
+        const { method = 'get', timeout = 60000, headers = {}, body, form, formData } = safeOptions;
+        
+        const urlObj = new URL(url);
+        const protocol = urlObj.protocol === 'https:' ? httpsModule : httpModule;
+        
+        let postData = null;
+        let contentType = headers['Content-Type'] || headers['content-type'];
+        
+        if (form) {
+            postData = new URLSearchParams(form).toString();
+            if (!contentType) contentType = 'application/x-www-form-urlencoded';
+        } else if (formData) {
+            postData = JSON.stringify(formData);
+            if (!contentType) contentType = 'application/json';
+        } else if (body) {
+            if (typeof body === 'object') {
+                postData = JSON.stringify(body);
+                if (!contentType) contentType = 'application/json';
+            } else {
+                postData = body;
+            }
         }
         
-        // 发起 HTTP 请求
-        const parsedUrl = new URL(url);
-        const options = {
-            hostname: parsedUrl.hostname,
-            path: parsedUrl.pathname + parsedUrl.search,
-            method: 'GET',
-            headers
+        const requestHeaders = { ...headers };
+        if (contentType) {
+            requestHeaders['Content-Type'] = contentType;
+        }
+        if (postData) {
+            requestHeaders['Content-Length'] = Buffer.byteLength(postData);
+        }
+        
+        const requestOptions = {
+            hostname: urlObj.hostname,
+            path: urlObj.pathname + urlObj.search,
+            method: method.toUpperCase(),
+            headers: requestHeaders,
+            timeout: Math.min(timeout, 60000)
         };
         
-        const request = https.request(options, (response) => {
+        const req = protocol.request(requestOptions, (res) => {
             let data = '';
-            response.on('data', (chunk) => data += chunk);
-            response.on('end', () => {
+            res.on('data', (chunk) => {
+                data += chunk;
+            });
+            res.on('end', () => {
                 try {
-                    parseResponse(data);
+                    let parsedBody = data;
+                    if (typeof data === 'string') {
+                        try {
+                            parsedBody = JSON.parse(data);
+                        } catch { }
+                    }
+                    const safeResp = {
+                        statusCode: res.statusCode,
+                        statusMessage: res.statusMessage,
+                        headers: res.headers,
+                        body: decontextify(parsedBody)
+                    };
+                    callback.call(null, null, safeResp, safeResp.body);
                 } catch (error) {
-                    reject(error);
+                    callback.call(null, decontextify(error), null, null);
                 }
             });
         });
         
-        request.on('error', reject);
-        request.setTimeout(10000, () => {
-            request.destroy();
-            reject(new Error('搜索超时'));
+        req.on('error', (e) => {
+            callback.call(null, decontextify(e), null, null);
         });
-        request.end();
-    });
+        
+        req.on('timeout', () => {
+            req.destroy(new Error('Request timeout'));
+        });
+        
+        if (postData) {
+            req.write(postData);
+        }
+        req.end();
+        
+        return () => {
+            req.destroy();
+        };
+    };
+}
+
+// 加载自定义音源脚本
+async function loadCustomSource(scriptPath) {
+    try {
+        const fs = require('fs');
+        const script = fs.readFileSync(scriptPath, 'utf-8');
+        
+        console.log(`[CustomSource] 脚本长度: ${script.length} 字符`);
+        
+        // 从脚本注释中提取元数据
+        const metadata = {};
+        const commentMatch = script.match(/\/\*[*!]([\s\S]*?)\*\//);
+        if (commentMatch) {
+            const comment = commentMatch[1];
+            const nameMatch = comment.match(/@name\s+(.+)/);
+            if (nameMatch) metadata.name = nameMatch[1].trim();
+            const verMatch = comment.match(/@version\s+(.+)/);
+            if (verMatch) metadata.version = verMatch[1].trim();
+        }
+        
+        let initResolve = null;
+        let initReject = null;
+        const initPromise = new Promise((resolve, reject) => {
+            initResolve = resolve;
+            initReject = reject;
+        });
+        
+        const eventHandlers = new Map();
+        let registeredSources = {};
+        
+        const lxDataInside = {
+            version: '2.0.0',
+            env: 'desktop',
+            platform: 'web',
+            currentScriptInfo: {
+                name: metadata.name || 'Unknown',
+                description: '',
+                version: metadata.version || '1.0.0',
+                author: '',
+                homepage: '',
+                rawScript: script,
+            },
+            EVENT_NAMES: {
+                request: 'request',
+                inited: 'inited',
+                updateAlert: 'updateAlert'
+            }
+        };
+        
+        const lxUtils = {
+            buffer: {
+                from: (d, e) => Buffer.from(decontextify(d), decontextify(e)),
+                bufToString: (b, f) => Buffer.isBuffer(b) ? b.toString(f) : Buffer.from(b, 'binary').toString(f)
+            },
+            crypto: {
+                md5: (str) => crypto.createHash('md5').update((decontextify(str) || '')).digest('hex'),
+                aesEncrypt: (buffer, mode, key, iv) => {
+                    const dKey = decontextify(key);
+                    const dIv = decontextify(iv);
+                    const dBuffer = decontextify(buffer);
+                    const algorithm = `aes-${dKey.length * 8}-${mode}`;
+                    const cipher = crypto.createCipheriv(algorithm, dKey, dIv);
+                    return Buffer.concat([cipher.update(dBuffer), cipher.final()]);
+                },
+                rsaEncrypt: (buffer, key) => crypto.publicEncrypt(decontextify(key), decontextify(buffer)),
+                randomBytes: (size) => crypto.randomBytes(size),
+            },
+            zlib: {
+                inflate: (buffer) => inflate(decontextify(buffer)),
+                deflate: (buffer) => deflate(decontextify(buffer)),
+            }
+        };
+        
+        const lxRequestFn = createLxRequest();
+        console.log(`[CustomSource] lxRequestFn 创建成功:`, typeof lxRequestFn);
+        
+        const lxObject = {
+            ...lxDataInside,
+            utils: lxUtils,
+            request: lxRequestFn,
+            send: (eventName, data) => {
+                const dData = decontextify(data);
+                if (eventName === 'inited') {
+                    if (dData && dData.sources) {
+                        registeredSources = dData.sources;
+                        console.log(`[CustomSource] Registered sources:`, Object.keys(registeredSources).join(', '));
+                    }
+                    if (initResolve) initResolve();
+                } else if (eventName === 'updateAlert') {
+                    const error = new Error(`发现新版本,需要更新: ${JSON.stringify(dData)}`);
+                    if (initReject) initReject(error);
+                }
+            },
+            on: (eventName, handler) => {
+                if (eventName === 'request') {
+                    eventHandlers.set(eventName, handler);
+                }
+            }
+        };
+        
+        console.log(`[CustomSource] lxObject 创建成功，包含属性:`, Object.keys(lxObject).join(', '));
+        console.log(`[CustomSource] lxObject.request 类型:`, typeof lxObject.request);
+        
+        const sandbox = {};
+        sandbox.console = console;
+        sandbox.setTimeout = setTimeout;
+        sandbox.clearTimeout = clearTimeout;
+        sandbox.setInterval = setInterval;
+        sandbox.clearInterval = clearInterval;
+        sandbox.Buffer = Buffer;
+        sandbox.URL = URL;
+        sandbox.URLSearchParams = URLSearchParams;
+        sandbox.TextEncoder = TextEncoder;
+        sandbox.TextDecoder = TextDecoder;
+        sandbox.process = {
+            nextTick: (fn, ...args) => setTimeout(() => fn(...args), 0),
+            env: { NODE_ENV: process.env.NODE_ENV || 'production' }
+        };
+        sandbox.lx = lxObject;
+        sandbox.global = sandbox;
+        sandbox.window = sandbox;
+        sandbox.globalThis = sandbox;
+        sandbox.atob = (s) => Buffer.from(s, 'base64').toString('binary');
+        sandbox.btoa = (s) => Buffer.from(s, 'binary').toString('base64');
+        sandbox.crypto = crypto;
+        
+        console.log(`[CustomSource] sandbox.lx 类型:`, typeof sandbox.lx);
+        console.log(`[CustomSource] sandbox.lx.request 类型:`, typeof sandbox.lx?.request);
+        
+        const context = vm.createContext(sandbox);
+        console.log(`[CustomSource] 准备运行脚本...`);
+        
+        try {
+            vm.runInContext(script, context, {
+                filename: scriptPath,
+                timeout: 10000
+            });
+            console.log(`[CustomSource] 脚本执行完成`);
+        } catch (runError) {
+            console.error(`[CustomSource] 脚本执行错误:`, runError.message);
+            console.error(`[CustomSource] 错误堆栈:`, runError.stack);
+            throw runError;
+        }
+        
+        console.log(`[CustomSource] 等待初始化...`);
+        await Promise.race([
+            initPromise,
+            new Promise((_, reject) => setTimeout(() => reject(new Error('初始化超时')), 3000))
+        ]);
+        
+        console.log(`[CustomSource] 初始化完成`);
+        
+        return {
+            name: metadata.name || 'Unknown',
+            version: metadata.version || '1.0.0',
+            sources: registeredSources,
+            callRequest: async (action, source, info) => {
+                try {
+                    const handler = eventHandlers.get('request');
+                    if (!handler) throw new Error('未注册 request 处理器');
+                    const inputData = JSON.parse(JSON.stringify({ action, source, info }));
+                    console.log(`[CustomSource] callRequest action=${action}, source=${source}`);
+                    
+                    // 将回调式 handler 包装为 Promise
+                    const result = await new Promise((resolve, reject) => {
+                        try {
+                            const callback = (err, resp, body) => {
+                                if (err) {
+                                    console.error(`[CustomSource] callback error:`, err);
+                                    reject(err);
+                                } else {
+                                    console.log(`[CustomSource] callback success, body type:`, typeof body);
+                                    resolve(body);
+                                }
+                            };
+                            // 调用 handler，传入 inputData 和 callback
+                            console.log(`[CustomSource] 调用 handler...`);
+                            const ret = handler(inputData, callback);
+                            console.log(`[CustomSource] handler 返回值类型:`, typeof ret);
+                            // 如果 handler 返回了 Promise，直接等待它
+                            if (ret && typeof ret.then === 'function') {
+                                console.log(`[CustomSource] handler 返回 Promise`);
+                                ret.then(resolve).catch(reject);
+                            } else if (ret !== undefined) {
+                                console.log(`[CustomSource] handler 同步返回:`, typeof ret);
+                                resolve(ret);
+                            }
+                        } catch (e) {
+                            console.error(`[CustomSource] handler 调用异常:`, e.message);
+                            reject(e);
+                        }
+                    });
+                    
+                    console.log(`[CustomSource] callRequest 返回结果`);
+                    return decontextify(result);
+                } catch (e) {
+                    console.error(`[CustomSource] callRequest Error:`, e.message, e.stack);
+                    throw e;
+                }
+            }
+        };
+    } catch (error) {
+        console.error(`[CustomSource] 加载失败:`, error.message);
+        console.error(`[CustomSource] 错误堆栈:`, error.stack);
+        return null;
+    }
+}
+
+// 初始化自定义音源
+async function initCustomSources() {
+    const fs = require('fs');
+    const path = require('path');
+    
+    const sourcesDir = path.join(__dirname, 'online_sources');
+    if (!fs.existsSync(sourcesDir)) {
+        console.log('[CustomSource] 音源目录不存在');
+        return;
+    }
+    
+    // 读取激活的音源列表
+    let activeSourceIds = [];
+    const settingsPath = path.join(__dirname, 'data', 'online-settings.json');
+    if (fs.existsSync(settingsPath)) {
+        try {
+            const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+            activeSourceIds = settings.activeSources || [];
+        } catch (e) {
+            console.log('[CustomSource] 读取设置失败，将加载所有音源');
+        }
+    }
+    
+    console.log('[CustomSource] 激活的音源列表:', activeSourceIds);
+    
+    const files = fs.readdirSync(sourcesDir);
+    let loadedCount = 0;
+    
+    for (const file of files) {
+        if (!file.endsWith('.js')) continue;
+        
+        // 如果有激活列表，检查是否在列表中
+        if (activeSourceIds.length > 0 && !activeSourceIds.includes(file)) {
+            console.log(`[CustomSource] 跳过未激活的音源: ${file}`);
+            continue;
+        }
+        
+        const filePath = path.join(sourcesDir, file);
+        console.log(`[CustomSource] 尝试加载: ${file}`);
+        const source = await loadCustomSource(filePath);
+        if (source) {
+            console.log(`[CustomSource] ✓ 成功加载: ${source.name} v${source.version}`);
+            loadedCount++;
+            for (const platform of Object.keys(source.sources)) {
+                customSources[platform] = {
+                    getPlayUrl: async (songInfo, type, quality) => {
+                        try {
+                            const result = await source.callRequest('musicUrl', platform, {
+                                musicInfo: songInfo,
+                                quality: quality,
+                                type: quality
+                            });
+                            if (result && result.url) {
+                                return result;
+                            }
+                            return null;
+                        } catch (error) {
+                            console.error(`[CustomSource] 获取播放链接失败:`, error.message);
+                            return null;
+                        }
+                    }
+                };
+            }
+        }
+    }
+    
+    console.log(`[CustomSource] 共加载 ${loadedCount} 个音源`);
 }
 
 // 获取在线音乐播放链接
@@ -6320,204 +7480,246 @@ async function getMusicPlayUrl(source, songInfo, quality = '128') {
         }
     }
     
-    // 从 songInfo 中提取 songId（用于内置音源）
+    // 从 songInfo 中提取必要的信息
     const songId = songInfo.songId || songInfo.hash || songInfo.songmid || songInfo.id;
+    const hash = songInfo.hash || songId;
+    const copyrightId = songInfo.copyrightId;
+    
     if (!songId) {
         console.error('无法获取歌曲ID:', JSON.stringify(songInfo));
         return null;
     }
     
-    // 使用内置音源
-    return new Promise((resolve, reject) => {
-        let url = '';
-        let headers = {};
-        let parseResponse = null;
-        
-        switch (source) {
-            case 'kw': // 酷我音乐
-                url = `https://bd-api.kuwo.cn/api/service/music/downloadInfo/${songId}?isMv=0&format=mp3&quality=${quality}&br=40kmp3`;
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Referer': 'https://www.kuwo.cn/',
-                    'Accept': 'application/json',
-                    'Secret': '1837c662d768444e897b5f9e7b2f3b11'
-                };
-                parseResponse = (data) => {
+    // 备用代理服务器列表
+    const proxyServers = {
+        kg: [
+            `http://ts.tempmusics.tk/url/kg/${hash}/${quality}`,
+            `https://api.vvhan.com/api/music/kg?id=${hash}`,
+            `http://124.71.215.146:3000/url/kg/${hash}/${quality}`
+        ],
+        wy: [
+            `http://ts.tempmusics.tk/url/wy/${songId}/${quality}`,
+            `http://124.71.215.146:3000/url/wy/${songId}/${quality}`
+        ],
+        kw: [
+            `http://ts.tempmusics.tk/url/kw/${songId}/${quality}`,
+            `http://124.71.215.146:3000/url/kw/${songId}/${quality}`
+        ],
+        tx: [
+            `http://ts.tempmusics.tk/url/tx/${songId}/${quality}`,
+            `http://124.71.215.146:3000/url/tx/${songId}/${quality}`
+        ],
+        mg: [
+            `http://ts.tempmusics.tk/url/mg/${copyrightId || songId}/${quality}`,
+            `http://124.71.215.146:3000/url/mg/${copyrightId || songId}/${quality}`
+        ]
+    };
+    
+    // 根据不同平台使用不同的代理策略
+    switch (source) {
+        case 'kg': {
+            // 酷狗音乐使用 hash 获取播放链接
+            const proxyUrls = proxyServers.kg;
+            for (const proxyUrl of proxyUrls) {
+                try {
+                    console.log(`尝试通过代理获取酷狗播放链接: ${proxyUrl}`);
+                    const response = await fetch(proxyUrl, { timeout: 10000 });
+                    const text = await response.text();
+                    // 尝试解析为 JSON
                     try {
-                        console.log('酷我播放链接响应:', data.substring(0, 200));
-                        const json = JSON.parse(data);
-                        if (json.data && json.data.url) {
-                            console.log('酷我播放链接:', json.data.url);
-                            resolve(json.data.url);
-                        } else {
-                            console.log('酷我未获取到播放链接:', JSON.stringify(json));
-                            resolve(null);
+                        const json = JSON.parse(text);
+                        if (json.code === 0 && json.data) {
+                            console.log(`酷狗播放链接(代理): ${json.data}`);
+                            return json.data;
                         }
-                    } catch (error) {
-                        console.error('酷我解析错误:', error.message);
-                        reject(error);
-                    }
-                };
-                break;
-                
-            case 'kg': // 酷狗音乐
-                url = `https://wwwapi.kugou.com/yy/index.php?r=play/getdata&hash=${songId}&dfid=-&mid=1234567890&platid=4&album_id=-&_=1234567890`;
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Referer': 'https://www.kugou.com/'
-                };
-                parseResponse = (data) => {
-                    try {
-                        console.log('酷狗播放链接响应:', data.substring(0, 200));
-                        const json = JSON.parse(data);
-                        if (json.data && json.data.play_url) {
-                            console.log('酷狗播放链接:', json.data.play_url);
-                            resolve(json.data.play_url);
-                        } else {
-                            console.log('酷狗未获取到播放链接:', JSON.stringify(json));
-                            resolve(null);
+                    } catch {
+                        // 如果不是 JSON，检查是否是直接返回的 URL
+                        if (text.startsWith('http') && text.length > 20) {
+                            console.log(`酷狗播放链接(代理): ${text}`);
+                            return text;
                         }
-                    } catch (error) {
-                        console.error('酷狗解析错误:', error.message);
-                        reject(error);
                     }
-                };
-                break;
-                
-            case 'tx': // QQ音乐
-                const songMid = songId;
-                url = `https://u.y.qq.com/cgi-bin/musicu.fcg?format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=h5&needNewCode=1&data={"req":{"module":"CDN.SrfCdnDispatchServer","method":"GetCdnDispatch","param":{"guid":"1234567890","calltype":0,"userip":""}},"req_0":{"module":"vkey.GetVkeyServer","method":"CgiGetVkey","param":{"guid":"1234567890","songmid":["${songMid}"],"songtype":[0],"uin":"0","loginflag":1,"platform":"20"}}}`;
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Referer': 'https://y.qq.com/'
-                };
-                parseResponse = (data) => {
-                    try {
-                        console.log('QQ音乐播放链接响应:', data.substring(0, 200));
-                        const json = JSON.parse(data);
-                        if (json.req_0 && json.req_0.data && json.req_0.data.midurlinfo && json.req_0.data.midurlinfo[0]) {
-                            const purl = json.req_0.data.midurlinfo[0].purl;
-                            if (purl) {
-                                const sip = json.req_0.data.sip[0] || 'http://ws.stream.qqmusic.qq.com/';
-                                const fullUrl = sip + purl;
-                                console.log('QQ音乐播放链接:', fullUrl);
-                                resolve(fullUrl);
-                            } else {
-                                console.log('QQ音乐未获取到播放链接:', JSON.stringify(json));
-                                resolve(null);
-                            }
-                        } else {
-                            console.log('QQ音乐响应异常:', JSON.stringify(json));
-                            resolve(null);
-                        }
-                    } catch (error) {
-                        console.error('QQ音乐解析错误:', error.message);
-                        reject(error);
-                    }
-                };
-                break;
-                
-            case 'wy': // 网易云音乐
-                url = `https://music.163.com/api/song/enhance/player/url?id=${songId}&ids=[${songId}]&br=128000`;
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Referer': 'https://music.163.com/'
-                };
-                parseResponse = (data) => {
-                    try {
-                        console.log('网易云播放链接响应:', data.substring(0, 200));
-                        const json = JSON.parse(data);
-                        if (json.data && json.data[0] && json.data[0].url) {
-                            console.log('网易云播放链接:', json.data[0].url);
-                            resolve(json.data[0].url);
-                        } else {
-                            console.log('网易云未获取到播放链接:', JSON.stringify(json));
-                            resolve(null);
-                        }
-                    } catch (error) {
-                        console.error('网易云解析错误:', error.message);
-                        reject(error);
-                    }
-                };
-                break;
-                
-            case 'mg': // 咪咕音乐
-                url = `https://app.c.nf.migu.cn/MIGUM2.0/strategy/listen-url/v2.4?netType=01&resourceType=2&songId=${songId}&toneFlag=PQ`;
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Referer': 'https://m.music.migu.cn/',
-                    'channel': '0146921'
-                };
-                parseResponse = (data) => {
-                    try {
-                        console.log('咪咕播放链接响应:', data.substring(0, 200));
-                        const json = JSON.parse(data);
-                        if (json.data && json.data.url) {
-                            console.log('咪咕播放链接:', json.data.url);
-                            resolve(json.data.url);
-                        } else {
-                            console.log('咪咕未获取到播放链接:', JSON.stringify(json));
-                            resolve(null);
-                        }
-                    } catch (error) {
-                        console.error('咪咕解析错误:', error.message);
-                        reject(error);
-                    }
-                };
-                break;
-                
-            default:
-                resolve(null);
-                return;
+                } catch (error) {
+                    console.error(`酷狗代理请求失败:`, error.message);
+                }
+            }
+            break;
         }
         
-        const parsedUrl = new URL(url);
-        const options = {
-            hostname: parsedUrl.hostname,
-            path: parsedUrl.pathname + parsedUrl.search,
-            method: 'GET',
-            headers
-        };
-        
-        const request = https.request(options, (response) => {
-            let data = '';
-            response.on('data', (chunk) => data += chunk);
-            response.on('end', () => {
-                try {
-                    parseResponse(data);
-                } catch (error) {
-                    reject(error);
+        case 'kw': {
+            // 酷我音乐尝试使用官方API
+            const url = `https://www.kuwo.cn/api/www/music/playUrl?mid=${songId}&type=convert_url3&br=${quality}kmp3`;
+            try {
+                console.log(`尝试酷我播放链接API: ${url}`);
+                const response = await fetch(url, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Referer': 'https://www.kuwo.cn/'
+                    }
+                });
+                const json = await response.json();
+                if (json.data && json.data.url) {
+                    console.log(`酷我播放链接: ${json.data.url}`);
+                    return json.data.url;
                 }
-            });
-        });
+            } catch (error) {
+                console.error(`酷我请求失败:`, error.message);
+            }
+            
+            // 尝试代理
+            const proxyUrls = proxyServers.kw;
+            for (const proxyUrl of proxyUrls) {
+                try {
+                    console.log(`尝试代理获取酷我播放链接: ${proxyUrl}`);
+                    const response = await fetch(proxyUrl, { timeout: 10000 });
+                    const text = await response.text();
+                    try {
+                        const json = JSON.parse(text);
+                        if (json.code === 0 && json.data) {
+                            console.log(`酷我播放链接(代理): ${json.data}`);
+                            return json.data;
+                        }
+                    } catch {
+                        if (text.startsWith('http') && text.length > 20) {
+                            console.log(`酷我播放链接(代理): ${text}`);
+                            return text;
+                        }
+                    }
+                } catch (error) {
+                    console.error(`酷我代理请求失败:`, error.message);
+                }
+            }
+            break;
+        }
         
-        request.on('error', (error) => {
-            console.error(`${source} 请求错误:`, error.message);
-            reject(error);
-        });
-        request.setTimeout(10000, () => {
-            request.destroy();
-            reject(new Error('获取播放链接超时'));
-        });
-        request.end();
-    });
+        case 'tx': {
+            // QQ音乐使用第三方代理
+            const proxyUrls = proxyServers.tx;
+            for (const proxyUrl of proxyUrls) {
+                try {
+                    console.log(`尝试通过代理获取QQ音乐播放链接: ${proxyUrl}`);
+                    const response = await fetch(proxyUrl, { timeout: 10000 });
+                    const text = await response.text();
+                    try {
+                        const json = JSON.parse(text);
+                        if (json.code === 0 && json.data) {
+                            console.log(`QQ音乐播放链接(代理): ${json.data}`);
+                            return json.data;
+                        }
+                    } catch {
+                        if (text.startsWith('http') && text.length > 20) {
+                            console.log(`QQ音乐播放链接(代理): ${text}`);
+                            return text;
+                        }
+                    }
+                } catch (error) {
+                    console.error(`QQ音乐代理请求失败:`, error.message);
+                }
+            }
+            break;
+        }
+        
+        case 'mg': {
+            // 咪咕音乐使用 copyrightId 获取播放链接
+            const useId = copyrightId || songId;
+            const proxyUrls = proxyServers.mg;
+            for (const proxyUrl of proxyUrls) {
+                try {
+                    console.log(`尝试通过代理获取咪咕播放链接: ${proxyUrl}`);
+                    const response = await fetch(proxyUrl, { timeout: 10000 });
+                    const text = await response.text();
+                    try {
+                        const json = JSON.parse(text);
+                        if (json.code === 0 && json.data) {
+                            console.log(`咪咕播放链接(代理): ${json.data}`);
+                            return json.data;
+                        }
+                    } catch {
+                        if (text.startsWith('http') && text.length > 20) {
+                            console.log(`咪咕播放链接(代理): ${text}`);
+                            return text;
+                        }
+                    }
+                } catch (error) {
+                    console.error(`咪咕代理请求失败:`, error.message);
+                }
+            }
+            break;
+        }
+        
+        case 'wy': {
+            // 网易云音乐尝试官方API
+            const url = `https://music.163.com/api/song/enhance/player/url?id=${songId}&ids=[${songId}]&br=${parseInt(quality) * 1000}`;
+            try {
+                console.log(`尝试网易云播放链接API: ${url}`);
+                const response = await fetch(url, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Referer': 'https://music.163.com/'
+                    }
+                });
+                const json = await response.json();
+                if (json.data && json.data[0] && json.data[0].url) {
+                    console.log(`网易云播放链接: ${json.data[0].url}`);
+                    return json.data[0].url;
+                }
+            } catch (error) {
+                console.error(`网易云请求失败:`, error.message);
+            }
+            
+            // 尝试代理
+            const proxyUrls = proxyServers.wy;
+            for (const proxyUrl of proxyUrls) {
+                try {
+                    console.log(`尝试通过代理获取网易云播放链接: ${proxyUrl}`);
+                    const response = await fetch(proxyUrl, { timeout: 10000 });
+                    const text = await response.text();
+                    try {
+                        const json = JSON.parse(text);
+                        if (json.code === 0 && json.data) {
+                            console.log(`网易云播放链接(代理): ${json.data}`);
+                            return json.data;
+                        }
+                    } catch {
+                        if (text.startsWith('http') && text.length > 20) {
+                            console.log(`网易云播放链接(代理): ${text}`);
+                            return text;
+                        }
+                    }
+                } catch (error) {
+                    console.error(`网易云代理请求失败:`, error.message);
+                }
+            }
+            break;
+        }
+    }
+    
+    console.log(`${source} 无法获取播放链接`);
+    return null;
 }
 
 // 播放在线音乐流
-function playOnlineMusic(url) {
+function playOnlineMusic(url, retryCount = 0) {
     try {
         let playerProcess = null;
         
+        console.log('尝试播放在线音乐:', url.substring(0, 100) + (url.length > 100 ? '...' : ''));
+        
         if (IS_DOCKER) {
-            // Docker 环境使用 aplay
+            // Docker 环境使用 ffmpeg + aplay 管道
             playerProcess = spawn('ffmpeg', [
+                '-reconnect', '1',
+                '-reconnect_streamed', '1',
+                '-reconnect_delay_max', '5',
                 '-i', url,
                 '-f', 's16le',
                 '-ar', '44100',
                 '-ac', '2',
+                '-loglevel', 'error',
+                '-timeout', '5000000',
                 'pipe:1'
             ], {
-                stdio: ['ignore', 'pipe', 'ignore']
+                stdio: ['ignore', 'pipe', 'pipe']
             });
             
             const aplayProcess = spawn('aplay', [
@@ -6532,12 +7734,29 @@ function playOnlineMusic(url) {
             playerProcess.stdout.pipe(aplayProcess.stdin);
             
             playerProcess._aplayProcess = aplayProcess;
+            
+            // 捕获 ffmpeg 的错误输出
+            playerProcess.stderr.on('data', (data) => {
+                console.error('ffmpeg 错误:', data.toString().trim());
+            });
+            
+            aplayProcess.on('error', (error) => {
+                console.error('aplay 错误:', error.message);
+            });
+            
+            aplayProcess.on('exit', (code) => {
+                if (code !== 0) {
+                    console.error('aplay 异常退出，代码:', code);
+                }
+            });
         } else {
             // 非 Docker 环境使用 ffplay
             const args = [
                 '-nodisp',
                 '-autoexit',
                 '-volume', String(Math.round(currentVolume * 20)),
+                '-hide_banner',
+                '-loglevel', 'error'
             ];
             
             if (currentAudioDevice && currentAudioDevice !== 'default') {
@@ -6546,37 +7765,117 @@ function playOnlineMusic(url) {
             
             args.push(url);
             
+            console.log('ffplay 参数:', args.join(' '));
+            
             playerProcess = spawn('ffplay', args, {
-                stdio: ['ignore', 'ignore', 'ignore']
+                stdio: ['ignore', 'pipe', 'pipe']
+            });
+            
+            // 捕获 ffplay 的输出用于调试
+            playerProcess.stderr.on('data', (data) => {
+                const output = data.toString().trim();
+                if (output && !output.includes('Opening') && !output.includes('Metadata:')) {
+                    console.log('ffplay 输出:', output);
+                }
             });
         }
         
-        currentAudioProcess = playerProcess;
+        // 使用 currentPlayer 变量，以便 pauseMusic 和 stopMusic 能够控制
+        currentPlayer = playerProcess;
         
         playerProcess.on('error', (error) => {
             console.error('在线播放错误:', error.message);
-            isPlaying = false;
-        });
-        
-        playerProcess.on('exit', (code) => {
-            console.log('在线音乐播放结束');
+            console.error('错误详情:', error);
             isPlaying = false;
             
-            // 自动播放下一首
+            // 尝试重新播放（最多重试2次）
+            if (retryCount < 2) {
+                console.log(`重试播放（第 ${retryCount + 1} 次）...`);
+                setTimeout(() => {
+                    playOnlineMusic(url, retryCount + 1);
+                }, 1000);
+            }
+        });
+        
+        playerProcess.on('exit', (code, signal) => {
+            console.log('在线音乐播放结束，退出代码:', code, '信号:', signal);
+            isPlaying = false;
+            
+            // 检查是否是正常退出（代码0或143表示被kill）
+            const isNormalExit = code === 0 || code === 143 || code === null;
+            
+            if (!isNormalExit) {
+                console.error('播放器异常退出，代码:', code);
+                
+                // 尝试重新播放（最多重试2次）
+            if (retryCount < 2) {
+                console.log(`重试播放（第 ${retryCount + 1} 次）...`);
+                // 如果是第一次重试，尝试重新获取播放链接
+                if (retryCount === 0 && currentIndex >= 0) {
+                    const track = currentPlaylist[currentIndex];
+                    if (track && (track.isOnline || track.path.startsWith('online://'))) {
+                        console.log('尝试重新获取播放链接...');
+                        getMusicPlayUrl(track.source, track.songInfo || {
+                            songId: track.path.split('/')[2],
+                            name: track.title,
+                            singer: track.artist,
+                            albumName: track.album
+                        }, '128').then(newUrl => {
+                            if (newUrl) {
+                                track.playUrl = newUrl;
+                                console.log('获取新链接成功，重试播放...');
+                                playOnlineMusic(newUrl, retryCount + 1);
+                            } else {
+                                // 获取新链接失败，使用旧链接重试
+                                playOnlineMusic(url, retryCount + 1);
+                            }
+                        }).catch(() => {
+                            // 获取新链接失败，使用旧链接重试
+                            playOnlineMusic(url, retryCount + 1);
+                        });
+                    } else {
+                        playOnlineMusic(url, retryCount + 1);
+                    }
+                } else {
+                    setTimeout(() => {
+                        playOnlineMusic(url, retryCount + 1);
+                    }, 1000);
+                }
+                return; // 不自动播放下一首，先重试当前歌曲
+            }
+            }
+            
+            // 自动播放下一首（只有正常退出或重试失败后才继续）
             if (playMode === 'sequence' && currentIndex < currentPlaylist.length - 1) {
                 const nextIndex = currentIndex + 1;
                 const nextTrack = currentPlaylist[nextIndex];
-                if (nextTrack && nextTrack.isOnline) {
-                    playOnlineMusic(nextTrack.playUrl);
+                if (nextTrack) {
                     currentIndex = nextIndex;
                     isPlaying = true;
+                    
+                    if (nextTrack.isOnline || nextTrack.path.startsWith('online://')) {
+                        // 下一首是在线音乐
+                        playOnlineMusic(nextTrack.playUrl);
+                    } else {
+                        // 下一首是本地音乐
+                        playMusic(nextTrack.path);
+                    }
                 }
             }
         });
         
     } catch (error) {
         console.error('播放在线音乐失败:', error.message);
+        console.error('错误详情:', error);
         isPlaying = false;
+        
+        // 尝试重新播放（最多重试2次）
+        if (retryCount < 2) {
+            console.log(`重试播放（第 ${retryCount + 1} 次）...`);
+            setTimeout(() => {
+                playOnlineMusic(url, retryCount + 1);
+            }, 1000);
+        }
     }
 }
 
@@ -6613,6 +7912,9 @@ server = app.listen(PORT, async () => {
     console.log(`🎵 音乐播放器服务已启动`);
     console.log(`📻 访问地址：http://localhost:${PORT}`);
     console.log(`📂 工作目录：${process.cwd()}`);
+
+    // 初始化自定义音源
+    await initCustomSources();
 
     try {
         const devices = await getAudioDevices();

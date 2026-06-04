@@ -5817,202 +5817,446 @@ if (!fs.existsSync(sourceFilesDir)) {
     console.log(`📁 创建音源文件目录: ${sourceFilesDir}`);
 }
 
-// 加载自定义音源
+// 自定义音源存储
 let customSources = {};
-let activeSourceIds = []; // 当前激活的音源ID列表（不带.js）
+let activeSourceIds = []; // 当前激活的音源ID列表（带.js扩展名）
 
-function loadCustomSources(filterFiles = null) {
+// 安全地从上下文中提取数据
+function decontextify(obj) {
+    if (obj === null || obj === undefined) return obj;
     try {
-        const files = fs.readdirSync(sourceFilesDir).filter(f => f.endsWith('.js'));
+        const str = JSON.stringify(obj);
+        return str ? JSON.parse(str) : String(obj);
+    } catch (e2) {
+        return String(obj);
+    }
+}
+
+// 创建 lx.request 包装器（使用原生 http/https）
+function createLxRequest() {
+    const httpModule = require('http');
+    const httpsModule = require('https');
+    
+    return (url, options, callback) => {
+        // 延迟解析 options 以避免 Proxy 问题
+        let safeOptions;
+        try {
+            safeOptions = JSON.parse(JSON.stringify(options || {}));
+        } catch {
+            safeOptions = {};
+        }
+        
+        const method = (safeOptions.method || 'get').toUpperCase();
+        const timeout = safeOptions.timeout || 60000;
+        const headers = safeOptions.headers || {};
+        const body = safeOptions.body;
+        const form = safeOptions.form;
+        const formData = safeOptions.formData;
+        
+        let urlStr = typeof url === 'object' ? JSON.stringify(url) : url;
+        
+        const urlObj = new URL(urlStr);
+        const isHttps = urlObj.protocol === 'https:';
+        const protocol = isHttps ? httpsModule : httpModule;
+        
+        let postData = null;
+        let contentType = headers['Content-Type'] || headers['content-type'];
+        
+        if (form) {
+            // form 是键值对，需要转换为 URL 编码字符串
+            const formStr = typeof form === 'string' ? form : new URLSearchParams(form).toString();
+            postData = formStr;
+            if (!contentType) contentType = 'application/x-www-form-urlencoded';
+        } else if (formData) {
+            postData = JSON.stringify(formData);
+            if (!contentType) contentType = 'application/json';
+        } else if (body) {
+            if (typeof body === 'object') {
+                postData = JSON.stringify(body);
+                if (!contentType) contentType = 'application/json';
+            } else {
+                postData = body;
+            }
+        }
+        
+        const requestHeaders = { ...headers };
+        if (contentType) {
+            requestHeaders['Content-Type'] = contentType;
+        }
+        // 添加默认 User-Agent
+        if (!requestHeaders['User-Agent']) {
+            requestHeaders['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+        }
+        
+        const requestOptions = {
+            hostname: urlObj.hostname,
+            path: urlObj.pathname + urlObj.search,
+            method: method,
+            headers: requestHeaders,
+            timeout: Math.min(timeout, 60000),
+            rejectUnauthorized: false  // 忽略 HTTPS 证书错误
+        };
+        
+        const req = protocol.request(requestOptions, (res) => {
+            let data = '';
+            res.on('data', (chunk) => {
+                data += chunk;
+            });
+            res.on('end', () => {
+                try {
+                    let parsedBody = data;
+                    if (typeof data === 'string') {
+                        try {
+                            parsedBody = JSON.parse(data);
+                        } catch { }
+                    }
+                    const safeResp = {
+                        statusCode: res.statusCode,
+                        statusMessage: res.statusMessage,
+                        headers: res.headers,
+                        body: parsedBody
+                    };
+                    // 确保返回的数据是安全的（切断原型链）
+                    const safeBody = JSON.parse(JSON.stringify(parsedBody));
+                    callback.call(null, null, safeResp, safeBody);
+                } catch (error) {
+                    callback.call(null, { message: error.message }, null, null);
+                }
+            });
+        });
+        
+        req.on('error', (e) => {
+            callback.call(null, { message: e.message || String(e) }, null, null);
+        });
+        
+        req.on('timeout', () => {
+            req.destroy();
+            callback.call(null, { message: 'Request timeout' }, null, null);
+        });
+        
+        if (postData) {
+            req.write(postData);
+        }
+        req.end();
+        
+        // 返回取消函数
+        return () => {
+            req.destroy();
+        };
+    };
+}
+
+// 加载单个自定义音源脚本
+async function loadCustomSource(scriptPath) {
+    try {
+        const script = fs.readFileSync(scriptPath, 'utf-8');
+        
+        console.log(`[CustomSource] 脚本长度: ${script.length} 字符`);
+        
+        // 从脚本注释中提取元数据
+        const metadata = {};
+        const commentMatch = script.match(/\/\*[*!]([\s\S]*?)\*\//);
+        if (commentMatch) {
+            const comment = commentMatch[1];
+            const nameMatch = comment.match(/@name\s+(.+)/);
+            if (nameMatch) metadata.name = nameMatch[1].trim();
+            const verMatch = comment.match(/@version\s+(.+)/);
+            if (verMatch) metadata.version = verMatch[1].trim();
+        }
+        
+        let initResolve = null;
+        let initReject = null;
+        const initPromise = new Promise((resolve, reject) => {
+            initResolve = resolve;
+            initReject = reject;
+        });
+        
+        const eventHandlers = new Map();
+        let registeredSources = {};
+        
+        const lxDataInside = {
+            version: '2.0.0',
+            env: 'desktop',
+            platform: 'web',
+            currentScriptInfo: {
+                name: metadata.name || 'Unknown',
+                description: '',
+                version: metadata.version || '1.0.0',
+                author: '',
+                homepage: '',
+                rawScript: script,
+            },
+            EVENT_NAMES: {
+                request: 'request',
+                inited: 'inited',
+                updateAlert: 'updateAlert'
+            }
+        };
+        
+        const lxUtils = {
+            buffer: {
+                from: (d, e) => Buffer.from(decontextify(d), decontextify(e)),
+                bufToString: (b, f) => Buffer.isBuffer(b) ? b.toString(f) : Buffer.from(b, 'binary').toString(f)
+            },
+            crypto: {
+                md5: (str) => crypto.createHash('md5').update((decontextify(str) || '')).digest('hex'),
+                sha1: (str) => crypto.createHash('sha1').update((decontextify(str) || '')).digest('hex'),
+                sha256: (str) => crypto.createHash('sha256').update((decontextify(str) || '')).digest('hex'),
+                aesEncrypt: (buffer, mode, key, iv) => {
+                    const dKey = decontextify(key);
+                    const dIv = decontextify(iv);
+                    const dBuffer = decontextify(buffer);
+                    const algorithm = `aes-${dKey.length * 8}-${mode}`;
+                    const cipher = crypto.createCipheriv(algorithm, dKey, dIv);
+                    return Buffer.concat([cipher.update(dBuffer), cipher.final()]);
+                },
+                aesDecrypt: (buffer, mode, key, iv) => {
+                    const dKey = decontextify(key);
+                    const dIv = decontextify(iv);
+                    const dBuffer = decontextify(buffer);
+                    const algorithm = `aes-${dKey.length * 8}-${mode}`;
+                    const decipher = crypto.createDecipheriv(algorithm, dKey, dIv);
+                    return Buffer.concat([decipher.update(dBuffer), decipher.final()]);
+                },
+                aesEncrypt2: (buffer, mode, key, iv) => {
+                    // 另一种 AES 加密实现（与 aesEncrypt 类似但使用不同的填充方式）
+                    const dKey = decontextify(key);
+                    const dIv = decontextify(iv);
+                    const dBuffer = decontextify(buffer);
+                    const algorithm = `aes-${dKey.length * 8}-${mode}`;
+                    const cipher = crypto.createCipheriv(algorithm, dKey, dIv);
+                    cipher.setAutoPadding(false);
+                    return Buffer.concat([cipher.update(dBuffer), cipher.final()]);
+                },
+                aesDecrypt2: (buffer, mode, key, iv) => {
+                    // 另一种 AES 解密实现（无填充）
+                    const dKey = decontextify(key);
+                    const dIv = decontextify(iv);
+                    const dBuffer = decontextify(buffer);
+                    const algorithm = `aes-${dKey.length * 8}-${mode}`;
+                    const decipher = crypto.createDecipheriv(algorithm, dKey, dIv);
+                    decipher.setAutoPadding(false);
+                    return Buffer.concat([decipher.update(dBuffer), decipher.final()]);
+                },
+                rsaEncrypt: (buffer, key) => crypto.publicEncrypt(decontextify(key), decontextify(buffer)),
+                rsaDecrypt: (buffer, key) => crypto.privateDecrypt(decontextify(key), decontextify(buffer)),
+                randomBytes: (size) => crypto.randomBytes(size),
+                hmac: (algorithm, key, data) => {
+                    const dKey = decontextify(key);
+                    const dData = decontextify(data);
+                    return crypto.createHmac(algorithm, dKey).update(dData).digest('hex');
+                }
+            },
+            zlib: {
+                inflate: (buffer) => {
+                    const zlib = require('zlib');
+                    return zlib.inflateSync(decontextify(buffer));
+                },
+                deflate: (buffer) => {
+                    const zlib = require('zlib');
+                    return zlib.deflateSync(decontextify(buffer));
+                },
+                inflateRaw: (buffer) => {
+                    const zlib = require('zlib');
+                    return zlib.inflateRawSync(decontextify(buffer));
+                },
+                deflateRaw: (buffer) => {
+                    const zlib = require('zlib');
+                    return zlib.deflateRawSync(decontextify(buffer));
+                }
+            }
+        };
+        
+        const lxRequestFn = createLxRequest();
+        
+        const lxObject = {
+            ...lxDataInside,
+            utils: lxUtils,
+            request: lxRequestFn,
+            send: (eventName, data) => {
+                const dData = decontextify(data);
+                if (eventName === 'inited') {
+                    if (dData && dData.sources) {
+                        registeredSources = dData.sources;
+                        console.log(`[CustomSource] Registered sources:`, Object.keys(registeredSources).join(', '));
+                    }
+                    if (initResolve) initResolve();
+                } else if (eventName === 'updateAlert') {
+                    const error = new Error(`发现新版本,需要更新: ${JSON.stringify(dData)}`);
+                    if (initReject) initReject(error);
+                }
+            },
+            on: (eventName, handler) => {
+                if (eventName === 'request') {
+                    eventHandlers.set(eventName, handler);
+                }
+            }
+        };
+        
+        const sandbox = {};
+        sandbox.console = console;
+        sandbox.setTimeout = setTimeout;
+        sandbox.clearTimeout = clearTimeout;
+        sandbox.setInterval = setInterval;
+        sandbox.clearInterval = clearInterval;
+        sandbox.Buffer = Buffer;
+        sandbox.URL = URL;
+        sandbox.URLSearchParams = URLSearchParams;
+        sandbox.TextEncoder = TextEncoder;
+        sandbox.TextDecoder = TextDecoder;
+        sandbox.process = {
+            nextTick: (fn, ...args) => setTimeout(() => fn(...args), 0),
+            env: { NODE_ENV: process.env.NODE_ENV || 'production' }
+        };
+        sandbox.lx = lxObject;
+        sandbox.global = sandbox;
+        sandbox.window = sandbox;
+        sandbox.globalThis = sandbox;
+        sandbox.atob = (s) => Buffer.from(s, 'base64').toString('binary');
+        sandbox.btoa = (s) => Buffer.from(s, 'binary').toString('base64');
+        sandbox.crypto = crypto;
+        
+        const vm = require('vm');
+        const context = vm.createContext(sandbox);
+        
+        try {
+            vm.runInContext(script, context, {
+                filename: scriptPath,
+                timeout: 10000
+            });
+            console.log(`[CustomSource] 脚本执行完成`);
+        } catch (runError) {
+            console.error(`[CustomSource] 脚本执行错误:`, runError.message);
+            throw runError;
+        }
+        
+        await Promise.race([
+            initPromise,
+            new Promise((_, reject) => setTimeout(() => reject(new Error('初始化超时')), 3000))
+        ]);
+        
+        console.log(`[CustomSource] 初始化完成`);
+        
+        return {
+            name: metadata.name || 'Unknown',
+            version: metadata.version || '1.0.0',
+            sources: registeredSources,
+            callRequest: async (action, source, info) => {
+                try {
+                    const handler = eventHandlers.get('request');
+                    if (!handler) throw new Error('未注册 request 处理器');
+                    const inputData = JSON.parse(JSON.stringify({ action, source, info }));
+                    
+                    const result = await new Promise((resolve, reject) => {
+                        try {
+                            const callback = (err, resp, body) => {
+                                if (err) {
+                                    reject(err);
+                                } else {
+                                    resolve(body);
+                                }
+                            };
+                            const ret = handler(inputData, callback);
+                            if (ret && typeof ret.then === 'function') {
+                                ret.then(resolve).catch(reject);
+                            } else if (ret !== undefined) {
+                                resolve(ret);
+                            }
+                        } catch (e) {
+                            reject(e);
+                        }
+                    });
+                    
+                    return decontextify(result);
+                } catch (e) {
+                    console.error(`[CustomSource] callRequest Error:`, e.message);
+                    throw e;
+                }
+            }
+        };
+    } catch (error) {
+        console.error(`[CustomSource] 加载失败:`, error.message);
+        return null;
+    }
+}
+
+// 加载自定义音源（统一入口）
+async function loadCustomSources(filterFiles = null) {
+    try {
         customSources = {};
+        
+        const files = fs.readdirSync(sourceFilesDir).filter(f => f.endsWith('.js'));
         
         // 如果有过滤列表，只加载指定的音源
         const filesToLoad = filterFiles ? files.filter(f => filterFiles.includes(f)) : files;
         
-        // 更新激活的音源ID列表（去掉.js扩展名）
-        activeSourceIds = filesToLoad.map(f => f.replace('.js', ''));
+        // 更新激活的音源ID列表（保持.js扩展名）
+        activeSourceIds = filesToLoad;
         
-        filesToLoad.forEach(file => {
+        console.log(`📂 加载音源文件:`, filesToLoad);
+        
+        let loadedCount = 0;
+        
+        for (const file of filesToLoad) {
             try {
                 const filePath = path.join(sourceFilesDir, file);
-                const content = fs.readFileSync(filePath, 'utf8');
-                const sourceId = file.replace('.js', '');
-                
-                // 尝试 LX Music 音源格式（使用 lx.send 注册）
-                const registeredSources = {};
-                
-                // 创建 lx 环境数据
-                const lxDataInside = {
-                    version: '2.0.0',
-                    env: 'desktop',
-                    platform: 'web',
-                    currentScriptInfo: {
-                        name: sourceId,
-                        rawScript: content,
-                    },
-                    EVENT_NAMES: {
-                        request: 'request',
-                        inited: 'inited',
-                    }
-                };
-                
-                // 构建 lx 工具集
-                const lxUtils = {
-                    buffer: {
-                        from: (d, e) => Buffer.from(d, e),
-                        bufToString: (b, f) => Buffer.isBuffer(b) ? b.toString(f) : Buffer.from(b, 'binary').toString(f)
-                    },
-                    crypto: {
-                        md5: (str) => require('crypto').createHash('md5').update(str || '').digest('hex'),
-                    },
-                };
-                
-                // 核心 lx 对象
-                const lxObject = {
-                    ...lxDataInside,
-                    utils: lxUtils,
-                    request: (url, options, callback) => {
-                        const method = (options?.method || 'get').toLowerCase();
-                        const timeout = options?.timeout || 15000;
-                        const headers = options?.headers || {};
-                        
-                        // 过滤掉值为 undefined 或 null 的请求头
-                        const validHeaders = {};
-                        Object.keys(headers).forEach(key => {
-                            const value = headers[key];
-                            if (value !== undefined && value !== null) {
-                                validHeaders[key] = value;
+                console.log(`[CustomSource] 尝试加载: ${file}`);
+                const source = await loadCustomSource(filePath);
+                if (source) {
+                    console.log(`[CustomSource] ✓ 成功加载: ${source.name} v${source.version}`);
+                    loadedCount++;
+                    for (const platform of Object.keys(source.sources)) {
+                        customSources[platform] = {
+                            name: source.sources[platform].name || platform,
+                            getPlayUrl: async (songInfo, type, quality) => {
+                                try {
+                                    const result = await source.callRequest('musicUrl', platform, {
+                                        musicInfo: songInfo,
+                                        quality: quality,
+                                        type: type || quality
+                                    });
+                                    if (result && result.url) {
+                                        return result;
+                                    }
+                                    return null;
+                                } catch (error) {
+                                    console.error(`[CustomSource] 获取播放链接失败:`, error.message);
+                                    return null;
+                                }
+                            },
+                            search: async (keyword, page, limit) => {
+                                try {
+                                    const result = await source.callRequest('search', platform, {
+                                        keyword: keyword,
+                                        page: page,
+                                        limit: limit
+                                    });
+                                    if (result && result.list) {
+                                        return {
+                                            total: result.total || result.list.length * 10,
+                                            list: result.list
+                                        };
+                                    } else if (Array.isArray(result)) {
+                                        return {
+                                            total: result.length * 10,
+                                            list: result
+                                        };
+                                    }
+                                    return null;
+                                } catch (error) {
+                                    console.error(`[CustomSource] 搜索失败:`, error.message);
+                                    return null;
+                                }
                             }
-                        });
-                        
-                        const parsedUrl = new URL(url);
-                        const reqOptions = {
-                            hostname: parsedUrl.hostname,
-                            path: parsedUrl.pathname + parsedUrl.search,
-                            method: method.toUpperCase(),
-                            headers: validHeaders,
-                            timeout
                         };
-                        
-                        const req = https.request(reqOptions, (res) => {
-                            let data = '';
-                            res.on('data', chunk => data += chunk);
-                            res.on('end', () => {
-                                let body = data;
-                                try { body = JSON.parse(data); } catch(e) {}
-                                callback(null, {
-                                    statusCode: res.statusCode,
-                                    headers: res.headers,
-                                    body
-                                }, body);
-                            });
-                        });
-                        
-                        req.on('error', (err) => {
-                            callback(err, null, null);
-                        });
-                        
-                        if (options?.body) {
-                            req.write(typeof options.body === 'string' ? options.body : JSON.stringify(options.body));
-                        }
-                        
-                        req.end();
-                        
-                        return () => req.destroy();
-                    },
-                    send: (eventName, data) => {
-                        if (eventName === 'inited' && data && data.sources) {
-                            Object.assign(registeredSources, data.sources);
-                        }
-                    },
-                    on: () => {}
-                };
-                
-                // 使用 vm 模块执行
-                const vm = require('vm');
-                
-                // 创建 sandbox，参考 lx-music-sync-server 的实现
-                const sandbox = {
-                    console: {
-                        log: () => {},
-                        error: console.error,
-                        warn: console.warn,
-                    },
-                    setTimeout,
-                    clearTimeout,
-                    setInterval,
-                    clearInterval,
-                    Buffer,
-                    URL,
-                    JSON,
-                    Math,
-                    Date,
-                    encodeURIComponent,
-                    decodeURIComponent,
-                    encodeURI,
-                    decodeURI,
-                    parseInt,
-                    parseFloat,
-                    isNaN,
-                    Array,
-                    Object,
-                    String,
-                    Number,
-                    Boolean,
-                    RegExp,
-                    Error,
-                    TypeError,
-                    Promise,
-                    Function,
-                    eval: (code) => eval(code),
-                    // 关键：设置 global/window/globalThis 都指向 sandbox 自身
-                    lx: lxObject,
-                    global: null,
-                    window: null,
-                    globalThis: null,
-                    atob: (s) => Buffer.from(s, 'base64').toString('binary'),
-                    btoa: (s) => Buffer.from(s, 'binary').toString('base64'),
-                    crypto: require('crypto'),
-                };
-                sandbox.global = sandbox;
-                sandbox.window = sandbox;
-                sandbox.globalThis = sandbox;
-                
-                const context = vm.createContext(sandbox);
-                
-                // 直接执行脚本内容，因为 lx 已经通过 sandbox 提供了
-                vm.runInContext(content, context, { timeout: 10000 });
-                
-                // 检查是否注册了音源
-                if (Object.keys(registeredSources).length > 0) {
-                    Object.entries(registeredSources).forEach(([key, source]) => {
-                        customSources[key] = {
-                            name: source.name || key,
-                            search: source.musicSearch?.search || source.search,
-                            getPlayUrl: source.getMusicUrl || source.musicUrl?.getMusicUrl,
-                            source: source
-                        };
-                        console.log(`✅ 加载音源: ${customSources[key].name} (${file}) - 音源: ${key}`);
-                    });
-                } else {
-                    // 回退：尝试简单的 module.exports 格式
-                    const sourceModule = { exports: {} };
-                    const wrappedCode = `(function(module, exports, require) { ${content} })`;
-                    eval(wrappedCode)(sourceModule, sourceModule.exports, require);
-                    
-                    if (sourceModule.exports && sourceModule.exports.name) {
-                        customSources[sourceId] = sourceModule.exports;
-                        console.log(`✅ 加载音源(简单格式): ${sourceModule.exports.name} (${file})`);
-                    } else {
-                        console.log(`⚠️ 音源文件 ${file} 未注册任何音源`);
                     }
                 }
             } catch (error) {
                 console.error(`❌ 加载音源文件 ${file} 失败:`, error.message);
             }
-        });
+        }
         
-        console.log(`📦 已加载 ${Object.keys(customSources).length} 个自定义音源，激活的音源ID:`, activeSourceIds);
+        console.log(`📦 已加载 ${Object.keys(customSources).length} 个自定义音源，激活的音源文件:`, activeSourceIds);
     } catch (error) {
         console.error('加载音源文件失败:', error.message);
     }
@@ -6235,23 +6479,21 @@ app.post('/api/online-rank', async (req, res) => {
                     default: keyword = '热门歌曲';
                 }
                 const searchResults = await customSources[source].search(keyword, page, limit);
-                if (searchResults && searchResults.length > 0) {
-                    // 处理返回值可能是数组或对象
-                    if (Array.isArray(searchResults)) {
-                        total = searchResults.length * 10; // 估算总数
-                        results.push({
-                            source: source,
-                            sourceName: customSources[source].name || source,
-                            list: searchResults
-                        });
-                    } else if (searchResults.list) {
-                        total = searchResults.total || searchResults.list.length * 10;
-                        results.push({
-                            source: source,
-                            sourceName: customSources[source].name || source,
-                            list: searchResults.list
-                        });
-                    }
+                // 处理返回值可能是数组或对象
+                if (Array.isArray(searchResults) && searchResults.length > 0) {
+                    total = searchResults.length * 10;
+                    results.push({
+                        source: source,
+                        sourceName: customSources[source].name || source,
+                        list: searchResults
+                    });
+                } else if (searchResults && searchResults.list && searchResults.list.length > 0) {
+                    total = searchResults.total || searchResults.list.length * 10;
+                    results.push({
+                        source: source,
+                        sourceName: customSources[source].name || source,
+                        list: searchResults.list
+                    });
                 }
             } catch (error) {
                 console.error(`自定义音源 ${source} 排行榜获取失败:`, error.message);
@@ -6662,32 +6904,56 @@ async function getMusicRank(source, type, page = 1, limit = 20) {
             }
             
             case 'kw': {
-                // 酷我音乐排行榜
+                // 酷我音乐排行榜 - 使用加密API
                 const kwTypes = { hot: '16', new: '17', soaring: '93', original: '278' };
+                const bangId = kwTypes[type] || '16';
+                
+                // 酷我音乐加密参数
+                const aesKey = Buffer.from([112, 87, 39, 61, 199, 250, 41, 191, 57, 68, 45, 114, 221, 94, 140, 228], 'binary');
+                const appId = 'y67sprxhhpws';
+                
+                const requestBody = { uid: '', devId: '', sFrom: 'kuwo_sdk', user_type: 'AP', carSource: 'kwplayercar_ar_6.0.1.0_apk_keluze.apk', id: bangId, pn: page - 1, rn: limit };
+                const time = Date.now();
+                
+                // AES加密
+                const cipher = crypto.createCipheriv('aes-128-ecb', aesKey, '');
+                const encodeData = Buffer.concat([cipher.update(JSON.stringify(requestBody)), cipher.final()]).toString('base64');
+                
+                // 创建签名
+                const md5Hash = crypto.createHash('md5');
+                const sign = md5Hash.update(`${appId}${encodeData}${time}`).digest('hex').toUpperCase();
+                
+                const url = `https://wbd.kuwo.cn/api/bd/bang/bang_info?data=${encodeURIComponent(encodeData)}&time=${time}&appId=${appId}&sign=${sign}`;
+                const urlObj = new URL(url);
+                
                 const options = {
-                    protocol: 'https:',
-                    hostname: 'www.kuwo.cn',
-                    path: `/api/www/bang/bang/musicList?bangId=${kwTypes[type] || '16'}&pn=${page}&rn=${limit}&httpsStatus=1`,
+                    protocol: urlObj.protocol,
+                    hostname: urlObj.hostname,
+                    path: urlObj.pathname + urlObj.search,
                     method: 'GET',
                     headers: {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        'Referer': 'https://www.kuwo.cn/bang/'
+                        'Referer': 'http://www.kuwo.cn/'
                     }
                 };
                 
                 const { body } = await httpRequest(options);
-                const json = JSON.parse(body);
                 
-                if (json.data?.musicList) {
+                // AES解密
+                const decodeData = Buffer.from(decodeURIComponent(body), 'base64');
+                const decipher = crypto.createDecipheriv('aes-128-ecb', aesKey, '');
+                const rawData = JSON.parse(Buffer.concat([decipher.update(decodeData), decipher.final()]).toString());
+                
+                if (rawData.code == 200 && rawData.data?.musiclist) {
                     return {
-                        total: json.data.total || json.data.musicList.length * 10, // 估算总数
-                        list: json.data.musicList.map(item => ({
+                        total: parseInt(String(rawData.data.total || '0')) || rawData.data.musiclist.length * 10,
+                        list: rawData.data.musiclist.map(item => ({
                             songId: String(item.id),
                             name: item.name || '',
                             singer: item.artist || '',
                             albumName: item.album || '',
                             albumId: String(item.albumId || ''),
-                            interval: item.duration || 0,
+                            interval: parseInt(String(item.duration || '0')) || 0,
                             picUrl: item.pic || '',
                             source: 'kw',
                             quality: '128'
@@ -6741,51 +7007,75 @@ async function getMusicRank(source, type, page = 1, limit = 20) {
             }
             
             case 'tx': {
-                // QQ音乐排行榜
-                const txTypes = { hot: '26', new: '27', soaring: '28', original: '29' };
-                const url = `https://c.y.qq.com/v8/fcg-bin/fcg_v8_toplist_cp.fcg?topid=${txTypes[type] || '26'}&page=${page}&size=${limit}`;
-                const urlObj = new URL(url);
+                // QQ音乐排行榜 - 使用POST API
+                const txTypes = { hot: '26', new: '27', soaring: '62', original: '52' };
+                const topid = parseInt(txTypes[type] || '26');
+                
+                const postData = JSON.stringify({
+                    toplist: {
+                        module: 'musicToplist.ToplistInfoServer',
+                        method: 'GetDetail',
+                        param: {
+                            topid: topid,
+                            num: limit,
+                            period: '',
+                        },
+                    },
+                    comm: {
+                        uin: 0,
+                        format: 'json',
+                        ct: 20,
+                        cv: 1859,
+                    },
+                });
                 
                 const options = {
-                    protocol: urlObj.protocol,
-                    hostname: urlObj.hostname,
-                    path: urlObj.pathname + urlObj.search,
-                    method: 'GET',
+                    protocol: 'https:',
+                    hostname: 'u.y.qq.com',
+                    path: '/cgi-bin/musicu.fcg',
+                    method: 'POST',
                     headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'User-Agent': 'Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0)',
+                        'Content-Type': 'application/json',
+                        'Content-Length': Buffer.byteLength(postData),
                         'Referer': 'https://y.qq.com/n/ryqq/toplist'
                     }
                 };
                 
-                const { body } = await httpRequest(options);
-                const match = body.match(/^MusicJsonCallback\((.+)\)$/);
+                const { body } = await httpRequest(options, postData);
+                const json = JSON.parse(body);
                 
-                if (match) {
-                    const json = JSON.parse(match[1]);
-                    if (json.data?.songlist) {
-                        return {
-                            total: json.data.totalnum || json.data.songlist.length * 10, // 估算总数
-                            list: json.data.songlist.map(item => ({
-                                songId: String(item.songid || item.songmid || ''),
-                                name: item.songname || '',
-                                singer: item.singer ? item.singer.map(s => s.name).join('/') : '',
-                                albumName: item.albumname || '',
-                                albumId: String(item.albumid || ''),
-                                interval: item.interval || 0,
-                                picUrl: item.albummid ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${item.albummid}.jpg` : '',
-                                source: 'tx',
-                                quality: '128'
-                            }))
-                        };
-                    }
+                if (json.code === 0 && json.toplist?.data?.songInfoList) {
+                    return {
+                        total: json.toplist.data.songInfoList.length,
+                        list: json.toplist.data.songInfoList.map(item => ({
+                            songId: String(item.id || ''),
+                            name: item.title || '',
+                            singer: item.singer ? item.singer.map(s => s.name).join('/') : '',
+                            albumName: item.album?.name || '',
+                            albumId: String(item.album?.mid || ''),
+                            interval: item.interval || 0,
+                            picUrl: item.album?.name && item.album?.name !== '空' 
+                                ? `https://y.gtimg.cn/music/photo_new/T002R500x500M000${item.album.mid}.jpg` 
+                                : item.singer?.length 
+                                    ? `https://y.gtimg.cn/music/photo_new/T001R500x500M000${item.singer[0].mid}.jpg` 
+                                    : '',
+                            source: 'tx',
+                            quality: '128',
+                            songmid: item.mid || '',
+                            strMediaMid: item.file?.media_mid || ''
+                        }))
+                    };
                 }
                 return { total: 0, list: [] };
             }
             
             case 'mg': {
-                // 咪咕音乐排行榜
-                const mgTypes = { hot: '299', new: '300', soaring: '301', original: '302' };
-                const url = `https://m.music.migu.cn/migu/remoting/playlist_getTagSong?tagId=${mgTypes[type] || '299'}&pageNo=${page}&pageSize=${limit}`;
+                // 咪咕音乐排行榜 - 使用加密API
+                const mgTypes = { hot: '27186466', new: '27553319', soaring: '75959118', original: '27553408' };
+                const bangId = mgTypes[type] || '27186466';
+                
+                const url = `https://app.c.nf.migu.cn/MIGUM2.0/v1.0/content/querycontentbyId.do?columnId=${bangId}&needAll=0`;
                 const urlObj = new URL(url);
                 
                 const options = {
@@ -6794,32 +7084,36 @@ async function getMusicRank(source, type, page = 1, limit = 20) {
                     path: urlObj.pathname + urlObj.search,
                     method: 'GET',
                     headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        'Referer': 'https://music.migu.cn/v3'
+                        'User-Agent': 'Mozilla/5.0 (Linux; Android 5.1.1; Nexus 6 Build/LYZ28E) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Mobile Safari/537.36',
+                        'Referer': 'https://app.c.nf.migu.cn/',
+                        'channel': '0146921'
                     }
                 };
                 
                 const { body } = await httpRequest(options);
-                const match = body.match(/jsonp_\d+\((.+)\)/);
-                
-                if (match) {
-                    const json = JSON.parse(match[1]);
-                    if (json?.result?.songList) {
+                try {
+                    const json = JSON.parse(body);
+                    if (json.code === '000000' && json.columnInfo?.contents) {
                         return {
-                            total: json.result.totalCount || json.result.songList.length * 10, // 估算总数
-                            list: json.result.songList.slice(0, limit).map(item => ({
-                                songId: item.songId || String(item.id || ''),
-                                name: item.songName || item.title || '',
-                                singer: item.singerName || item.artist || '',
-                                albumName: item.albumName || item.album || '',
-                                albumId: String(item.albumId || ''),
-                                interval: parseInt(String(item.duration || '0')) || 0,
-                                picUrl: item.cover ? `https://images.music.migu.cn/${item.cover}` : '',
-                                source: 'mg',
-                                quality: '128'
-                            }))
+                            total: json.columnInfo.contents.length * 10,
+                            list: json.columnInfo.contents.map(item => {
+                                const info = item.objectInfo;
+                                return {
+                                    songId: String(info.songId || info.id || ''),
+                                    name: info.songName || info.title || '',
+                                    singer: info.singerName || info.artist || '',
+                                    albumName: info.albumName || info.album || '',
+                                    albumId: String(info.albumId || ''),
+                                    interval: parseInt(String(info.duration || info.interval || '0')) || 0,
+                                    picUrl: info.cover || info.picUrl || '',
+                                    source: 'mg',
+                                    quality: '128'
+                                };
+                            })
                         };
                     }
+                } catch (e) {
+                    console.error(`咪咕音乐JSON解析失败:`, e.message);
                 }
                 return { total: 0, list: [] };
             }
@@ -7147,314 +7441,8 @@ function decontextify(obj) {
 }
 
 // 创建 lx.request 包装器（使用原生 http/https）
-function createLxRequest() {
-    const httpModule = require('http');
-    const httpsModule = require('https');
-    
-    return (url, options, callback) => {
-        const safeOptions = decontextify(options || {});
-        const { method = 'get', timeout = 60000, headers = {}, body, form, formData } = safeOptions;
-        
-        const urlObj = new URL(url);
-        const protocol = urlObj.protocol === 'https:' ? httpsModule : httpModule;
-        
-        let postData = null;
-        let contentType = headers['Content-Type'] || headers['content-type'];
-        
-        if (form) {
-            postData = new URLSearchParams(form).toString();
-            if (!contentType) contentType = 'application/x-www-form-urlencoded';
-        } else if (formData) {
-            postData = JSON.stringify(formData);
-            if (!contentType) contentType = 'application/json';
-        } else if (body) {
-            if (typeof body === 'object') {
-                postData = JSON.stringify(body);
-                if (!contentType) contentType = 'application/json';
-            } else {
-                postData = body;
-            }
-        }
-        
-        const requestHeaders = { ...headers };
-        if (contentType) {
-            requestHeaders['Content-Type'] = contentType;
-        }
-        if (postData) {
-            requestHeaders['Content-Length'] = Buffer.byteLength(postData);
-        }
-        
-        const requestOptions = {
-            hostname: urlObj.hostname,
-            path: urlObj.pathname + urlObj.search,
-            method: method.toUpperCase(),
-            headers: requestHeaders,
-            timeout: Math.min(timeout, 60000)
-        };
-        
-        const req = protocol.request(requestOptions, (res) => {
-            let data = '';
-            res.on('data', (chunk) => {
-                data += chunk;
-            });
-            res.on('end', () => {
-                try {
-                    let parsedBody = data;
-                    if (typeof data === 'string') {
-                        try {
-                            parsedBody = JSON.parse(data);
-                        } catch { }
-                    }
-                    const safeResp = {
-                        statusCode: res.statusCode,
-                        statusMessage: res.statusMessage,
-                        headers: res.headers,
-                        body: decontextify(parsedBody)
-                    };
-                    callback.call(null, null, safeResp, safeResp.body);
-                } catch (error) {
-                    callback.call(null, decontextify(error), null, null);
-                }
-            });
-        });
-        
-        req.on('error', (e) => {
-            callback.call(null, decontextify(e), null, null);
-        });
-        
-        req.on('timeout', () => {
-            req.destroy(new Error('Request timeout'));
-        });
-        
-        if (postData) {
-            req.write(postData);
-        }
-        req.end();
-        
-        return () => {
-            req.destroy();
-        };
-    };
-}
-
-// 加载自定义音源脚本
-async function loadCustomSource(scriptPath) {
-    try {
-        const fs = require('fs');
-        const script = fs.readFileSync(scriptPath, 'utf-8');
-        
-        console.log(`[CustomSource] 脚本长度: ${script.length} 字符`);
-        
-        // 从脚本注释中提取元数据
-        const metadata = {};
-        const commentMatch = script.match(/\/\*[*!]([\s\S]*?)\*\//);
-        if (commentMatch) {
-            const comment = commentMatch[1];
-            const nameMatch = comment.match(/@name\s+(.+)/);
-            if (nameMatch) metadata.name = nameMatch[1].trim();
-            const verMatch = comment.match(/@version\s+(.+)/);
-            if (verMatch) metadata.version = verMatch[1].trim();
-        }
-        
-        let initResolve = null;
-        let initReject = null;
-        const initPromise = new Promise((resolve, reject) => {
-            initResolve = resolve;
-            initReject = reject;
-        });
-        
-        const eventHandlers = new Map();
-        let registeredSources = {};
-        
-        const lxDataInside = {
-            version: '2.0.0',
-            env: 'desktop',
-            platform: 'web',
-            currentScriptInfo: {
-                name: metadata.name || 'Unknown',
-                description: '',
-                version: metadata.version || '1.0.0',
-                author: '',
-                homepage: '',
-                rawScript: script,
-            },
-            EVENT_NAMES: {
-                request: 'request',
-                inited: 'inited',
-                updateAlert: 'updateAlert'
-            }
-        };
-        
-        const lxUtils = {
-            buffer: {
-                from: (d, e) => Buffer.from(decontextify(d), decontextify(e)),
-                bufToString: (b, f) => Buffer.isBuffer(b) ? b.toString(f) : Buffer.from(b, 'binary').toString(f)
-            },
-            crypto: {
-                md5: (str) => crypto.createHash('md5').update((decontextify(str) || '')).digest('hex'),
-                aesEncrypt: (buffer, mode, key, iv) => {
-                    const dKey = decontextify(key);
-                    const dIv = decontextify(iv);
-                    const dBuffer = decontextify(buffer);
-                    const algorithm = `aes-${dKey.length * 8}-${mode}`;
-                    const cipher = crypto.createCipheriv(algorithm, dKey, dIv);
-                    return Buffer.concat([cipher.update(dBuffer), cipher.final()]);
-                },
-                rsaEncrypt: (buffer, key) => crypto.publicEncrypt(decontextify(key), decontextify(buffer)),
-                randomBytes: (size) => crypto.randomBytes(size),
-            },
-            zlib: {
-                inflate: (buffer) => inflate(decontextify(buffer)),
-                deflate: (buffer) => deflate(decontextify(buffer)),
-            }
-        };
-        
-        const lxRequestFn = createLxRequest();
-        console.log(`[CustomSource] lxRequestFn 创建成功:`, typeof lxRequestFn);
-        
-        const lxObject = {
-            ...lxDataInside,
-            utils: lxUtils,
-            request: lxRequestFn,
-            send: (eventName, data) => {
-                const dData = decontextify(data);
-                if (eventName === 'inited') {
-                    if (dData && dData.sources) {
-                        registeredSources = dData.sources;
-                        console.log(`[CustomSource] Registered sources:`, Object.keys(registeredSources).join(', '));
-                    }
-                    if (initResolve) initResolve();
-                } else if (eventName === 'updateAlert') {
-                    const error = new Error(`发现新版本,需要更新: ${JSON.stringify(dData)}`);
-                    if (initReject) initReject(error);
-                }
-            },
-            on: (eventName, handler) => {
-                if (eventName === 'request') {
-                    eventHandlers.set(eventName, handler);
-                }
-            }
-        };
-        
-        console.log(`[CustomSource] lxObject 创建成功，包含属性:`, Object.keys(lxObject).join(', '));
-        console.log(`[CustomSource] lxObject.request 类型:`, typeof lxObject.request);
-        
-        const sandbox = {};
-        sandbox.console = console;
-        sandbox.setTimeout = setTimeout;
-        sandbox.clearTimeout = clearTimeout;
-        sandbox.setInterval = setInterval;
-        sandbox.clearInterval = clearInterval;
-        sandbox.Buffer = Buffer;
-        sandbox.URL = URL;
-        sandbox.URLSearchParams = URLSearchParams;
-        sandbox.TextEncoder = TextEncoder;
-        sandbox.TextDecoder = TextDecoder;
-        sandbox.process = {
-            nextTick: (fn, ...args) => setTimeout(() => fn(...args), 0),
-            env: { NODE_ENV: process.env.NODE_ENV || 'production' }
-        };
-        sandbox.lx = lxObject;
-        sandbox.global = sandbox;
-        sandbox.window = sandbox;
-        sandbox.globalThis = sandbox;
-        sandbox.atob = (s) => Buffer.from(s, 'base64').toString('binary');
-        sandbox.btoa = (s) => Buffer.from(s, 'binary').toString('base64');
-        sandbox.crypto = crypto;
-        
-        console.log(`[CustomSource] sandbox.lx 类型:`, typeof sandbox.lx);
-        console.log(`[CustomSource] sandbox.lx.request 类型:`, typeof sandbox.lx?.request);
-        
-        const context = vm.createContext(sandbox);
-        console.log(`[CustomSource] 准备运行脚本...`);
-        
-        try {
-            vm.runInContext(script, context, {
-                filename: scriptPath,
-                timeout: 10000
-            });
-            console.log(`[CustomSource] 脚本执行完成`);
-        } catch (runError) {
-            console.error(`[CustomSource] 脚本执行错误:`, runError.message);
-            console.error(`[CustomSource] 错误堆栈:`, runError.stack);
-            throw runError;
-        }
-        
-        console.log(`[CustomSource] 等待初始化...`);
-        await Promise.race([
-            initPromise,
-            new Promise((_, reject) => setTimeout(() => reject(new Error('初始化超时')), 3000))
-        ]);
-        
-        console.log(`[CustomSource] 初始化完成`);
-        
-        return {
-            name: metadata.name || 'Unknown',
-            version: metadata.version || '1.0.0',
-            sources: registeredSources,
-            callRequest: async (action, source, info) => {
-                try {
-                    const handler = eventHandlers.get('request');
-                    if (!handler) throw new Error('未注册 request 处理器');
-                    const inputData = JSON.parse(JSON.stringify({ action, source, info }));
-                    console.log(`[CustomSource] callRequest action=${action}, source=${source}`);
-                    
-                    // 将回调式 handler 包装为 Promise
-                    const result = await new Promise((resolve, reject) => {
-                        try {
-                            const callback = (err, resp, body) => {
-                                if (err) {
-                                    console.error(`[CustomSource] callback error:`, err);
-                                    reject(err);
-                                } else {
-                                    console.log(`[CustomSource] callback success, body type:`, typeof body);
-                                    resolve(body);
-                                }
-                            };
-                            // 调用 handler，传入 inputData 和 callback
-                            console.log(`[CustomSource] 调用 handler...`);
-                            const ret = handler(inputData, callback);
-                            console.log(`[CustomSource] handler 返回值类型:`, typeof ret);
-                            // 如果 handler 返回了 Promise，直接等待它
-                            if (ret && typeof ret.then === 'function') {
-                                console.log(`[CustomSource] handler 返回 Promise`);
-                                ret.then(resolve).catch(reject);
-                            } else if (ret !== undefined) {
-                                console.log(`[CustomSource] handler 同步返回:`, typeof ret);
-                                resolve(ret);
-                            }
-                        } catch (e) {
-                            console.error(`[CustomSource] handler 调用异常:`, e.message);
-                            reject(e);
-                        }
-                    });
-                    
-                    console.log(`[CustomSource] callRequest 返回结果`);
-                    return decontextify(result);
-                } catch (e) {
-                    console.error(`[CustomSource] callRequest Error:`, e.message, e.stack);
-                    throw e;
-                }
-            }
-        };
-    } catch (error) {
-        console.error(`[CustomSource] 加载失败:`, error.message);
-        console.error(`[CustomSource] 错误堆栈:`, error.stack);
-        return null;
-    }
-}
-
-// 初始化自定义音源
+// 初始化自定义音源（调用统一的 loadCustomSources 函数）
 async function initCustomSources() {
-    const fs = require('fs');
-    const path = require('path');
-    
-    const sourcesDir = path.join(__dirname, 'online_sources');
-    if (!fs.existsSync(sourcesDir)) {
-        console.log('[CustomSource] 音源目录不存在');
-        return;
-    }
-    
     // 读取激活的音源列表
     let activeSourceIds = [];
     const settingsPath = path.join(__dirname, 'data', 'online-settings.json');
@@ -7469,59 +7457,102 @@ async function initCustomSources() {
     
     console.log('[CustomSource] 激活的音源列表:', activeSourceIds);
     
-    const files = fs.readdirSync(sourcesDir);
-    let loadedCount = 0;
-    
-    for (const file of files) {
-        if (!file.endsWith('.js')) continue;
-        
-        // 如果有激活列表，检查是否在列表中
-        if (activeSourceIds.length > 0 && !activeSourceIds.includes(file)) {
-            console.log(`[CustomSource] 跳过未激活的音源: ${file}`);
-            continue;
-        }
-        
-        const filePath = path.join(sourcesDir, file);
-        console.log(`[CustomSource] 尝试加载: ${file}`);
-        const source = await loadCustomSource(filePath);
-        if (source) {
-            console.log(`[CustomSource] ✓ 成功加载: ${source.name} v${source.version}`);
-            loadedCount++;
-            for (const platform of Object.keys(source.sources)) {
-                customSources[platform] = {
-                    getPlayUrl: async (songInfo, type, quality) => {
-                        try {
-                            const result = await source.callRequest('musicUrl', platform, {
-                                musicInfo: songInfo,
-                                quality: quality,
-                                type: quality
-                            });
-                            if (result && result.url) {
-                                return result;
-                            }
-                            return null;
-                        } catch (error) {
-                            console.error(`[CustomSource] 获取播放链接失败:`, error.message);
-                            return null;
-                        }
-                    }
-                };
-            }
-        }
+    // 如果有激活列表，加载指定的音源，否则加载所有音源
+    if (activeSourceIds.length > 0) {
+        await loadCustomSources(activeSourceIds);
+    } else {
+        await loadCustomSources();
     }
-    
-    console.log(`[CustomSource] 共加载 ${loadedCount} 个音源`);
 }
 
 // 获取在线音乐播放链接
 async function getMusicPlayUrl(source, songInfo, quality = '128') {
+    // 标准化 songInfo 格式：将 meta 中的字段提升到顶层（参考 lx-music-sync-server）
+    const normalizedSongInfo = { ...songInfo };
+    if (songInfo.meta) {
+        // 将 meta 中的所有字段展开到顶层
+        Object.assign(normalizedSongInfo, songInfo.meta);
+        
+        // ========== 通用字段映射 ==========
+        // songId -> songmid (通用)
+        if (songInfo.meta.songId && !normalizedSongInfo.songmid) {
+            normalizedSongInfo.songmid = songInfo.meta.songId;
+        }
+        // 图片字段统一
+        if (songInfo.meta.picUrl && !normalizedSongInfo.img) {
+            normalizedSongInfo.img = songInfo.meta.picUrl;
+        }
+        // 音质信息
+        if (songInfo.meta.qualitys && !normalizedSongInfo.types) {
+            normalizedSongInfo.types = songInfo.meta.qualitys;
+        }
+        if (songInfo.meta._qualitys && !normalizedSongInfo._types) {
+            normalizedSongInfo._types = songInfo.meta._qualitys;
+        }
+        
+        // ========== 各平台特有字段 ==========
+        // 酷狗 (kg): hash, albumId
+        if (songInfo.meta.hash && !normalizedSongInfo.hash) {
+            normalizedSongInfo.hash = songInfo.meta.hash;
+        }
+        if (songInfo.meta.albumId && !normalizedSongInfo.albumId) {
+            normalizedSongInfo.albumId = songInfo.meta.albumId;
+        }
+        // 咪咕 (mg): copyrightId, lrcUrl, mrcUrl, trcUrl
+        if (songInfo.meta.copyrightId && !normalizedSongInfo.copyrightId) {
+            normalizedSongInfo.copyrightId = songInfo.meta.copyrightId;
+        }
+        if (songInfo.meta.lrcUrl && !normalizedSongInfo.lrcUrl) {
+            normalizedSongInfo.lrcUrl = songInfo.meta.lrcUrl;
+        }
+        if (songInfo.meta.mrcUrl && !normalizedSongInfo.mrcUrl) {
+            normalizedSongInfo.mrcUrl = songInfo.meta.mrcUrl;
+        }
+        if (songInfo.meta.trcUrl && !normalizedSongInfo.trcUrl) {
+            normalizedSongInfo.trcUrl = songInfo.meta.trcUrl;
+        }
+        // QQ音乐 (tx): strMediaMid, albumMid
+        if (songInfo.meta.strMediaMid && !normalizedSongInfo.strMediaMid) {
+            normalizedSongInfo.strMediaMid = songInfo.meta.strMediaMid;
+        }
+        if (songInfo.meta.albumMid && !normalizedSongInfo.albumMid) {
+            normalizedSongInfo.albumMid = songInfo.meta.albumMid;
+        }
+    }
+    
+    // ========== 顶层字段兜底映射 ==========
+    if (!normalizedSongInfo.hash && songInfo.hash) {
+        normalizedSongInfo.hash = songInfo.hash;
+    }
+    if (!normalizedSongInfo.copyrightId && songInfo.copyrightId) {
+        normalizedSongInfo.copyrightId = songInfo.copyrightId;
+    }
+    if (!normalizedSongInfo.strMediaMid && songInfo.strMediaMid) {
+        normalizedSongInfo.strMediaMid = songInfo.strMediaMid;
+    }
+    if (!normalizedSongInfo.albumMid && songInfo.albumMid) {
+        normalizedSongInfo.albumMid = songInfo.albumMid;
+    }
+    if (!normalizedSongInfo.albumId && songInfo.albumId) {
+        normalizedSongInfo.albumId = songInfo.albumId;
+    }
+    if (!normalizedSongInfo.lrcUrl && songInfo.lrcUrl) {
+        normalizedSongInfo.lrcUrl = songInfo.lrcUrl;
+    }
+    if (!normalizedSongInfo.mrcUrl && songInfo.mrcUrl) {
+        normalizedSongInfo.mrcUrl = songInfo.mrcUrl;
+    }
+    if (!normalizedSongInfo.trcUrl && songInfo.trcUrl) {
+        normalizedSongInfo.trcUrl = songInfo.trcUrl;
+    }
+    
     // 优先使用自定义音源
     if (customSources[source] && typeof customSources[source].getPlayUrl === 'function') {
         try {
-            console.log(`使用自定义音源 ${source} 获取播放链接，歌曲:`, songInfo.name || songInfo.songId);
+            console.log(`使用自定义音源 ${source} 获取播放链接，歌曲:`, normalizedSongInfo.name || normalizedSongInfo.songId);
             // LX Music 音源格式：getMusicUrl(songInfo, type, quality)
-            // songInfo 包含完整的歌曲信息（hash, songmid, albumId 等）
-            const result = await customSources[source].getPlayUrl(songInfo, 'url', quality);
+            // 使用标准化后的 songInfo
+            const result = await customSources[source].getPlayUrl(normalizedSongInfo, 'url', quality);
             if (result && result.url) {
                 console.log(`自定义音源 ${source} 获取到播放链接:`, result.url);
                 return result.url;
@@ -7534,10 +7565,10 @@ async function getMusicPlayUrl(source, songInfo, quality = '128') {
         }
     }
     
-    // 从 songInfo 中提取必要的信息
-    const songId = songInfo.songId || songInfo.hash || songInfo.songmid || songInfo.id;
-    const hash = songInfo.hash || songId;
-    const copyrightId = songInfo.copyrightId;
+    // 从 songInfo 中提取必要的信息（使用标准化后的数据）
+    const songId = normalizedSongInfo.songId || normalizedSongInfo.hash || normalizedSongInfo.songmid || normalizedSongInfo.id;
+    const hash = normalizedSongInfo.hash || songId;
+    const copyrightId = normalizedSongInfo.copyrightId;
     
     if (!songId) {
         console.error('无法获取歌曲ID:', JSON.stringify(songInfo));

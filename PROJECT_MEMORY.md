@@ -21,6 +21,8 @@
 - 变量作用域问题: 条件块内声明的变量在块外不可访问
 - 发布前需要确保代码已推送到远程仓库
 - 处理时间日期时，注意时区问题
+- VM 沙箱中的对象需要通过 JSON 序列化来切断原型链（decontextify）
+- songInfo 字段标准化：需要将 meta 字段提升到顶层，并映射各平台特有字段
 
 ## 用户偏好 (User Preferences)
 - 当用户说"发布"时，执行完整发布流程（release.ps1）
@@ -45,6 +47,10 @@
 2. ✅ server.js versionInfo is not defined (变量作用域问题)
 3. ✅ GitHub 发布流程配置
 4. ✅ CHANGELOG.md 自动更新时的中文编码问题
+5. ✅ 自定义音源 songInfo 标准化处理（参考 lx-music-sync-server）
+6. ✅ lx.utils.crypto 模块完善（添加 sha1/sha256/hmac/rsaDecrypt 等）
+7. ✅ lx.utils.zlib 模块完善（添加 inflateRaw/deflateRaw）
+8. ✅ lx.request 函数改进（处理 HTTPS 证书、添加默认 User-Agent）
 
 ## 发布命令
 ```powershell

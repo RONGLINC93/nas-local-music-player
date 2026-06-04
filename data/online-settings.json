@@ -1,4 +1,6 @@
 {
+  "defaultSource": "",
+  "pageSize": 30,
   "activeSources": [
     "flower音源_1.0.0（支持5平台，只支持128k）.js"
   ]

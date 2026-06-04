@@ -2183,7 +2183,24 @@ function switchView(viewName) {
 document.addEventListener('DOMContentLoaded', () => {
     // 启动任务通知轮询
     startTaskNotificationPoll();
+    
+    // 加载保存的在线音源
+    loadSavedOnlineSource();
 });
+
+// 加载保存的在线音源
+async function loadSavedOnlineSource() {
+    try {
+        const response = await fetch('/api/online-sources');
+        const result = await response.json();
+        
+        if (result.success && result.currentSource) {
+            document.getElementById('onlineSourceSelect').value = result.currentSource;
+        }
+    } catch (error) {
+        console.error('加载在线音源失败:', error);
+    }
+}
 
 // 处理任务过滤器点击
 function handleTaskFilterClick(event) {
@@ -2870,7 +2887,7 @@ window.onload = async () => {
         console.error('后台加载失败:', error);
     });
     
-    // 后台异步预加载排行榜数据
+    // 后台异步预加载排行榜数据（必须在在线设置加载完成后执行，以确保使用正确的 pageSize）
     preloadAllRanks().then(() => {
         console.log('排行榜数据预加载完成');
     }).catch(error => {
@@ -2933,7 +2950,7 @@ async function loadFolderData(folderPath, page, pageSize, search) {
             folderTotalFiles = result.totalFiles || 0;
             folderTotalPages = result.totalPages || 0;
             folderCurrentPage = result.page || 1;
-            FOLDER_PAGE_SIZE = result.pageSize || 20;
+            // 不再从服务器响应覆盖 FOLDER_PAGE_SIZE，使用 loadOnlineSettings 加载的值
             
             // 切换文件夹时清空选中状态
             clearSelection();
@@ -3945,6 +3962,7 @@ function renderFolderPagination(totalItems, totalPages) {
     html += `<select class="pagination-size-select" onchange="changeFolderPageSize(this.value)">`;
     html += `<option value="10" ${FOLDER_PAGE_SIZE === 10 ? 'selected' : ''}>10</option>`;
     html += `<option value="20" ${FOLDER_PAGE_SIZE === 20 ? 'selected' : ''}>20</option>`;
+    html += `<option value="30" ${FOLDER_PAGE_SIZE === 30 ? 'selected' : ''}>30</option>`;
     html += `<option value="50" ${FOLDER_PAGE_SIZE === 50 ? 'selected' : ''}>50</option>`;
     html += `<option value="100" ${FOLDER_PAGE_SIZE === 100 ? 'selected' : ''}>100</option>`;
     html += `</select>`;
@@ -6048,6 +6066,18 @@ let onlineSearchResults = [];
 let onlineRankResults = [];
 let rankCache = {};  // 排行榜缓存 { type: results }
 
+// 在线音乐分页设置（独立于文件夹视图）
+let ONLINE_PAGE_SIZE = 20;
+
+// 在线搜索分页状态
+let onlineSearchPage = 1;
+
+// 排行榜分页状态
+let rankCurrentPage = 1;
+let rankTotalPages = 1;
+let onlineSearchKeyword = '';
+let onlineSearchTotal = 0;
+
 // Tab切换
 function switchOnlineTab(tab) {
     const rankTab = document.getElementById('tabRank');
@@ -6065,8 +6095,10 @@ function switchOnlineTab(tab) {
         
         // 检查缓存，如果有就直接显示
         const rankType = document.getElementById('rankTypeSelect').value;
-        if (rankCache[rankType]) {
-            onlineRankResults = rankCache[rankType];
+        const source = document.getElementById('onlineSourceSelect').value;
+        const cacheKey = `${source}_${rankType}`;
+        if (rankCache[cacheKey]) {
+            onlineRankResults = rankCache[cacheKey];
             renderRankResults();
         } else {
             loadRankList();
@@ -6080,16 +6112,42 @@ function switchOnlineTab(tab) {
     }
 }
 
+// 音源切换时刷新数据
+async function onSourceChange() {
+    const source = document.getElementById('onlineSourceSelect').value;
+    
+    // 保存到后端
+    try {
+        await fetch('/api/online-source', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ source })
+        });
+    } catch (error) {
+        console.error('保存音源失败:', error);
+    }
+    
+    // 刷新当前视图数据
+    const rankTab = document.getElementById('tabRank');
+    if (rankTab.classList.contains('active')) {
+        loadRankList();
+    }
+}
+
 // 加载排行榜
-async function loadRankList(rankType = null) {
+async function loadRankList(rankType = null, page = null) {
     const type = rankType || document.getElementById('rankTypeSelect').value;
+    const source = document.getElementById('onlineSourceSelect').value;
+    const currentPage = page || rankCurrentPage;
+    const cacheKey = `${source}_${type}_${currentPage}`;
     const resultsContainer = document.getElementById('rankResults');
     
     // 检查缓存
-    if (rankCache[type]) {
-        onlineRankResults = rankCache[type];
+    if (rankCache[cacheKey]) {
+        onlineRankResults = rankCache[cacheKey];
         if (!rankType) {
             renderRankResults();
+            renderRankPagination();
         }
         return;
     }
@@ -6103,16 +6161,21 @@ async function loadRankList(rankType = null) {
         const response = await fetch('/api/online-rank', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type })
+            body: JSON.stringify({ type, source, page: currentPage, limit: ONLINE_PAGE_SIZE })
         });
         
         const result = await response.json();
         
         if (result.success) {
-            rankCache[type] = result.results;  // 缓存数据
+            rankCache[cacheKey] = result.results;  // 缓存数据
             onlineRankResults = result.results;
+            // 更新总页数
+            if (result.total !== undefined) {
+                rankTotalPages = Math.ceil(result.total / ONLINE_PAGE_SIZE);
+            }
             if (!rankType) {
                 renderRankResults();
+                renderRankPagination();
             }
         } else {
             console.error('加载排行榜失败:', result.error);
@@ -6141,16 +6204,59 @@ async function preloadAllRanks() {
 async function refreshRankList() {
     const refreshBtn = document.querySelector('.rank-refresh-btn');
     const rankType = document.getElementById('rankTypeSelect').value;
+    const source = document.getElementById('onlineSourceSelect').value;
     
     refreshBtn?.classList.add('refreshing');
     
     try {
-        delete rankCache[rankType];  // 清除缓存
+        // 清除所有该类型的缓存
+        Object.keys(rankCache).forEach(key => {
+            if (key.startsWith(`${source}_${rankType}`)) {
+                delete rankCache[key];
+            }
+        });
+        rankCurrentPage = 1;  // 重置到第一页
         await loadRankList();
     } catch (error) {
         console.error('刷新排行榜失败:', error);
     } finally {
         refreshBtn?.classList.remove('refreshing');
+    }
+}
+
+// 渲染排行榜分页
+function renderRankPagination() {
+    const pagination = document.getElementById('rankPagination');
+    
+    if (rankTotalPages <= 1) {
+        hideRankPagination();
+        return;
+    }
+    
+    pagination.style.display = 'flex';
+    const pageInfo = document.getElementById('rankPageInfo');
+    const prevBtn = document.getElementById('rankPrevBtn');
+    const nextBtn = document.getElementById('rankNextBtn');
+    
+    pageInfo.textContent = `${rankCurrentPage} / ${rankTotalPages}`;
+    prevBtn.disabled = rankCurrentPage <= 1;
+    nextBtn.disabled = rankCurrentPage >= rankTotalPages;
+}
+
+// 隐藏排行榜分页
+function hideRankPagination() {
+    const pagination = document.getElementById('rankPagination');
+    pagination.style.display = 'none';
+}
+
+// 切换排行榜分页
+async function changeRankPage(direction) {
+    if (direction === 'prev' && rankCurrentPage > 1) {
+        rankCurrentPage--;
+        await loadRankList(null, rankCurrentPage);
+    } else if (direction === 'next' && rankCurrentPage < rankTotalPages) {
+        rankCurrentPage++;
+        await loadRankList(null, rankCurrentPage);
     }
 }
 
@@ -6253,7 +6359,7 @@ function renderRankResults() {
 }
 
 // 搜索在线音乐
-async function searchOnlineMusic() {
+async function searchOnlineMusic(page = 1) {
     const keyword = document.getElementById('onlineSearchInput').value.trim();
     const source = document.getElementById('onlineSourceSelect').value;
     
@@ -6262,27 +6368,71 @@ async function searchOnlineMusic() {
         return;
     }
     
+    onlineSearchKeyword = keyword;
+    onlineSearchPage = page;
+    
     const resultsContainer = document.getElementById('onlineResults');
     resultsContainer.innerHTML = '<div class="online-loading"><i class="fas fa-spinner"></i><p>正在搜索...</p></div>';
     
     try {
+        console.log('发送搜索请求, ONLINE_PAGE_SIZE:', ONLINE_PAGE_SIZE);
         const response = await fetch('/api/online-search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ keyword, source })
+            body: JSON.stringify({ keyword, source, page, limit: ONLINE_PAGE_SIZE })
         });
         
         const result = await response.json();
         
         if (result.success) {
             onlineSearchResults = result.results;
+            onlineSearchTotal = result.total || 0;
             renderOnlineResults();
+            renderOnlinePagination();
         } else {
             resultsContainer.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>搜索失败：${result.error}</p></div>`;
+            hideOnlinePagination();
         }
     } catch (error) {
         console.error('在线搜索失败:', error);
         resultsContainer.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>搜索失败，请检查网络连接</p></div>';
+        hideOnlinePagination();
+    }
+}
+
+// 渲染在线搜索分页
+function renderOnlinePagination() {
+    const pagination = document.getElementById('onlinePagination');
+    const pageInfo = document.getElementById('onlinePageInfo');
+    const prevBtn = document.getElementById('onlinePrevBtn');
+    const nextBtn = document.getElementById('onlineNextBtn');
+    
+    const totalPages = Math.ceil(onlineSearchTotal / ONLINE_PAGE_SIZE);
+    
+    if (totalPages <= 1) {
+        hideOnlinePagination();
+        return;
+    }
+    
+    pagination.style.display = 'flex';
+    pageInfo.textContent = `${onlineSearchPage} / ${totalPages}`;
+    prevBtn.disabled = onlineSearchPage <= 1;
+    nextBtn.disabled = onlineSearchPage >= totalPages;
+}
+
+function hideOnlinePagination() {
+    document.getElementById('onlinePagination').style.display = 'none';
+}
+
+// 切换在线搜索分页
+async function changeOnlinePage(direction) {
+    if (direction === 'prev' && onlineSearchPage > 1) {
+        await searchOnlineMusic(onlineSearchPage - 1);
+    } else if (direction === 'next') {
+        const totalPages = Math.ceil(onlineSearchTotal / ONLINE_PAGE_SIZE);
+        if (onlineSearchPage < totalPages) {
+            await searchOnlineMusic(onlineSearchPage + 1);
+        }
     }
 }
 
@@ -6305,10 +6455,11 @@ function renderOnlineResults() {
         });
     });
     
-    const total = allSongs.length;
-    countElement.textContent = `(${total} 首)`;
+    const currentPageCount = allSongs.length;
+    // 使用后端返回的真实total，而不是当前页数量
+    countElement.textContent = `(${onlineSearchTotal} 首)`;
     
-    if (total === 0) {
+    if (currentPageCount === 0) {
         resultsContainer.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>未找到相关音乐</p><p class="empty-hint">请尝试其他关键词</p></div>';
         return;
     }
@@ -6784,10 +6935,12 @@ async function loadOnlineSettings() {
         const result = await response.json();
         
         if (result.success) {
-            const { defaultSource, pageSize, activeSources } = result.settings;
+            const { pageSize, activeSources } = result.settings;
+            const parsedPageSize = parseInt(pageSize) || 20;
             
-            document.getElementById('defaultSourceSelect').value = defaultSource || '';
             document.getElementById('pageSizeSelect').value = pageSize || 20;
+            FOLDER_PAGE_SIZE = parsedPageSize;
+            ONLINE_PAGE_SIZE = parsedPageSize;  // 同步在线音乐分页设置
             
             // 保存激活的音源ID列表（不带.js）
             if (activeSources && activeSources.length > 0) {
@@ -6803,14 +6956,23 @@ async function loadOnlineSettings() {
 
 // 保存在线设置
 async function saveOnlineSettings() {
-    const defaultSource = document.getElementById('defaultSourceSelect').value;
     const pageSize = document.getElementById('pageSizeSelect').value;
+    const newPageSize = parseInt(pageSize) || 20;
+    
+    // 如果 pageSize 发生变化，清除排行榜缓存，下次加载时会使用新的 pageSize
+    if (newPageSize !== ONLINE_PAGE_SIZE) {
+        rankCache = {};
+        rankCurrentPage = 1;  // 重置到第一页
+    }
+    
+    FOLDER_PAGE_SIZE = newPageSize;
+    ONLINE_PAGE_SIZE = newPageSize;  // 更新在线音乐分页设置
     
     try {
         const response = await fetch('/api/online-settings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ defaultSource, pageSize })
+            body: JSON.stringify({ pageSize })
         });
         
         const result = await response.json();
@@ -6878,14 +7040,20 @@ switchView = function(viewName) {
         });
         setTimeout(initSourceDragDrop, 100);
     } else if (viewName === 'online') {
-        // 进入在线音乐页面时，检查缓存，有缓存直接显示
-        const rankType = document.getElementById('rankTypeSelect').value;
-        if (rankCache[rankType]) {
-            onlineRankResults = rankCache[rankType];
-            renderRankResults();
-        } else {
-            loadRankList();
-        }
+        // 进入在线音乐页面时，确保在线设置已加载
+        loadOnlineSettings().then(() => {
+            // 检查缓存，有缓存直接显示
+            const rankType = document.getElementById('rankTypeSelect').value;
+            const source = document.getElementById('onlineSourceSelect').value;
+            const cacheKey = `${source}_${rankType}_${rankCurrentPage}`;
+            if (rankCache[cacheKey]) {
+                onlineRankResults = rankCache[cacheKey];
+                renderRankResults();
+                renderRankPagination();
+            } else {
+                loadRankList();
+            }
+        });
     }
 };
 

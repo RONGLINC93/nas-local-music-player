@@ -75,6 +75,7 @@ let playbackStartTime = null; // 播放开始时间
 let currentDuration = 0; // 当前歌曲时长（秒）
 let currentAudioDevice = 'default'; // 当前选中的声卡设备
 let playMode = 'sequence'; // 播放模式：sequence(顺序播放), random(随机播放), single(单曲播放), loop(单曲循环)
+let onlineSource = 'wy'; // 在线音乐默认音源平台
 let pausedElapsed = 0; // 暂停时的已播放秒数
 
 // 批量转换任务队列
@@ -164,6 +165,10 @@ function loadConfig() {
                 maxUploadWorkers = Math.max(1, Math.min(10, parseInt(config.maxUploadWorkers, 10) || 3));
                 console.log(`⚙️ 已加载配置，上传线程数：${maxUploadWorkers}`);
             }
+            if (config.onlineSource) {
+                onlineSource = config.onlineSource;
+                console.log(`📂 已加载配置，在线音源平台：${onlineSource}`);
+            }
         }
     } catch (err) {
         console.log('加载配置文件失败，使用默认配置:', err.message);
@@ -176,7 +181,8 @@ function saveConfig() {
             playMode: playMode,
             audioDevice: currentAudioDevice,
             maxConvertWorkers: maxConvertWorkers,
-            maxUploadWorkers: maxUploadWorkers
+            maxUploadWorkers: maxUploadWorkers,
+            onlineSource: onlineSource
         };
         fs.writeFileSync(APP_CONFIG_FILE, JSON.stringify(config, null, 4), 'utf8');
     } catch (err) {
@@ -6171,7 +6177,7 @@ app.post('/api/upload-source', (req, res) => {
 app.get('/api/online-settings', (req, res) => {
     try {
         const settingsPath = path.join(__dirname, 'data', 'online-settings.json');
-        let settings = { defaultSource: '', pageSize: 20, activeSources: [] };
+        let settings = { pageSize: 20, activeSources: [] };
         
         if (fs.existsSync(settingsPath)) {
             settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
@@ -6186,13 +6192,16 @@ app.get('/api/online-settings', (req, res) => {
 // 保存在线设置
 app.post('/api/online-settings', (req, res) => {
     try {
-        const { defaultSource, pageSize } = req.body;
-        const settings = {
-            defaultSource: defaultSource || '',
-            pageSize: parseInt(pageSize) || 20
-        };
-        
+        const { pageSize } = req.body;
         const settingsPath = path.join(__dirname, 'data', 'online-settings.json');
+        let settings = { pageSize: 20, activeSources: [] };
+        
+        if (fs.existsSync(settingsPath)) {
+            settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+        }
+        
+        settings.pageSize = parseInt(pageSize) || 20;
+        
         const dataDir = path.join(__dirname, 'data');
         if (!fs.existsSync(dataDir)) {
             fs.mkdirSync(dataDir, { recursive: true });
@@ -6208,69 +6217,69 @@ app.post('/api/online-settings', (req, res) => {
 // 获取在线音乐排行榜
 app.post('/api/online-rank', async (req, res) => {
     try {
-        const { type = 'hot', page = 1, limit = 20 } = req.body;
+        const { type = 'hot', source = 'kw', page = 1, limit = 20 } = req.body;
         
         const results = [];
+        let total = 0;
         
-        // 优先使用自定义音源
-        if (Object.keys(customSources).length > 0) {
-            const searchPromises = Object.keys(customSources).map(async (src) => {
-                try {
-                    const customSource = customSources[src];
-                    if (customSource && typeof customSource.search === 'function') {
-                        // 使用排行榜相关关键词搜索
-                        let keyword = '';
-                        switch(type) {
-                            case 'hot': keyword = '热门歌曲'; break;
-                            case 'new': keyword = '新歌'; break;
-                            case 'soaring': keyword = '飙升榜'; break;
-                            case 'original': keyword = '原创音乐'; break;
-                            default: keyword = '热门歌曲';
-                        }
-                        const searchResults = await customSource.search(keyword, page, limit);
-                        if (searchResults && searchResults.length > 0) {
-                            results.push({
-                                source: src,
-                                sourceName: customSource.name || src,
-                                list: searchResults
-                            });
-                        }
-                    }
-                } catch (error) {
-                    console.error(`自定义音源 ${src} 排行榜获取失败:`, error.message);
+        // 只获取指定平台的排行榜
+        // 优先使用自定义音源中对应平台的搜索函数
+        if (customSources[source] && typeof customSources[source].search === 'function') {
+            try {
+                let keyword = '';
+                switch(type) {
+                    case 'hot': keyword = '热门歌曲'; break;
+                    case 'new': keyword = '新歌'; break;
+                    case 'soaring': keyword = '飙升榜'; break;
+                    case 'original': keyword = '原创音乐'; break;
+                    default: keyword = '热门歌曲';
                 }
-            });
-            
-            await Promise.all(searchPromises);
-        }
-        
-        // 如果没有自定义音源或自定义音源没有结果，使用内置音源
-        if (results.length === 0) {
-            const sources = ['kw', 'kg', 'tx', 'wy', 'mg'];
-            
-            const searchPromises = sources.map(async (src) => {
-                try {
-                    // 使用真正的排行榜API，而不是关键词搜索
-                    const searchResults = await getMusicRank(src, type, page, limit);
-                    if (searchResults && searchResults.length > 0) {
+                const searchResults = await customSources[source].search(keyword, page, limit);
+                if (searchResults && searchResults.length > 0) {
+                    // 处理返回值可能是数组或对象
+                    if (Array.isArray(searchResults)) {
+                        total = searchResults.length * 10; // 估算总数
                         results.push({
-                            source: src,
-                            sourceName: ONLINE_SOURCES.find(s => s.id === src)?.name || src,
+                            source: source,
+                            sourceName: customSources[source].name || source,
                             list: searchResults
                         });
+                    } else if (searchResults.list) {
+                        total = searchResults.total || searchResults.list.length * 10;
+                        results.push({
+                            source: source,
+                            sourceName: customSources[source].name || source,
+                            list: searchResults.list
+                        });
                     }
-                } catch (error) {
-                    console.error(`获取 ${src} 排行榜失败:`, error.message);
                 }
-            });
-            
-            await Promise.all(searchPromises);
+            } catch (error) {
+                console.error(`自定义音源 ${source} 排行榜获取失败:`, error.message);
+            }
+        }
+        
+        // 如果自定义音源没有结果，使用内置音源
+        if (results.length === 0) {
+            try {
+                const searchResults = await getMusicRank(source, type, page, limit);
+                if (searchResults && searchResults.list && searchResults.list.length > 0) {
+                    total = searchResults.total || searchResults.list.length * 10;
+                    results.push({
+                        source: source,
+                        sourceName: ONLINE_SOURCES.find(s => s.id === source)?.name || source,
+                        list: searchResults.list
+                    });
+                }
+            } catch (error) {
+                console.error(`获取 ${source} 排行榜失败:`, error.message);
+            }
         }
         
         res.json({
             success: true,
             type,
-            total: results.reduce((sum, r) => sum + r.list.length, 0),
+            source,
+            total: total,
             results
         });
     } catch (error) {
@@ -6284,63 +6293,63 @@ app.post('/api/online-search', async (req, res) => {
     try {
         const { keyword, source, page = 1, limit = 20 } = req.body;
         
+        console.log(`[在线搜索] keyword=${keyword}, source=${source}, page=${page}, limit=${limit}`);
+        
         if (!keyword) {
             return res.status(400).json({ success: false, error: '缺少搜索关键词' });
         }
         
         const results = [];
+        let total = 0;
         
-        // 优先使用自定义音源
-        if (Object.keys(customSources).length > 0) {
-            const sourcesToSearch = source && customSources[source] ? [source] : Object.keys(customSources);
-            
-            const searchPromises = sourcesToSearch.map(async (src) => {
+        // 只搜索指定的单个音源平台
+        if (source) {
+            // 优先使用自定义音源中对应平台的搜索函数
+            if (customSources[source] && typeof customSources[source].search === 'function') {
                 try {
-                    const customSource = customSources[src];
-                    if (customSource && typeof customSource.search === 'function') {
-                        const searchResults = await customSource.search(keyword, page, limit);
-                        if (searchResults && searchResults.length > 0) {
-                            results.push({
-                                source: src,
-                                sourceName: customSource.name || src,
-                                list: searchResults
-                            });
-                        }
-                    }
-                } catch (error) {
-                    console.error(`自定义音源 ${src} 搜索失败:`, error.message);
-                }
-            });
-            
-            await Promise.all(searchPromises);
-        }
-        
-        // 如果没有自定义音源或自定义音源没有结果，使用内置音源
-        if (results.length === 0) {
-            const sourcesToSearch = source ? [source] : ['kw', 'kg', 'tx', 'wy', 'mg'];
-            
-            const searchPromises = sourcesToSearch.map(async (src) => {
-                try {
-                    const searchResults = await searchMusicOnline(src, keyword, page, limit);
-                    if (searchResults && searchResults.length > 0) {
+                    console.log(`[在线搜索] 使用自定义音源搜索, source=${source}, limit=${limit}`);
+                    const searchResult = await customSources[source].search(keyword, page, limit);
+                    const list = searchResult?.list || searchResult || [];
+                    const srcTotal = searchResult?.total || (Array.isArray(searchResult) ? searchResult.length : 0);
+                    console.log(`[在线搜索] 自定义音源返回 ${list.length} 条结果, total=${srcTotal}`);
+                    if (list.length > 0) {
                         results.push({
-                            source: src,
-                            sourceName: ONLINE_SOURCES.find(s => s.id === src)?.name || src,
-                            list: searchResults
+                            source: source,
+                            sourceName: customSources[source].name || source,
+                            list
                         });
+                        total = srcTotal;
                     }
                 } catch (error) {
-                    console.error(`搜索 ${src} 失败:`, error.message);
+                    console.error(`自定义音源 ${source} 搜索失败:`, error.message);
                 }
-            });
+            }
             
-            await Promise.all(searchPromises);
+            // 如果自定义音源没有结果，使用内置搜索
+            if (results.length === 0) {
+                try {
+                    console.log(`[在线搜索] 使用内置搜索, source=${source}, limit=${limit}`);
+                    const searchResult = await searchMusicOnline(source, keyword, page, limit);
+                    const list = searchResult?.list || [];
+                    console.log(`[在线搜索] 内置搜索返回 ${list.length} 条结果, total=${searchResult.total}`);
+                    if (list.length > 0) {
+                        results.push({
+                            source: source,
+                            sourceName: ONLINE_SOURCES.find(s => s.id === source)?.name || source,
+                            list
+                        });
+                        total = searchResult.total || 0;
+                    }
+                } catch (error) {
+                    console.error(`内置音源 ${source} 搜索失败:`, error.message);
+                }
+            }
         }
         
         res.json({
             success: true,
             keyword,
-            total: results.reduce((sum, r) => sum + r.list.length, 0),
+            total,
             results
         });
     } catch (error) {
@@ -6511,8 +6520,31 @@ app.post('/api/play-online', async (req, res) => {
 app.get('/api/online-sources', (req, res) => {
     res.json({
         success: true,
-        sources: ONLINE_SOURCES
+        sources: ONLINE_SOURCES,
+        currentSource: onlineSource
     });
+});
+
+// 保存在线音乐音源选择
+app.post('/api/online-source', (req, res) => {
+    try {
+        const { source } = req.body;
+        if (!source) {
+            return res.status(400).json({ success: false, error: '缺少音源参数' });
+        }
+        
+        onlineSource = source;
+        saveConfig();
+        
+        res.json({
+            success: true,
+            message: '音源已保存',
+            source
+        });
+    } catch (error) {
+        console.error('保存音源失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
 // 网易云音乐加密函数（参考 lx-music-sync-server）
@@ -6581,11 +6613,13 @@ async function getMusicRank(source, type, page = 1, limit = 20) {
                     const json = JSON.parse(body);
                     
                     if (json.code === 200 && json.playlist?.trackIds) {
-                        // 获取完整歌曲信息
-                        const trackIds = json.playlist.trackIds.slice(0, limit).map(t => t.id);
+                        const total = json.playlist.trackIds.length;
+                        const startIndex = (page - 1) * limit;
+                        const endIndex = startIndex + limit;
+                        const pageTrackIds = json.playlist.trackIds.slice(startIndex, endIndex).map(t => t.id);
                         const detailEncrypted = weapiEncrypt({ 
-                            c: '[' + trackIds.map(id => ('{"id":' + id + '}')).join(',') + ']',
-                            ids: '[' + trackIds.join(',') + ']'
+                            c: '[' + pageTrackIds.map(id => ('{"id":' + id + '}')).join(',') + ']',
+                            ids: '[' + pageTrackIds.join(',') + ']'
                         });
                         
                         const detailOptions = {
@@ -6605,23 +6639,26 @@ async function getMusicRank(source, type, page = 1, limit = 20) {
                         const detailJson = JSON.parse(detailBody);
                         
                         if (detailJson.code === 200 && detailJson.songs) {
-                            return detailJson.songs.map(item => ({
-                                songId: String(item.id),
-                                name: item.name || '',
-                                singer: item.ar.map(a => a.name).join('/'),
-                                albumName: item.al.name || '',
-                                albumId: String(item.al.id),
-                                interval: Math.floor(item.dt / 1000),
-                                picUrl: item.al.picUrl || '',
-                                source: 'wy',
-                                quality: '128'
-                            }));
+                            return {
+                                total: total,
+                                list: detailJson.songs.map(item => ({
+                                    songId: String(item.id),
+                                    name: item.name || '',
+                                    singer: item.ar.map(a => a.name).join('/'),
+                                    albumName: item.al.name || '',
+                                    albumId: String(item.al.id),
+                                    interval: Math.floor(item.dt / 1000),
+                                    picUrl: item.al.picUrl || '',
+                                    source: 'wy',
+                                    quality: '128'
+                                }))
+                            };
                         }
                     }
                 } catch (e) {
                     console.error('网易云请求失败:', e.message);
                 }
-                return [];
+                return { total: 0, list: [] };
             }
             
             case 'kw': {
@@ -6642,19 +6679,22 @@ async function getMusicRank(source, type, page = 1, limit = 20) {
                 const json = JSON.parse(body);
                 
                 if (json.data?.musicList) {
-                    return json.data.musicList.map(item => ({
-                        songId: String(item.id),
-                        name: item.name || '',
-                        singer: item.artist || '',
-                        albumName: item.album || '',
-                        albumId: String(item.albumId || ''),
-                        interval: item.duration || 0,
-                        picUrl: item.pic || '',
-                        source: 'kw',
-                        quality: '128'
-                    }));
+                    return {
+                        total: json.data.total || json.data.musicList.length * 10, // 估算总数
+                        list: json.data.musicList.map(item => ({
+                            songId: String(item.id),
+                            name: item.name || '',
+                            singer: item.artist || '',
+                            albumName: item.album || '',
+                            albumId: String(item.albumId || ''),
+                            interval: item.duration || 0,
+                            picUrl: item.pic || '',
+                            source: 'kw',
+                            quality: '128'
+                        }))
+                    };
                 }
-                return [];
+                return { total: 0, list: [] };
             }
             
             case 'kg': {
@@ -6677,24 +6717,27 @@ async function getMusicRank(source, type, page = 1, limit = 20) {
                 const json = JSON.parse(body);
                 
                 if (json.errcode === 0 && json.data?.info) {
-                    return json.data.info.map(item => {
-                        const filename = item.filename || '';
-                        const singer = filename.split(' - ')[0] || '';
-                        return ({
-                            songId: String(item.audio_id),
-                            name: item.songname || '',
-                            singer: singer,
-                            albumName: item.remark || '',
-                            albumId: String(item.album_id || ''),
-                            interval: item.duration || 0,
-                            picUrl: (item.album_sizable_cover || '').replace('{size}', '400'),
-                            source: 'kg',
-                            quality: '128',
-                            hash: item.hash || ''
-                        });
-                    });
+                    return {
+                        total: json.data.total || json.data.info.length * 10, // 估算总数
+                        list: json.data.info.map(item => {
+                            const filename = item.filename || '';
+                            const singer = filename.split(' - ')[0] || '';
+                            return ({
+                                songId: String(item.audio_id),
+                                name: item.songname || '',
+                                singer: singer,
+                                albumName: item.remark || '',
+                                albumId: String(item.album_id || ''),
+                                interval: item.duration || 0,
+                                picUrl: (item.album_sizable_cover || '').replace('{size}', '400'),
+                                source: 'kg',
+                                quality: '128',
+                                hash: item.hash || ''
+                            });
+                        })
+                    };
                 }
-                return [];
+                return { total: 0, list: [] };
             }
             
             case 'tx': {
@@ -6720,20 +6763,23 @@ async function getMusicRank(source, type, page = 1, limit = 20) {
                 if (match) {
                     const json = JSON.parse(match[1]);
                     if (json.data?.songlist) {
-                        return json.data.songlist.map(item => ({
-                            songId: String(item.songid || item.songmid || ''),
-                            name: item.songname || '',
-                            singer: item.singer ? item.singer.map(s => s.name).join('/') : '',
-                            albumName: item.albumname || '',
-                            albumId: String(item.albumid || ''),
-                            interval: item.interval || 0,
-                            picUrl: item.albummid ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${item.albummid}.jpg` : '',
-                            source: 'tx',
-                            quality: '128'
-                        }));
+                        return {
+                            total: json.data.totalnum || json.data.songlist.length * 10, // 估算总数
+                            list: json.data.songlist.map(item => ({
+                                songId: String(item.songid || item.songmid || ''),
+                                name: item.songname || '',
+                                singer: item.singer ? item.singer.map(s => s.name).join('/') : '',
+                                albumName: item.albumname || '',
+                                albumId: String(item.albumid || ''),
+                                interval: item.interval || 0,
+                                picUrl: item.albummid ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${item.albummid}.jpg` : '',
+                                source: 'tx',
+                                quality: '128'
+                            }))
+                        };
                     }
                 }
-                return [];
+                return { total: 0, list: [] };
             }
             
             case 'mg': {
@@ -6759,24 +6805,27 @@ async function getMusicRank(source, type, page = 1, limit = 20) {
                 if (match) {
                     const json = JSON.parse(match[1]);
                     if (json?.result?.songList) {
-                        return json.result.songList.slice(0, limit).map(item => ({
-                            songId: item.songId || String(item.id || ''),
-                            name: item.songName || item.title || '',
-                            singer: item.singerName || item.artist || '',
-                            albumName: item.albumName || item.album || '',
-                            albumId: String(item.albumId || ''),
-                            interval: parseInt(String(item.duration || '0')) || 0,
-                            picUrl: item.cover ? `https://images.music.migu.cn/${item.cover}` : '',
-                            source: 'mg',
-                            quality: '128'
-                        }));
+                        return {
+                            total: json.result.totalCount || json.result.songList.length * 10, // 估算总数
+                            list: json.result.songList.slice(0, limit).map(item => ({
+                                songId: item.songId || String(item.id || ''),
+                                name: item.songName || item.title || '',
+                                singer: item.singerName || item.artist || '',
+                                albumName: item.albumName || item.album || '',
+                                albumId: String(item.albumId || ''),
+                                interval: parseInt(String(item.duration || '0')) || 0,
+                                picUrl: item.cover ? `https://images.music.migu.cn/${item.cover}` : '',
+                                source: 'mg',
+                                quality: '128'
+                            }))
+                        };
                     }
                 }
-                return [];
+                return { total: 0, list: [] };
             }
             
             default:
-                return [];
+                return { total: 0, list: [] };
         }
     } catch (error) {
         console.error(`获取 ${source} 排行榜出错:`, error.message);
@@ -6830,28 +6879,26 @@ async function searchMusicOnline(source, keyword, page = 1, limit = 20) {
                 const { body } = await httpRequest(options);
                 const json = JSON.parse(body);
                 
-                if (json.abslist && json.abslist.length > 0) {
-                    return json.abslist.map(item => {
-                        const songId = (item.MUSICRID || '').replace('MUSIC_', '');
-                        let picUrl = item.prob_albumpic || '';
-                        if (!picUrl && item.web_albumpic_short) {
-                            picUrl = `https://img4.kuwo.cn/star/albumcover/1000${item.web_albumpic_short}`;
-                        }
-                        
-                        return {
-                            songId: songId,
-                            name: item.SONGNAME || '',
-                            singer: item.ARTIST || '',
-                            albumName: item.ALBUM || '',
-                            albumId: String(item.ALBUMID || ''),
-                            interval: parseInt(String(item.DURATION || '0')) || 0,
-                            picUrl: picUrl,
-                            source: 'kw',
-                            quality: '128'
-                        };
-                    });
-                }
-                return [];
+                const list = (json.abslist || []).map(item => {
+                    const songId = (item.MUSICRID || '').replace('MUSIC_', '');
+                    let picUrl = item.prob_albumpic || '';
+                    if (!picUrl && item.web_albumpic_short) {
+                        picUrl = `https://img4.kuwo.cn/star/albumcover/1000${item.web_albumpic_short}`;
+                    }
+                    
+                    return {
+                        songId: songId,
+                        name: item.SONGNAME || '',
+                        singer: item.ARTIST || '',
+                        albumName: item.ALBUM || '',
+                        albumId: String(item.ALBUMID || ''),
+                        interval: parseInt(String(item.DURATION || '0')) || 0,
+                        picUrl: picUrl,
+                        source: 'kw',
+                        quality: '128'
+                    };
+                });
+                return { list, total: parseInt(json.TOTAL || '0') };
             }
             
             case 'kg': {
@@ -6871,7 +6918,7 @@ async function searchMusicOnline(source, keyword, page = 1, limit = 20) {
                 const { body } = await httpRequest(options);
                 const json = JSON.parse(body);
                 if (json.error_code === 0 && json.data?.lists) {
-                    return json.data.lists.map(item => ({
+                    const list = json.data.lists.map(item => ({
                         songId: item.Audioid || '',
                         name: item.SongName || '',
                         singer: item.Singers?.map(s => s.name).join('、') || item.SingerName || '',
@@ -6883,8 +6930,9 @@ async function searchMusicOnline(source, keyword, page = 1, limit = 20) {
                         quality: '128',
                         hash: item.FileHash || ''
                     }));
+                    return { list, total: json.data.total || 0 };
                 }
-                return [];
+                return { list: [], total: 0 };
             }
             
             case 'tx': {
@@ -6907,7 +6955,7 @@ async function searchMusicOnline(source, keyword, page = 1, limit = 20) {
                 if (match) {
                     const json = JSON.parse(match[1]);
                     if (json.data && json.data.song && json.data.song.list) {
-                        return json.data.song.list.map(item => ({
+                        const list = json.data.song.list.map(item => ({
                             songId: String(item.songid || item.songmid || ''),
                             name: item.songname || '',
                             singer: item.singer ? item.singer.map(s => s.name).join('/') : '',
@@ -6918,22 +6966,25 @@ async function searchMusicOnline(source, keyword, page = 1, limit = 20) {
                             source: 'tx',
                             quality: '128'
                         }));
+                        return { list, total: json.data.song.total || 0 };
                     }
                 }
-                return [];
+                return { list: [], total: 0 };
             }
             
             case 'wy': {
                 // 网易云音乐搜索（使用eapi加密，参考lx-music-sync-server）
+                // 注意：网易云 API 限制每页最多 30 条
+                const wyLimit = Math.min(limit, 30);
                 const url = '/api/search/song/list/page';
                 const encrypted = eapiEncrypt(url, {
                     keyword: keyword,
                     needCorrect: '1',
                     channel: 'typing',
-                    offset: limit * (page - 1),
+                    offset: wyLimit * (page - 1),
                     scene: 'normal',
                     total: page == 1,
-                    limit: limit,
+                    limit: wyLimit,
                 });
                 
                 const options = {
@@ -6952,8 +7003,10 @@ async function searchMusicOnline(source, keyword, page = 1, limit = 20) {
                 const { body } = await httpRequest(options, new URLSearchParams(encrypted).toString());
                 const json = JSON.parse(body);
                 
+                console.log(`[网易云搜索] 返回 resources 数量: ${json.data?.resources?.length || 0}`);
+                
                 if (json.code === 200 && json.data?.resources) {
-                    return json.data.resources.map(item => {
+                    const list = json.data.resources.map(item => {
                         const song = item.baseInfo.simpleSongData;
                         return {
                             songId: String(song.id),
@@ -6967,8 +7020,9 @@ async function searchMusicOnline(source, keyword, page = 1, limit = 20) {
                             quality: '128'
                         };
                     });
+                    return { list, total: json.data?.totalCount || list.length };
                 }
-                return [];
+                return { list: [], total: 0 };
             }
             
             case 'mg': {
@@ -7031,17 +7085,17 @@ async function searchMusicOnline(source, keyword, page = 1, limit = 20) {
                         });
                     });
                     
-                    return results;
+                    return { list: results, total: parseInt(json.songResultData?.totalCount || '0') };
                 }
-                return [];
+                return { list: [], total: 0 };
             }
             
             default:
-                return [];
+                return { list: [], total: 0 };
         }
     } catch (error) {
         console.error(`搜索 ${source} 音乐出错:`, error.message);
-        return [];
+        return { list: [], total: 0 };
     }
 }
 

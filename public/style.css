@@ -188,7 +188,7 @@ body {
     border-bottom: 1px solid #e0e0e0;
 }
 
-.section-header h2 {
+.section-header .rank-type-container {
     font-size: 24px;
     color: #333;
     display: flex;
@@ -6421,21 +6421,25 @@ body {
 /* 顶部栏布局 */
 #view-online .top-bar {
     display: flex;
-    gap: 12px;
+    gap: 4px;
     padding: 12px;
+    align-items: center;
 }
 
 /* Tab切换 */
 .online-tabs {
-    display: flex;
-    gap: 4px;
+    display: inline-flex;
+    background: #f3f4f6;
+    border-radius: 8px;
+    padding: 3px;
+    gap: 0;
 }
 
 .online-tab {
-    padding: 8px 8px;
-    border: 1px solid #d1d5db;
+    padding: 6px 16px;
+    border: none;
     border-radius: 6px;
-    background: white;
+    background: transparent;
     color: #6b7280;
     font-size: 14px;
     cursor: pointer;
@@ -6443,21 +6447,22 @@ body {
     display: flex;
     align-items: center;
     gap: 6px;
-    min-width: 80px;
     justify-content: center;
+    white-space: nowrap;
 }
 
 .online-tab:hover {
-    background-color: #f3f4f6;
+    color: #374151;
 }
 
 .online-tab.active {
-    background-color: #3b82f6;
-    border-color: #3b82f6;
-    color: white;
+    background-color: white;
+    color: #3b82f6;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 /* 排行榜类型选择 */
+.rank-source-select,
 .rank-type-select {
     padding: 6px 12px;
     border: 1px solid #d1d5db;
@@ -6470,10 +6475,12 @@ body {
     transition: border-color 0.2s;
 }
 
+.rank-source-select:hover,
 .rank-type-select:hover {
     border-color: #9ca3af;
 }
 
+.rank-source-select:focus,
 .rank-type-select:focus {
     border-color: #3b82f6;
 }
@@ -6624,11 +6631,16 @@ body {
     margin-bottom: 8px;
 }
 
+.online-source-bar {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+}
+
 .online-search-bar {
     display: flex;
     align-items: center;
-    gap: 12px;
-    width: 100%;
+    flex: 1;
 }
 
 .online-source-select {
@@ -6705,10 +6717,49 @@ body {
 }
 
 .online-results {
-    flex: 1;
     overflow-y: auto;
     padding: 10px;    
     max-height: calc(100vh - 230px);
+}
+
+/* 在线搜索结果分页（右上角） */
+.online-pagination {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.online-pagination-info {
+    font-size: 13px;
+    color: #666;
+    min-width: 50px;
+    text-align: center;
+}
+
+.online-pagination-btn {
+    padding: 4px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: white;
+    color: #374151;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.online-pagination-btn:hover:not(:disabled) {
+    background: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+}
+
+.online-pagination-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
 /* 平台标签 */
@@ -6871,13 +6922,29 @@ body {
 
 /* 移动端在线音乐视图 */
 @media (max-width: 768px) {
+    #view-online .top-bar {
+        gap: 8px;
+    }
+    
+    .online-tabs {
+        flex: 1;
+        max-width: 90px;
+    }
+    
+    .online-source-bar {
+        margin-left: 0;
+    }
+    
     .online-search-bar {
         flex-direction: row;
+        flex-basis: 100%;
+        order: 3;
+        max-width: 100%;
         gap: 8px;
     }
     
     .online-source-select {
-        display: none;
+        min-width: 100px;
     }
     
     .online-search-wrapper {

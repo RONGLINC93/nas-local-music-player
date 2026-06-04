@@ -119,20 +119,23 @@
                     
                     <!-- 搜索区域（默认隐藏） -->
                     <div class="online-search-bar" id="onlineSearchBar" style="display: none;">
-                        <select id="onlineSourceSelect" class="online-source-select">
-                            <option value="">全部源</option>
-                            <option value="kw">酷我音乐</option>
-                            <option value="kg">酷狗音乐</option>
-                            <option value="tx">QQ音乐</option>
-                            <option value="wy">网易云音乐</option>
-                            <option value="mg">咪咕音乐</option>
-                        </select>
                         <div class="online-search-wrapper">
                             <input type="text" id="onlineSearchInput" class="online-search-input" placeholder="搜索在线音乐..." onkeypress="if(event.key==='Enter')searchOnlineMusic()">
                             <button onclick="searchOnlineMusic()" class="online-search-btn">
                                 <i class="fas fa-search"></i>
                             </button>
                         </div>
+                    </div>
+                    
+                    <!-- 音源选择（靠右） -->
+                    <div class="online-source-bar">
+                        <select id="onlineSourceSelect" class="online-source-select" onchange="onSourceChange()">
+                            <option value="kw">酷我音乐</option>
+                            <option value="kg">酷狗音乐</option>
+                            <option value="tx">QQ音乐</option>
+                            <option value="wy">网易云音乐</option>
+                            <option value="mg">咪咕音乐</option>
+                        </select>
                     </div>
                 </header>
 
@@ -141,17 +144,30 @@
                     <!-- 排行榜区域 -->
                     <section class="online-rank-section" id="onlineRankSection">
                         <div class="section-header">
-                            <h2>排行榜 <span class="count" id="rankCount">(0 首)</span></h2>
-                            <div class="rank-controls">
+                            <div class="rank-type-container">
                                 <select id="rankTypeSelect" class="rank-type-select" onchange="loadRankList()">
                                     <option value="hot">热门榜</option>
                                     <option value="new">新歌榜</option>
                                     <option value="soaring">飙升榜</option>
                                     <option value="original">原创榜</option>
-                                </select>
-                                <button onclick="refreshRankList()" class="rank-refresh-btn" title="刷新排行榜">
+                                </select>   
+                                <span class="count" id="rankCount">(0 首)</span> <!-- 刷新按钮 -->
+                                 <button onclick="refreshRankList()" class="rank-refresh-btn" title="刷新排行榜">
                                     <i class="fas fa-refresh"></i>
-                                </button>
+                                </button></div>
+                            <div class="rank-controls">
+                                                            
+                                <!-- 排行榜分页 -->
+                                <div class="online-pagination" id="rankPagination" style="display: none;">
+                                    <button id="rankPrevBtn" class="online-pagination-btn" onclick="changeRankPage('prev')" disabled>
+                                        <i class="fas fa-chevron-left"></i>
+                                    </button>
+                                    <span id="rankPageInfo" class="online-pagination-info">1 / 1</span>
+                                    <button id="rankNextBtn" class="online-pagination-btn" onclick="changeRankPage('next')" disabled>
+                                        <i class="fas fa-chevron-right"></i>
+                                    </button>
+                                </div>
+                               
                             </div>
                         </div>
                         <div class="online-results" id="rankResults">
@@ -166,6 +182,16 @@
                     <section class="online-results-section" id="onlineResultsSection" style="display: none;">
                         <div class="section-header">
                             <h2>搜索结果 <span class="count" id="onlineCount">(0 首)</span></h2>
+                            <!-- 在线搜索结果分页 -->
+                            <div class="online-pagination" id="onlinePagination" style="display: none;">
+                                <button class="online-pagination-btn" onclick="changeOnlinePage('prev')" id="onlinePrevBtn">
+                                    <i class="fas fa-chevron-left"></i>
+                                </button>
+                                <span class="online-pagination-info" id="onlinePageInfo"></span>
+                                <button class="online-pagination-btn" onclick="changeOnlinePage('next')" id="onlineNextBtn">
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
                         </div>
                         <div class="online-results" id="onlineResults">
                             <div class="empty-state">
@@ -214,22 +240,9 @@
                             </div>
                         </div>
                         
-                        <!-- 默认搜索设置 -->
+                        <!-- 在线音乐搜索设置 -->
                         <div class="online-setting-card">
-                            <h4><i class="fas fa-sliders-h"></i> 搜索设置</h4>
-                            
-                            <div class="setting-item">
-                                <label class="setting-label">默认搜索源</label>
-                                <select id="defaultSourceSelect" class="setting-select" onchange="saveOnlineSettings()">
-                                    <option value="">全部源</option>
-                                    <option value="kw">酷我音乐</option>
-                                    <option value="kg">酷狗音乐</option>
-                                    <option value="tx">QQ音乐</option>
-                                    <option value="wy">网易云音乐</option>
-                                    <option value="mg">咪咕音乐</option>
-                                </select>
-                            </div>
-                            
+                            <h4><i class="fas fa-sliders-h"></i> 在线音乐搜索设置</h4>                            
                             <div class="setting-item">
                                 <label class="setting-label">每页显示数量</label>
                                 <select id="pageSizeSelect" class="setting-select" onchange="saveOnlineSettings()">
@@ -237,6 +250,7 @@
                                     <option value="20" selected>20 首</option>
                                     <option value="30">30 首</option>
                                     <option value="50">50 首</option>
+                                    <option value="100">100 首</option>
                                 </select>
                             </div>
                         </div>

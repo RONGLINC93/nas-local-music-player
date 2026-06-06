@@ -1,3 +1,30 @@
+## [1.2.3] - 2026-06-06
+
+### 新增功能
+- **在线歌单功能**：新增在线音乐歌单功能，支持网易云、QQ音乐、咪咕音乐、酷我音乐、酷狗音乐五个平台
+- **歌单标签浏览**：支持按标签分类浏览歌单
+- **歌单搜索**：支持搜索歌单
+- **歌单详情**：查看歌单详情和歌曲列表
+- **歌单播放**：支持播放歌单中的单曲或全部播放
+
+### 功能优化
+- **歌单按钮样式统一**：歌单详情的播放和添加按钮样式与播放列表保持一致（透明背景、蓝色图标）
+- **歌单详情独立样式**：歌单详情结果区域使用独立样式，灰色背景区分内容区域
+
+### Bug修复
+- **歌单播放API调用错误**：修复播放API端点调用错误，从 POST /api/play 改为 GET /api/play/:index
+- **refreshPlaylist 未定义**：修复函数名错误，改为 loadPlaylistData
+- **网易云歌单详情API**：添加 linuxapi 加密支持，修复歌单详情获取失败问题
+- **QQ音乐歌单详情API**：添加 Origin 和 Referer 请求头，修复获取失败问题
+- **httpFetch 返回值问题**：修复返回 { promise } 对象而非直接返回 promise 的问题
+
+### 新增 API
+- `GET /api/online-songlist-tags` - 获取歌单标签列表
+- `POST /api/online-songlist-list` - 获取歌单列表
+- `POST /api/online-songlist-detail` - 获取歌单详情
+- `POST /api/online-songlist-search` - 搜索歌单
+- `GET /api/online-songlist-sources` - 获取支持歌单的平台列表
+
 ## [1.2.2] - 2026-06-06
 
 ### 功能优化

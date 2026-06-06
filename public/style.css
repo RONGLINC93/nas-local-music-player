@@ -128,7 +128,7 @@ body {
     width: 100%;
     padding: 10px 20px;
     border: 2px solid #f0f0f0;
-    border-radius: 25px;
+    border-radius: 10px;
     font-size: 14px;
     transition: all 0.3s;
 }
@@ -290,15 +290,7 @@ body {
     color: #333;
     font-weight: 500;
     padding: 8px 16px;
-    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-    border-radius: 10px;
-    border: 1px solid #e2e8f0;
     transition: all 0.3s ease;
-}
-
-.folder-breadcrumb:hover {
-    background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
-    border-color: #cbd5e1;
 }
 
 .folder-breadcrumb i {
@@ -735,7 +727,7 @@ body {
 .batch-actions-right {
     display: flex;
     align-items: center;
-    gap: 15px;
+    gap: 8px;
 }
 
 .batch-select-all {
@@ -884,67 +876,36 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
     border: none;
     border-radius: 6px;
     cursor: pointer;
     font-size: 14px;
-    color: white;
+    background: transparent;
+    color: #3b82f6;
     transition: all 0.2s;
+}
+
+.batch-action-btn:hover {
+    background: rgba(59, 130, 246, 0.1);
+    transform: scale(1.1);
 }
 
 .batch-action-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+    transform: none !important;
 }
 
-.batch-add-btn {
-    background-color: #3b82f6;
-}
 
-.batch-add-btn:hover {
-    background-color: #2563eb;
-}
-
-.batch-new-folder-btn {
-    background-color: #3b82f6;
-}
-
-.batch-new-folder-btn:hover {
-    background-color: #2563eb;
-}
-
-.batch-move-btn {
-    background-color: #3b82f6;
-}
-
-.batch-move-btn:hover {
-    background-color: #2563eb;
-}
-
-.batch-delete-btn {
-    background-color: #3b82f6;
-}
-
-.batch-delete-btn:hover {
-    background-color: #2563eb;
-}
-
-.batch-download-btn {
-    background-color: #3b82f6;
-}
-
-.batch-download-btn:hover {
-    background-color: #2563eb;
-}
 
 .batch-convert-btn {
-    background-color: #10b981;
+    color: #10b981;
 }
 
 .batch-convert-btn:hover {
-    background-color: #059669;
+    background: rgba(16, 185, 129, 0.1);
 }
 
 /* 文件复选框 */
@@ -1682,15 +1643,12 @@ body {
     }
     
     .folder-breadcrumb {
-        font-size: 13px;
+        font-size: 0px;
         max-width: 50%;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
         padding: 6px 10px;
-        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-        border-radius: 8px;
-        border: 1px solid #e2e8f0;
     }
     
     .folder-breadcrumb i {
@@ -2047,44 +2005,29 @@ body {
 }
 
 .playlist-batch-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 14px;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
     border: none;
-    border-radius: 4px;
-    font-size: 13px;
-    font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    background: transparent;
+    color: #3b82f6;
+}
+
+.playlist-batch-btn:hover {
+    background: rgba(59, 130, 246, 0.1);
+    transform: scale(1.1);
 }
 
 .playlist-batch-btn:disabled {
     cursor: not-allowed;
+    opacity: 0.5;
     transform: none !important;
-    box-shadow: none !important;
-}
-
-.playlist-batch-download-btn {
-    background: #3b82f6;
-    color: white;
-}
-
-.playlist-batch-download-btn:hover {
-    background: #2563eb;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
-}
-
-.playlist-batch-delete-btn {
-    background: #3b82f6;
-    color: white;
-}
-
-.playlist-batch-delete-btn:hover {
-    background: #2563eb;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
 }
 
 .playlist {

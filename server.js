@@ -12,6 +12,10 @@ const NodeID3 = require('node-id3');
 const ffmetadata = require('ffmetadata');
 const ffmpeg = require('fluent-ffmpeg');
 
+// 自定义音源系统
+const userApi = require('./server/userApi');
+const customSourceHandlers = require('./server/customSourceHandlers');
+
 const app = express();
 const PORT = process.env.PORT || 9524;
 
@@ -24,6 +28,9 @@ app.use(express.static('public'));
 
 // SSE 客户端集合
 const updateProgressClients = new Set();
+
+// 在线音乐播放链接获取控制器（用于取消之前的请求）
+let currentMusicUrlController = null;
 
 // SSE 端点：推送更新进度
 app.get('/api/update-progress', (req, res) => {
@@ -6329,6 +6336,46 @@ app.get('/api/source-files', (req, res) => {
     }
 });
 
+// ========== 新自定义音源管理 API（lx-music-sync-server 风格）==========
+app.post('/api/custom-source/validate', (req, res) => {
+    customSourceHandlers.handleValidate(req, res);
+});
+
+app.post('/api/custom-source/upload', (req, res) => {
+    customSourceHandlers.handleUpload(req, res);
+});
+
+app.post('/api/custom-source/import', (req, res) => {
+    customSourceHandlers.handleImport(req, res);
+});
+
+app.get('/api/custom-source/list', (req, res) => {
+    const username = req.query.username;
+    customSourceHandlers.handleList(req, res, username);
+});
+
+app.post('/api/custom-source/toggle', (req, res) => {
+    customSourceHandlers.handleToggle(req, res);
+});
+
+app.post('/api/custom-source/reorder', (req, res) => {
+    customSourceHandlers.handleReorder(req, res);
+});
+
+app.post('/api/custom-source/delete', (req, res) => {
+    customSourceHandlers.handleDelete(req, res);
+});
+
+// 获取已加载的自定义音源信息
+app.get('/api/custom-source/loaded', (req, res) => {
+    try {
+        const apis = userApi.getLoadedApis();
+        res.json({ success: true, apis });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // 删除音源文件
 app.delete('/api/source-files/:filename', (req, res) => {
     try {
@@ -6546,14 +6593,32 @@ app.post('/api/online-search', async (req, res) => {
         
         // 只搜索指定的单个音源平台
         if (source) {
-            // 优先使用自定义音源中对应平台的搜索函数
-            if (customSources[source] && typeof customSources[source].search === 'function') {
+            // 优先使用新的自定义音源系统（lx-music-sync-server 风格）
+            let customSearchResult = null;
+            try {
+                console.log(`[在线搜索] 尝试新自定义音源系统搜索, source=${source}`);
+                customSearchResult = await userApi.callUserApiSearch(source, keyword, page, limit);
+                if (customSearchResult && customSearchResult.list && customSearchResult.list.length > 0) {
+                    console.log(`[在线搜索] 新自定义音源返回 ${customSearchResult.list.length} 条结果`);
+                    results.push({
+                        source: source,
+                        sourceName: customSearchResult.sourceName || source,
+                        list: customSearchResult.list
+                    });
+                    total = customSearchResult.total || 0;
+                }
+            } catch (error) {
+                console.error(`新自定义音源 ${source} 搜索失败:`, error.message);
+            }
+            
+            // 如果新系统没有结果，尝试旧的自定义音源
+            if (results.length === 0 && customSources[source] && typeof customSources[source].search === 'function') {
                 try {
-                    console.log(`[在线搜索] 使用自定义音源搜索, source=${source}, limit=${limit}`);
+                    console.log(`[在线搜索] 使用旧自定义音源搜索, source=${source}, limit=${limit}`);
                     const searchResult = await customSources[source].search(keyword, page, limit);
                     const list = searchResult?.list || searchResult || [];
                     const srcTotal = searchResult?.total || (Array.isArray(searchResult) ? searchResult.length : 0);
-                    console.log(`[在线搜索] 自定义音源返回 ${list.length} 条结果, total=${srcTotal}`);
+                    console.log(`[在线搜索] 旧自定义音源返回 ${list.length} 条结果, total=${srcTotal}`);
                     if (list.length > 0) {
                         results.push({
                             source: source,
@@ -6563,7 +6628,7 @@ app.post('/api/online-search', async (req, res) => {
                         total = srcTotal;
                     }
                 } catch (error) {
-                    console.error(`自定义音源 ${source} 搜索失败:`, error.message);
+                    console.error(`旧自定义音源 ${source} 搜索失败:`, error.message);
                 }
             }
             
@@ -7443,7 +7508,14 @@ function decontextify(obj) {
 // 创建 lx.request 包装器（使用原生 http/https）
 // 初始化自定义音源（调用统一的 loadCustomSources 函数）
 async function initCustomSources() {
-    // 读取激活的音源列表
+    // 初始化新的自定义音源系统（lx-music-sync-server 风格）
+    try {
+        await userApi.initUserApis();
+    } catch (error) {
+        console.error('[UserApi] 初始化失败:', error.message);
+    }
+    
+    // 读取激活的音源列表（旧系统兼容）
     let activeSourceIds = [];
     const settingsPath = path.join(__dirname, 'data', 'online-settings.json');
     if (fs.existsSync(settingsPath)) {
@@ -7467,8 +7539,19 @@ async function initCustomSources() {
 
 // 获取在线音乐播放链接
 async function getMusicPlayUrl(source, songInfo, quality = '128') {
-    // 标准化 songInfo 格式：将 meta 中的字段提升到顶层（参考 lx-music-sync-server）
-    const normalizedSongInfo = { ...songInfo };
+    // 取消之前正在进行的播放链接获取请求
+    if (currentMusicUrlController) {
+        currentMusicUrlController.abort();
+        console.log('[MusicUrl] 已取消之前的播放链接获取请求');
+    }
+    
+    // 创建新的 AbortController
+    const controller = new AbortController();
+    currentMusicUrlController = controller;
+    
+    try {
+        // 标准化 songInfo 格式：将 meta 中的字段提升到顶层（参考 lx-music-sync-server）
+        const normalizedSongInfo = { ...songInfo };
     if (songInfo.meta) {
         // 将 meta 中的所有字段展开到顶层
         Object.assign(normalizedSongInfo, songInfo.meta);
@@ -7546,6 +7629,18 @@ async function getMusicPlayUrl(source, songInfo, quality = '128') {
         normalizedSongInfo.trcUrl = songInfo.trcUrl;
     }
     
+    // ========== 优先使用新的自定义音源系统（lx-music-sync-server 风格）==========
+    try {
+        console.log(`[MusicUrl] 尝试新自定义音源系统获取播放链接, source=${source}`);
+        const result = await userApi.callUserApiGetMusicUrl(source, normalizedSongInfo, quality);
+        if (result && result.url) {
+            console.log(`[MusicUrl] 新自定义音源 ${source} 获取到播放链接`);
+            return result.url;
+        }
+    } catch (error) {
+        console.error(`[MusicUrl] 新自定义音源 ${source} 获取播放链接失败:`, error.message);
+    }
+    
     // 优先使用自定义音源
     if (customSources[source] && typeof customSources[source].getPlayUrl === 'function') {
         try {
@@ -7608,7 +7703,7 @@ async function getMusicPlayUrl(source, songInfo, quality = '128') {
             for (const proxyUrl of proxyUrls) {
                 try {
                     console.log(`尝试通过代理获取酷狗播放链接: ${proxyUrl}`);
-                    const response = await fetch(proxyUrl, { timeout: 10000 });
+                    const response = await fetch(proxyUrl, { timeout: 10000, signal: controller.signal });
                     const text = await response.text();
                     // 尝试解析为 JSON
                     try {
@@ -7625,6 +7720,7 @@ async function getMusicPlayUrl(source, songInfo, quality = '128') {
                         }
                     }
                 } catch (error) {
+                    if (error.name === 'AbortError') throw error;
                     console.error(`酷狗代理请求失败:`, error.message);
                 }
             }
@@ -7640,7 +7736,8 @@ async function getMusicPlayUrl(source, songInfo, quality = '128') {
                     headers: {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                         'Referer': 'https://www.kuwo.cn/'
-                    }
+                    },
+                    signal: controller.signal
                 });
                 const json = await response.json();
                 if (json.data && json.data.url) {
@@ -7648,6 +7745,7 @@ async function getMusicPlayUrl(source, songInfo, quality = '128') {
                     return json.data.url;
                 }
             } catch (error) {
+                if (error.name === 'AbortError') throw error;
                 console.error(`酷我请求失败:`, error.message);
             }
             
@@ -7656,7 +7754,7 @@ async function getMusicPlayUrl(source, songInfo, quality = '128') {
             for (const proxyUrl of proxyUrls) {
                 try {
                     console.log(`尝试代理获取酷我播放链接: ${proxyUrl}`);
-                    const response = await fetch(proxyUrl, { timeout: 10000 });
+                    const response = await fetch(proxyUrl, { timeout: 10000, signal: controller.signal });
                     const text = await response.text();
                     try {
                         const json = JSON.parse(text);
@@ -7671,6 +7769,7 @@ async function getMusicPlayUrl(source, songInfo, quality = '128') {
                         }
                     }
                 } catch (error) {
+                    if (error.name === 'AbortError') throw error;
                     console.error(`酷我代理请求失败:`, error.message);
                 }
             }
@@ -7683,7 +7782,7 @@ async function getMusicPlayUrl(source, songInfo, quality = '128') {
             for (const proxyUrl of proxyUrls) {
                 try {
                     console.log(`尝试通过代理获取QQ音乐播放链接: ${proxyUrl}`);
-                    const response = await fetch(proxyUrl, { timeout: 10000 });
+                    const response = await fetch(proxyUrl, { timeout: 10000, signal: controller.signal });
                     const text = await response.text();
                     try {
                         const json = JSON.parse(text);
@@ -7698,6 +7797,7 @@ async function getMusicPlayUrl(source, songInfo, quality = '128') {
                         }
                     }
                 } catch (error) {
+                    if (error.name === 'AbortError') throw error;
                     console.error(`QQ音乐代理请求失败:`, error.message);
                 }
             }
@@ -7711,7 +7811,7 @@ async function getMusicPlayUrl(source, songInfo, quality = '128') {
             for (const proxyUrl of proxyUrls) {
                 try {
                     console.log(`尝试通过代理获取咪咕播放链接: ${proxyUrl}`);
-                    const response = await fetch(proxyUrl, { timeout: 10000 });
+                    const response = await fetch(proxyUrl, { timeout: 10000, signal: controller.signal });
                     const text = await response.text();
                     try {
                         const json = JSON.parse(text);
@@ -7726,6 +7826,7 @@ async function getMusicPlayUrl(source, songInfo, quality = '128') {
                         }
                     }
                 } catch (error) {
+                    if (error.name === 'AbortError') throw error;
                     console.error(`咪咕代理请求失败:`, error.message);
                 }
             }
@@ -7741,7 +7842,8 @@ async function getMusicPlayUrl(source, songInfo, quality = '128') {
                     headers: {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                         'Referer': 'https://music.163.com/'
-                    }
+                    },
+                    signal: controller.signal
                 });
                 const json = await response.json();
                 if (json.data && json.data[0] && json.data[0].url) {
@@ -7749,6 +7851,7 @@ async function getMusicPlayUrl(source, songInfo, quality = '128') {
                     return json.data[0].url;
                 }
             } catch (error) {
+                if (error.name === 'AbortError') throw error;
                 console.error(`网易云请求失败:`, error.message);
             }
             
@@ -7757,7 +7860,7 @@ async function getMusicPlayUrl(source, songInfo, quality = '128') {
             for (const proxyUrl of proxyUrls) {
                 try {
                     console.log(`尝试通过代理获取网易云播放链接: ${proxyUrl}`);
-                    const response = await fetch(proxyUrl, { timeout: 10000 });
+                    const response = await fetch(proxyUrl, { timeout: 10000, signal: controller.signal });
                     const text = await response.text();
                     try {
                         const json = JSON.parse(text);
@@ -7772,6 +7875,7 @@ async function getMusicPlayUrl(source, songInfo, quality = '128') {
                         }
                     }
                 } catch (error) {
+                    if (error.name === 'AbortError') throw error;
                     console.error(`网易云代理请求失败:`, error.message);
                 }
             }
@@ -7781,6 +7885,19 @@ async function getMusicPlayUrl(source, songInfo, quality = '128') {
     
     console.log(`${source} 无法获取播放链接`);
     return null;
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            console.log('[MusicUrl] 播放链接获取请求已被取消');
+            return null;
+        }
+        console.error(`[MusicUrl] 获取播放链接失败:`, error.message);
+        throw error;
+    } finally {
+        // 清理控制器（如果当前控制器是我们创建的）
+        if (currentMusicUrlController === controller) {
+            currentMusicUrlController = null;
+        }
+    }
 }
 
 // 播放在线音乐流

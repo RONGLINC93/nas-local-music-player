@@ -2056,17 +2056,20 @@ async function loadAudioDevices() {
             deviceListEl.innerHTML = '';
             result.devices.forEach(device => {
                 const deviceItem = document.createElement('div');
-                deviceItem.className = 'device-item';
+                deviceItem.className = device.id === result.currentDevice ? 'device-item active' : 'device-item';
                 deviceItem.dataset.deviceId = device.id;
                 deviceItem.onclick = () => selectAudioDevice(device.id);
                 
                 deviceItem.innerHTML = `
+                    <div class="device-checkbox">
+                        <i class="fas fa-check"></i>
+                    </div>
                     <i class="fas fa-volume-up device-item-icon"></i>
                     <div class="device-item-info">
                         <div class="device-item-name">${device.name}</div>
                         <div class="device-item-id">${device.id}</div>
                     </div>
-                    <div class="device-item-check">✓</div>
+                    <span class="device-status ${device.id === result.currentDevice ? 'active' : 'inactive'}">${device.id === result.currentDevice ? '已选中' : '未选中'}</span>
                 `;
                 
                 deviceListEl.appendChild(deviceItem);
@@ -2124,14 +2127,30 @@ async function loadAudioDevices() {
 
 // 选择声卡设备
 async function selectAudioDevice(deviceId) {
-    // 移除所有设备的 active 类
+    // 获取所有设备项
     const deviceItems = document.querySelectorAll('.device-item');
-    deviceItems.forEach(item => item.classList.remove('active'));
     
-    // 添加当前设备的 active 类
+    // 更新每个设备的状态
     deviceItems.forEach(item => {
-        if (item.dataset.deviceId === deviceId) {
+        const isSelected = item.dataset.deviceId === deviceId;
+        
+        // 更新 active 类
+        if (isSelected) {
             item.classList.add('active');
+        } else {
+            item.classList.remove('active');
+        }
+        
+        // 更新状态标签
+        const statusEl = item.querySelector('.device-status');
+        if (statusEl) {
+            if (isSelected) {
+                statusEl.textContent = '已选中';
+                statusEl.className = 'device-status active';
+            } else {
+                statusEl.textContent = '未选中';
+                statusEl.className = 'device-status inactive';
+            }
         }
     });
     
@@ -4028,11 +4047,11 @@ function createFolderCardHTML(folder) {
     // 构建完整的目标路径（以 /music 开头）
     const fullTargetPath = folder.path.startsWith('/') ? folder.path : `/music/${folder.path}`;
     const escapedTargetPath = fullTargetPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    const uniqueId = `folder-menu-${escapedPath.replace(/[^a-zA-Z0-9]/g, '-')}`;
     
     return `
         <div class="folder-card" 
              onclick="openFolder('${escapedPath}')"
+             oncontextmenu="showFolderContextMenu(event, '${escapedPath}', '${folderName}')"
              ondragover="event.preventDefault(); event.dataTransfer.dropEffect='move'; this.classList.add('drag-over');"
              ondragleave="this.classList.remove('drag-over');"
              ondrop="event.preventDefault(); this.classList.remove('drag-over'); handleDropToFolder('${escapedTargetPath}', event);">
@@ -4047,7 +4066,7 @@ function createFolderCardHTML(folder) {
                 </div>
             </div>
             <div class="folder-card-actions">
-                <button onclick="event.stopPropagation(); playFolder('${escapedPath}')" class="folder-play-btn" title="播放此文件夹">
+                <button onclick="event.stopPropagation(); playFolder('${escapedPath}')" class="folder-icon-btn folder-play-btn" title="播放此文件夹">
                     <i class="fas fa-play"></i>
                 </button>
                 <button onclick="event.stopPropagation(); addFolderToPlaylist('${escapedPath}')" class="folder-icon-btn folder-add-btn" title="加入播放列表">
@@ -4071,45 +4090,9 @@ function createFolderCardHTML(folder) {
                 <button onclick="event.stopPropagation(); openDeleteFolderModal('${escapedPath}', '${folderName}')" class="folder-icon-btn folder-delete-btn" title="删除">
                     <i class="fas fa-trash"></i>
                 </button>
-                <div class="folder-card-menu-wrapper">
-                    <button onclick="event.stopPropagation(); toggleFolderCardMenu(event, '${uniqueId}')" class="folder-icon-btn folder-card-menu-btn" title="更多操作">
-                        <i class="fas fa-ellipsis-v"></i>
-                    </button>
-                    <div id="${uniqueId}" class="folder-card-menu" style="display: none;">
-                        <div class="folder-card-menu-item" onclick="event.stopPropagation(); playFolder('${escapedPath}'); closeFolderCardMenu('${uniqueId}');">
-                            <i class="fas fa-play"></i>
-                            <span>播放</span>
-                        </div>
-                        <div class="folder-card-menu-item" onclick="event.stopPropagation(); addFolderToPlaylist('${escapedPath}'); closeFolderCardMenu('${uniqueId}');">
-                            <i class="fas fa-plus"></i>
-                            <span>加入播放列表</span>
-                        </div>
-                        <div class="folder-card-menu-item" onclick="event.stopPropagation(); moveFolder('${escapedPath}', '${folderName}'); closeFolderCardMenu('${uniqueId}');">
-                            <i class="fas fa-arrows-alt"></i>
-                            <span>移动</span>
-                        </div>
-                        <div class="folder-card-menu-item" onclick="event.stopPropagation(); downloadFolder('${escapedPath}'); closeFolderCardMenu('${uniqueId}');">
-                            <i class="fas fa-download"></i>
-                            <span>下载</span>
-                        </div>
-                        <div class="folder-card-menu-item" onclick="event.stopPropagation(); openConvertFolderToMp3Modal('${escapedPath}', '${folderName}'); closeFolderCardMenu('${uniqueId}');">
-                            <i class="fas fa-exchange-alt"></i>
-                            <span>转MP3</span>
-                        </div>
-                        <div class="folder-card-menu-item" onclick="event.stopPropagation(); openRenameFolderModal('${escapedPath}', '${folderName}'); closeFolderCardMenu('${uniqueId}');">
-                            <i class="fas fa-edit"></i>
-                            <span>重命名</span>
-                        </div>
-                        <div class="folder-card-menu-item" onclick="event.stopPropagation(); openDissolveFolderModal('${escapedPath}', '${folderName}'); closeFolderCardMenu('${uniqueId}');">
-                            <i class="fas fa-box-open"></i>
-                            <span>解散</span>
-                        </div>
-                        <div class="folder-card-menu-item folder-card-menu-item-danger" onclick="event.stopPropagation(); openDeleteFolderModal('${escapedPath}', '${folderName}'); closeFolderCardMenu('${uniqueId}');">
-                            <i class="fas fa-trash"></i>
-                            <span>删除</span>
-                        </div>
-                    </div>
-                </div>
+                <button onclick="event.stopPropagation(); toggleFolderCardMenu(event, '${escapedPath}', '${folderName}')" class="folder-icon-btn folder-card-menu-btn" title="更多操作">
+                    <i class="fas fa-ellipsis-v"></i>
+                </button>
             </div>
         </div>
     `;
@@ -4167,12 +4150,24 @@ function createFileItemHTML(track, index, searchKeyword = '') {
     `;
 }
 
+// 关闭所有上下文菜单
+function closeAllContextMenus() {
+    closeFileContextMenu();
+    closeFolderContextMenu();
+    const folderMoreMenu = document.getElementById('folderMoreMenu');
+    if (folderMoreMenu) folderMoreMenu.style.display = 'none';
+    const batchMoreMenu = document.getElementById('batchMoreMenu');
+    if (batchMoreMenu) batchMoreMenu.style.display = 'none';
+    const topBarMoreMenu = document.getElementById('topBarMoreMenu');
+    if (topBarMoreMenu) topBarMoreMenu.style.display = 'none';
+}
+
 // 文件操作菜单（右键 / 小屏幕更多按钮共用）
 function showFileContextMenu(event, filePath, anchorRect) {
     event.preventDefault();
     event.stopPropagation();
     
-    closeFileContextMenu();
+    closeAllContextMenus();
     
     const menu = document.createElement('div');
     menu.className = 'folder-file-context-menu';
@@ -4215,24 +4210,17 @@ function showFileContextMenu(event, filePath, anchorRect) {
         </div>
     `;
     
-    if (anchorRect) {
-        // 小屏幕：从按钮下方弹出
-        menu.style.top = `${anchorRect.bottom + window.scrollY}px`;
-        menu.style.left = `${anchorRect.left + window.scrollX - 120}px`;
-    } else {
-        // 大屏幕：右键位置弹出
-        menu.style.top = `${event.clientY + window.scrollY}px`;
-        menu.style.left = `${event.clientX + window.scrollX}px`;
-    }
+    menu.style.top = `${event.clientY + window.scrollY}px`;
+    menu.style.left = `${event.clientX + window.scrollX}px`;
     
     document.body.appendChild(menu);
     
     setTimeout(() => {
         const menuRect = menu.getBoundingClientRect();
-        const refX = anchorRect ? anchorRect.left + window.scrollX : event.clientX + window.scrollX;
-        const refY = anchorRect ? anchorRect.top + window.scrollY : event.clientY + window.scrollY;
+        const refX = event.clientX + window.scrollX;
+        const refY = event.clientY + window.scrollY;
         if (menuRect.right > window.innerWidth) {
-            menu.style.left = `${refX - menuRect.width + (anchorRect ? 40 : 0)}px`;
+            menu.style.left = `${refX - menuRect.width}px`;
         }
         if (menuRect.bottom > window.innerHeight) {
             menu.style.top = `${refY - menuRect.height}px`;
@@ -4249,6 +4237,81 @@ function closeFileContextMenu() {
     }
 }
 
+// 文件夹右键菜单
+function showFolderContextMenu(event, folderPath, folderName) {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    closeAllContextMenus();
+    
+    const menu = document.createElement('div');
+    menu.className = 'folder-file-context-menu';
+    menu.id = 'folderContextMenu';
+    menu.innerHTML = `
+        <div class="context-menu-item" onclick="event.stopPropagation(); playFolder('${folderPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'); closeFolderContextMenu();">
+            <i class="fas fa-play"></i>
+            <span>播放</span>
+        </div>
+        <div class="context-menu-item" onclick="event.stopPropagation(); addFolderToPlaylist('${folderPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'); closeFolderContextMenu();">
+            <i class="fas fa-plus"></i>
+            <span>加入播放列表</span>
+        </div>
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-item" onclick="event.stopPropagation(); downloadFolder('${folderPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'); closeFolderContextMenu();">
+            <i class="fas fa-download"></i>
+            <span>下载</span>
+        </div>
+        <div class="context-menu-item" onclick="event.stopPropagation(); moveFolder('${folderPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', '${folderName.replace(/'/g, "\\'")}'); closeFolderContextMenu();">
+            <i class="fas fa-arrows-alt"></i>
+            <span>移动</span>
+        </div>
+        <div class="context-menu-item" onclick="event.stopPropagation(); openConvertFolderToMp3Modal('${folderPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', '${folderName.replace(/'/g, "\\'")}'); closeFolderContextMenu();">
+            <i class="fas fa-exchange-alt"></i>
+            <span>转MP3</span>
+        </div>
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-item" onclick="event.stopPropagation(); openRenameFolderModal('${folderPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', '${folderName.replace(/'/g, "\\'")}'); closeFolderContextMenu();">
+            <i class="fas fa-edit"></i>
+            <span>重命名</span>
+        </div>
+        <div class="context-menu-item" onclick="event.stopPropagation(); openDissolveFolderModal('${folderPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', '${folderName.replace(/'/g, "\\'")}'); closeFolderContextMenu();">
+            <i class="fas fa-box-open"></i>
+            <span>解散</span>
+        </div>
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-item context-menu-item-danger" onclick="event.stopPropagation(); openDeleteFolderModal('${folderPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', '${folderName.replace(/'/g, "\\'")}'); closeFolderContextMenu();">
+            <i class="fas fa-trash"></i>
+            <span>删除</span>
+        </div>
+    `;
+    
+    menu.style.top = `${event.clientY + window.scrollY}px`;
+    menu.style.left = `${event.clientX + window.scrollX}px`;
+    
+    document.body.appendChild(menu);
+    
+    setTimeout(() => {
+        const menuRect = menu.getBoundingClientRect();
+        const refX = event.clientX + window.scrollX;
+        const refY = event.clientY + window.scrollY;
+        if (menuRect.right > window.innerWidth) {
+            menu.style.left = `${refX - menuRect.width}px`;
+        }
+        if (menuRect.bottom > window.innerHeight) {
+            menu.style.top = `${refY - menuRect.height}px`;
+        }
+    }, 0);
+    
+    document.addEventListener('click', closeFolderContextMenu, { once: true });
+}
+
+function closeFolderContextMenu() {
+    const menu = document.getElementById('folderContextMenu');
+    if (menu) {
+        menu.remove();
+    }
+}
+
 // 小屏幕"更多"按钮
 function toggleFileMenu(event, filePath) {
     const rect = event.target.getBoundingClientRect();
@@ -4258,6 +4321,7 @@ function toggleFileMenu(event, filePath) {
 // 文件夹更多菜单
 function toggleFolderMoreMenu(event) {
     event.stopPropagation();
+    closeAllContextMenus();
     const menu = document.getElementById('folderMoreMenu');
     if (menu) {
         const isVisible = menu.style.display !== 'none';
@@ -4278,66 +4342,15 @@ function closeFolderMoreMenu() {
     }
 }
 
-// 文件夹卡片菜单
-function toggleFolderCardMenu(event, menuId) {
+// 文件夹卡片菜单按钮（小屏幕更多按钮）
+function toggleFolderCardMenu(event, folderPath, folderName) {
     event.stopPropagation();
-    
-    // 关闭所有其他菜单
-    document.querySelectorAll('.folder-card-menu').forEach(m => {
-        if (m.id !== menuId) {
-            m.style.display = 'none';
-        }
-    });
-    
-    const menu = document.getElementById(menuId);
-    if (menu) {
-        const isVisible = menu.style.display !== 'none';
-        menu.style.display = isVisible ? 'none' : 'block';
-        
-        if (!isVisible) {
-            // 移动端使用 fixed 定位，需要计算位置
-            if (window.innerWidth <= 768) {
-                const btn = event.currentTarget;
-                const rect = btn.getBoundingClientRect();
-                const menuWidth = 160; // 菜单预估宽度
-                const menuHeight = 350; // 菜单预估高度
-                
-                // 让菜单右边缘对齐按钮右边缘
-                let leftPos = rect.right - menuWidth;
-                
-                // 确保菜单不会超出屏幕左侧
-                if (leftPos < 10) {
-                    leftPos = 10;
-                }
-                
-                // 检查菜单是否会超出屏幕底部
-                const spaceBelow = window.innerHeight - rect.bottom;
-                if (spaceBelow < menuHeight) {
-                    // 空间不够，向上展开
-                    menu.style.top = 'auto';
-                    menu.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
-                } else {
-                    // 向下展开
-                    menu.style.top = (rect.bottom + 4) + 'px';
-                    menu.style.bottom = 'auto';
-                }
-                
-                menu.style.left = leftPos + 'px';
-                menu.style.right = 'auto';
-            }
-        }
-    }
+    const rect = event.target.getBoundingClientRect();
+    showFolderContextMenu(event, folderPath, folderName, rect);
 }
 
 // 全局点击关闭所有菜单
 document.addEventListener('click', function(e) {
-    // 关闭文件夹卡片菜单
-    if (!e.target.classList.contains('folder-card-menu-btn') && !e.target.closest('.folder-card-menu')) {
-        document.querySelectorAll('.folder-card-menu').forEach(m => {
-            m.style.display = 'none';
-        });
-    }
-    
     // 关闭批量操作菜单
     if (!e.target.closest('.batch-more-menu-wrapper') && !e.target.closest('.batch-more-menu')) {
         const batchMenu = document.getElementById('batchMoreMenu');
@@ -4355,12 +4368,16 @@ function closeFolderCardMenu(menuId) {
     const menu = document.getElementById(menuId);
     if (menu) {
         menu.style.display = 'none';
+        // 重置父级文件夹卡片的 z-index
+        const card = menu.closest('.folder-card');
+        if (card) card.style.zIndex = '';
     }
 }
 
 // 批量操作菜单
 function toggleBatchMoreMenu(event) {
     event.stopPropagation();
+    closeAllContextMenus();
     const menu = document.getElementById('batchMoreMenu');
     if (menu) {
         const isVisible = menu.style.display !== 'none';

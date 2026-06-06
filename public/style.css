@@ -629,6 +629,7 @@ body {
 
 /* 文件夹卡片 */
 .folder-card {
+    position: relative;
     min-width: 300px;
     background: white;
     border-radius: 8px;
@@ -968,102 +969,94 @@ body {
     align-items: center;
 }
 
-.folder-play-btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    border: none;
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-    color: white;
-    cursor: pointer;
-    transition: all 0.3s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
-}
-
-.folder-play-btn:hover {
-    transform: scale(1.1);
-    box-shadow: 0 5px 15px rgba(59, 130, 246, 0.4);
-}
-
-.folder-play-btn i {
-    font-size: 16px;
-}
-
+/* 文件夹卡片操作按钮 - 统一使用音乐文件按钮样式 */
 .folder-icon-btn {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    border: 1px solid #e5e7eb;
-    background: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
     color: #6b7280;
     cursor: pointer;
     transition: all 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
+    font-size: 14px;
+    margin-right: 4px;
 }
 
 .folder-icon-btn:hover {
     transform: scale(1.1);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.folder-rename-btn:hover {
-    background: #3b82f6;
-    border-color: #3b82f6;
-    color: white;
+.folder-play-btn {
+    color: #3b82f6;
+}
+
+.folder-play-btn:hover {
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.folder-add-btn {
+    color: #3b82f6;
 }
 
 .folder-add-btn:hover {
-    background: #10b981;
-    border-color: #10b981;
-    color: white;
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.folder-move-btn {
+    color: #3b82f6;
 }
 
 .folder-move-btn:hover {
-    background: #8b5cf6;
-    border-color: #8b5cf6;
-    color: white;
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.folder-rename-btn {
+    color: #8b5cf6;
+}
+
+.folder-rename-btn:hover {
+    background: rgba(139, 92, 246, 0.1);
+}
+
+.folder-download-btn {
+    color: #3b82f6;
 }
 
 .folder-download-btn:hover {
-    background: #06b6d4;
-    border-color: #06b6d4;
-    color: white;
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.folder-convert-btn {
+    color: #10b981;
 }
 
 .folder-convert-btn:hover {
-    background: #ec4899;
-    border-color: #ec4899;
-    color: white;
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.folder-dissolve-btn {
+    color: #f59e0b;
 }
 
 .folder-dissolve-btn:hover {
-    background: #f59e0b;
-    border-color: #f59e0b;
-    color: white;
+    background: rgba(245, 158, 11, 0.1);
+}
+
+.folder-delete-btn {
+    color: #ef4444;
 }
 
 .folder-delete-btn:hover {
-    background: #ef4444;
-    border-color: #ef4444;
-    color: white;
+    background: rgba(239, 68, 68, 0.1);
 }
 
-.folder-icon-btn i {
-    font-size: 14px;
-}
-
-/* 文件夹卡片菜单 */
-.folder-card-menu-wrapper {
-    position: relative;
-    display: none;
-}
-
+/* 文件夹卡片菜单按钮 */
 .folder-card-menu-btn {
+    display: none; /* 大屏幕默认隐藏 */
     background-color: #f3f4f6;
     color: #6b7280;
 }
@@ -1071,53 +1064,6 @@ body {
 .folder-card-menu-btn:hover {
     background-color: #e5e7eb;
     color: #374151;
-}
-
-.folder-card-menu {
-    position: absolute;
-    top: 100%;
-    right: 0;
-    margin-top: 8px;
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-    min-width: 140px;
-    z-index: 1000;
-    overflow: hidden;
-}
-
-.folder-card-menu-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 14px;
-    cursor: pointer;
-    transition: background 0.2s;
-    font-size: 13px;
-    color: #333;
-}
-
-.folder-card-menu-item:hover {
-    background: #f5f5f5;
-}
-
-.folder-card-menu-item i {
-    width: 16px;
-    text-align: center;
-    color: #666;
-    font-size: 13px;
-}
-
-.folder-card-menu-item-danger {
-    color: #ef4444;
-}
-
-.folder-card-menu-item-danger:hover {
-    background: #fef2f2;
-}
-
-.folder-card-menu-item-danger i {
-    color: #ef4444;
 }
 
 /* 批量操作菜单 */
@@ -1670,11 +1616,6 @@ body {
         gap: 10px;
     }
     
-    .folder-play-btn {
-        width: 36px;
-        height: 36px;
-    }
-    
     .folder-music-header {
         flex-direction: column;
         gap: 10px;
@@ -1716,17 +1657,8 @@ body {
         display: none;
     }
     
-    .folder-card-menu-wrapper {
-        display: block;
-    }
-    
-    /* 移动端菜单使用 fixed 定位，避免被 overflow 裁剪 */
-    .folder-card-menu {
-        position: fixed !important;
-        top: auto !important;
-        right: auto !important;
-        margin-top: 0 !important;
-        z-index: 10000 !important;
+    .folder-card-menu-btn {
+        display: block; /* 移动端显示菜单按钮 */
     }
     
     /* 移动端隐藏批量操作栏的单独按钮，只显示菜单按钮 */
@@ -2923,68 +2855,132 @@ body {
     margin-bottom: 20px;
 }
 
-.device-list-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
+/* ========== 声卡设备管理卡片样式 ========== */
+.audio-device-card {   
+    background: white;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    margin: 10px;
 }
 
-.device-list-header h4 {
+.audio-device-card h4 {
+    padding: 10px 20px;
     font-size: 16px;
-    color: #333;
+    color: #1e3a8a;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.audio-device-card h4 i {
+    font-size: 18px;
+}
+
+.audio-device-description {
+    padding: 10px;
+    font-size: 13px;
+    color: #6b7280;
+}
+
+.audio-device-list {
+    min-height: 100px;
+    margin-bottom: 15px;
 }
 
 .device-list {
     overflow-y: auto;
-    padding: 10px;
-    background: #fafafa;
-    max-height: calc(100vh - 170px);
+    background: #ffffff;
+    max-height: calc(100vh - 280px);
 }
 
 .device-item {
     display: flex;
     align-items: center;
-    padding: 12px 15px;
-    background: white;
-    border-radius: 8px;
-    margin-bottom: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #f0f0f0;
+    gap: 12px;
     cursor: pointer;
-    transition: all 0.2s;
-    border: 1px solid #e1e1e1;
+    transition: background 0.2s;
+}
+
+.device-item:last-child {
+    border-bottom: none;
 }
 
 .device-item:hover {
-    background: #eff6ff;
-    border-color: #3b82f6;
-    transform: translateX(5px);
+    background: #f9fafb;
 }
 
 .device-item.active {
-    border-color: #3b82f6;
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%);
+    background: #eff6ff;
+    border-color: #bfdbfe;
 }
 
-.device-item-icon {
-    width: 24px;
-    height: 24px;
-    font-size: 20px;
-    margin-right: 15px;
-    flex-shrink: 0;
+.device-checkbox {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border: 2px solid #d1d5db;
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s;
+}
+
+.device-item.active .device-checkbox {
+    background: #3b82f6;
+    border-color: #3b82f6;
+}
+
+.device-checkbox i {
+    font-size: 10px;
+    color: white;
+    display: none;
+}
+
+.device-item.active .device-checkbox i {
+    display: block;
+}
+
+.device-item-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    background: #f3f4f6;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: #3b82f6;
+    font-size: 16px;
+    flex-shrink: 0;
+    padding: 0;
+    margin: 0;
+}
+
+.device-item-icon i.fa {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    line-height: 1;
+    text-align: center;
 }
 
 .device-item-info {
     flex: 1;
+    min-width: 0;
 }
 
 .device-item-name {
-    font-size: 15px;
-    color: #333;
+    font-size: 14px;
     font-weight: 500;
-    margin-bottom: 3px;
+    color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .device-item-id {
@@ -2992,15 +2988,21 @@ body {
     color: #999;
 }
 
-.device-item-check {
-    font-size: 20px;
-    color: #3b82f6;
-    opacity: 0;
-    transition: opacity 0.2s;
+.device-status {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    flex-shrink: 0;
 }
 
-.device-item.active .device-item-check {
-    opacity: 1;
+.device-status.active {
+    background: #d1fae5;
+    color: #059669;
+}
+
+.device-status.inactive {
+    background: #f3f4f6;
+    color: #9ca3af;
 }
 
 /* 通知 */
@@ -5234,6 +5236,7 @@ body {
 
 /* 任务列表 */
 .task-list-section {
+    margin: 10px;
     background: #fff;
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
@@ -5278,7 +5281,7 @@ body {
 }
 
 .task-list {
-    max-height: calc(100vh - 335px);
+    max-height: calc(100vh - 355px);
     overflow-y: auto;
 }
 
@@ -5406,23 +5409,28 @@ body {
 .task-action {
     width: 32px;
     height: 32px;
-    border-radius: 8px;
+    border-radius: 6px;
     border: none;
-    background: #f5f5f5;
+    background: transparent;
+    color: #6b7280;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
+    font-size: 14px;
     transition: all 0.2s;
 }
 
 .task-action:hover {
-    background: #e8e8e8;
+    transform: scale(1.1);
+}
+
+.task-action.delete {
+    color: #ef4444;
 }
 
 .task-action.delete:hover {
-    background: #fee2e2;
-    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
 }
 
 /* 任务列表空状态 */
@@ -5532,6 +5540,14 @@ body {
 
 /* 响应式设计 */
 @media (max-width: 768px) {
+
+.task-list-section {
+   height: calc(100vh - 295px);
+}
+
+.task-list {
+    height: calc(100vh - 400px);
+}
 
     .device-list {
         max-height: calc(100vh - 200px);
@@ -6877,47 +6893,43 @@ body {
     width: 32px;
     height: 32px;
     border: none;
-    border-radius: 50%;
+    border-radius: 6px;
+    background: transparent;
+    color: #6b7280;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 13px;
+    font-size: 14px;
     transition: all 0.2s;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    margin-right: 4px;
 }
 
 .online-play-btn {
-    background-color: #3b82f6;
-    color: white;
+    color: #3b82f6;
 }
 
 .online-play-btn:hover {
-    background-color: #2563eb;
+    background: rgba(59, 130, 246, 0.1);
     transform: scale(1.1);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
 
 .online-add-btn {
-    background-color: #6b7280;
-    color: white;
+    color: #3b82f6;
 }
 
 .online-add-btn:hover {
-    background-color: #4b5563;
+    background: rgba(59, 130, 246, 0.1);
     transform: scale(1.1);
-    box-shadow: 0 4px 12px rgba(107, 114, 128, 0.4);
 }
 
 .online-download-btn {
-    background-color: #10b981;
-    color: white;
+    color: #3b82f6;
 }
 
 .online-download-btn:hover {
-    background-color: #059669;
+    background: rgba(59, 130, 246, 0.1);
     transform: scale(1.1);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
 }
 
 /* 移动端在线音乐视图 */
@@ -7023,19 +7035,17 @@ body {
 }
 
 .online-setting-card {
-    max-width: 600px;
     background: white;
     border-radius: 10px;
-    padding: 20px;
     border: 1px solid #e5e7eb;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     margin-bottom: 10px;
 }
 
 .online-setting-card h4 {
+    padding: 10px 20px;
     font-size: 16px;
     color: #1e3a8a;
-    margin-bottom: 10px;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -7046,9 +7056,9 @@ body {
 }
 
 .setting-description {
+    padding: 10px;
     font-size: 13px;
     color: #6b7280;
-    margin-bottom: 15px;
 }
 
 .source-file-list {
@@ -7166,21 +7176,23 @@ body {
     height: 32px;
     border: none;
     border-radius: 6px;
-    background: #fee2e2;
+    background: transparent;
     color: #ef4444;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 13px;
+    font-size: 14px;
     transition: all 0.2s;
 }
 
 .source-file-delete-btn:hover {
-    background: #fecaca;
+    background: rgba(239, 68, 68, 0.1);
+    transform: scale(1.1);
 }
 
 .source-file-actions {
+    padding: 10px;
     display: flex;
     gap: 10px;
 }
@@ -7227,15 +7239,15 @@ body {
 }
 
 .setting-item {
-    margin-bottom: 15px;
+    padding: 10px;
 }
 
 .setting-label {
+    padding: 10px;
     display: block;
     font-size: 14px;
     font-weight: 500;
     color: #374151;
-    margin-bottom: 6px;
 }
 
 .setting-select {

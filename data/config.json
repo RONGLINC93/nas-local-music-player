@@ -1,6 +1,6 @@
 {
     "playMode": "random",
-    "audioDevice": "HDAUDIO\\FUNC_01&VEN_10EC&DEV_0887&SUBSYS_1458A182&REV_1003\\4&11D6FE01&0&0001",
+    "audioDevice": "USB\\VID_1B3F&PID_2008&MI_00\\9&5DE73C6&0&0000",
     "maxConvertWorkers": 4,
     "maxUploadWorkers": 5,
     "onlineSource": "wy"

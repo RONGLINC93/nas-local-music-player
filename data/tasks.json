@@ -13,18 +13,6 @@
       "endTime": 1780447070444
     },
     {
-      "id": "mpxc7mwj2jd47zpb9h1",
-      "orderIndex": 1,
-      "filePath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\1234\\Dirty Class尚雯婕-太空人.flac",
-      "outputPath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\1234\\Dirty Class尚雯婕-太空人.mp3",
-      "bitrate": "192",
-      "status": "completed",
-      "progress": 100,
-      "message": "转换完成",
-      "startTime": 1780447063987,
-      "endTime": 1780447071741
-    },
-    {
       "id": "mpxc7mwj6a0ds4v8ozv",
       "orderIndex": 4,
       "filePath": "D:\\桌面\\nasmusic\\nas-local-music-player\\music\\1234\\Maksim Mrvica-Pirates Of The Caribbean (He's A Pirate).flac",
@@ -170,5 +158,5 @@
     }
   ],
   "completedUploads": [],
-  "savedAt": 1780447093501
+  "savedAt": 1780750327861
 }

@@ -5858,16 +5858,33 @@ function deleteTask(taskId, taskType = 'convert') {
 
 // 清除已完成任务
 function clearCompletedTasks() {
-    if (!confirm('确定要清除所有已完成的任务吗？')) {
-        return;
+    const modal = document.getElementById('clearTasksModal');
+    if (modal) {
+        modal.classList.add('show');
     }
-    
+}
+
+// 关闭清除任务模态框
+function closeClearTasksModal() {
+    const modal = document.getElementById('clearTasksModal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
+}
+
+// 确认清除任务
+function confirmClearTasks() {
     Promise.all([
         fetch('/api/tasks', { method: 'DELETE' }),
         fetch('/api/upload-tasks', { method: 'DELETE' })
     ]).then(() => {
         showNotification({ type: 'success', message: '已完成任务已清除' });
         loadTaskList(getCurrentTaskFilter());
+        closeClearTasksModal();
+    }).catch(error => {
+        console.error('清除任务失败:', error);
+        showNotification({ type: 'error', message: '清除任务失败' });
+        closeClearTasksModal();
     });
 }
 

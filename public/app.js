@@ -6133,15 +6133,19 @@ let onlineSearchTotal = 0;
 function switchOnlineTab(tab) {
     const rankTab = document.getElementById('tabRank');
     const searchTab = document.getElementById('tabSearch');
+    const songlistTab = document.getElementById('tabSonglist');
     const rankSection = document.getElementById('onlineRankSection');
     const searchSection = document.getElementById('onlineResultsSection');
+    const songlistSection = document.getElementById('onlineSonglistSection');
     const searchBar = document.getElementById('onlineSearchBar');
     
     if (tab === 'rank') {
         rankTab.classList.add('active');
         searchTab.classList.remove('active');
+        songlistTab.classList.remove('active');
         rankSection.style.display = 'block';
         searchSection.style.display = 'none';
+        songlistSection.style.display = 'none';
         searchBar.style.display = 'none';
         
         // 检查缓存，如果有就直接显示
@@ -6154,12 +6158,29 @@ function switchOnlineTab(tab) {
         } else {
             loadRankList();
         }
-    } else {
+    } else if (tab === 'search') {
         searchTab.classList.add('active');
         rankTab.classList.remove('active');
+        songlistTab.classList.remove('active');
         searchSection.style.display = 'block';
         rankSection.style.display = 'none';
+        songlistSection.style.display = 'none';
         searchBar.style.display = 'flex';
+    } else if (tab === 'songlist') {
+        songlistTab.classList.add('active');
+        rankTab.classList.remove('active');
+        searchTab.classList.remove('active');
+        songlistSection.style.display = 'block';
+        rankSection.style.display = 'none';
+        searchSection.style.display = 'none';
+        searchBar.style.display = 'none';
+        
+        // 加载歌单列表
+        if (!songlistLoaded) {
+            loadSonglistTags();
+            loadSonglistList();
+            songlistLoaded = true;
+        }
     }
 }
 
@@ -7132,5 +7153,496 @@ switchView = function(viewName) {
         });
     }
 };
+
+// ========== 歌单功能 ==========
+let songlistLoaded = false;
+let songlistCurrentPage = 1;
+let songlistTotal = 0;
+let songlistTotalPages = 1;
+let songlistSearchPage = 1;
+let songlistSearchTotal = 0;
+let songlistSearchTotalPages = 1;
+let currentSonglistDetail = null;
+let currentSonglistSongs = [];
+
+// 加载歌单标签
+async function loadSonglistTags() {
+    const source = document.getElementById('onlineSourceSelect').value;
+    const tagSelect = document.getElementById('songlistTagSelect');
+    
+    try {
+        const result = await apiRequest('/api/online-songlist-tags', 'POST', { source });
+        
+        if (result.success) {
+            // 更新排序选项
+            const sortSelect = document.getElementById('songlistSortSelect');
+            sortSelect.innerHTML = '';
+            
+            // 获取音源支持的排序方式
+            const sourcesResult = await apiRequest('/api/online-songlist-sources');
+            const sourceInfo = sourcesResult.sources?.find(s => s.id === source);
+            const sortList = sourceInfo?.sortList || [{ name: '最热', id: 'hot' }];
+            
+            sortList.forEach(sort => {
+                const option = document.createElement('option');
+                option.value = sort.id;
+                option.textContent = sort.name;
+                sortSelect.appendChild(option);
+            });
+            
+            // 更新标签选项
+            tagSelect.innerHTML = '<option value="">全部分类</option>';
+            
+            // 添加热门标签
+            if (result.hotTag && result.hotTag.length > 0) {
+                result.hotTag.forEach(tag => {
+                    const option = document.createElement('option');
+                    option.value = tag.id;
+                    option.textContent = '🔥 ' + tag.name;
+                    tagSelect.appendChild(option);
+                });
+            }
+            
+            // 添加分类标签
+            if (result.tags && result.tags.length > 0) {
+                result.tags.forEach(category => {
+                    if (category.list && category.list.length > 0) {
+                        category.list.forEach(tag => {
+                            const option = document.createElement('option');
+                            option.value = tag.id;
+                            option.textContent = tag.name;
+                            tagSelect.appendChild(option);
+                        });
+                    }
+                });
+            }
+        }
+    } catch (error) {
+        console.error('加载歌单标签失败:', error);
+    }
+}
+
+// 加载歌单列表
+async function loadSonglistList(page = 1) {
+    const source = document.getElementById('onlineSourceSelect').value;
+    const sortId = document.getElementById('songlistSortSelect').value;
+    const tagId = document.getElementById('songlistTagSelect').value;
+    const grid = document.getElementById('songlistGrid');
+    
+    songlistCurrentPage = page;
+    grid.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>加载歌单中...</p></div>';
+    
+    try {
+        const result = await apiRequest('/api/online-songlist-list', 'POST', {
+            source,
+            sortId,
+            tagId,
+            page
+        });
+        
+        if (result.success && result.list) {
+            songlistTotal = result.total || result.list.length;
+            songlistTotalPages = Math.ceil(songlistTotal / (result.limit || 30));
+            songlistTotalPages = songlistTotalPages || 1;
+            
+            if (result.list.length === 0) {
+                grid.innerHTML = '<div class="empty-state"><i class="fas fa-list-ul"></i><p>暂无歌单</p></div>';
+            } else {
+                renderSonglistGrid(result.list);
+            }
+            
+            updateSonglistPagination();
+        } else {
+            grid.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>加载失败</p></div>';
+        }
+    } catch (error) {
+        console.error('加载歌单列表失败:', error);
+        grid.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>加载失败: ' + error.message + '</p></div>';
+    }
+}
+
+// 渲染歌单网格
+function renderSonglistGrid(list) {
+    const grid = document.getElementById('songlistGrid');
+    
+    grid.innerHTML = list.map(item => `
+        <div class="songlist-card" onclick="openSonglistDetail('${item.id}')">
+            ${item.img 
+                ? `<img class="songlist-card-img" src="${item.img}" alt="${item.name}" onerror="this.outerHTML='<div class=\\'songlist-card-img-placeholder\\'><i class=\\'fas fa-list-ul\\'></i></div>'">`
+                : `<div class="songlist-card-img-placeholder"><i class="fas fa-list-ul"></i></div>`
+            }
+            <div class="songlist-card-content">
+                <div class="songlist-card-title" title="${item.name}">${item.name}</div>
+                <div class="songlist-card-meta">
+                    <span class="songlist-card-playcount">
+                        <i class="fas fa-play"></i> ${item.play_count || '0'}
+                    </span>
+                    ${item.author ? `<span class="songlist-card-author">${item.author}</span>` : ''}
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 更新歌单分页
+function updateSonglistPagination() {
+    const prevBtn = document.getElementById('songlistPrevBtn');
+    const nextBtn = document.getElementById('songlistNextBtn');
+    const pageInfo = document.getElementById('songlistPageInfo');
+    
+    prevBtn.disabled = songlistCurrentPage <= 1;
+    nextBtn.disabled = songlistCurrentPage >= songlistTotalPages;
+    pageInfo.textContent = `${songlistCurrentPage} / ${songlistTotalPages}`;
+}
+
+// 歌单分页切换
+function changeSonglistPage(action) {
+    if (action === 'prev' && songlistCurrentPage > 1) {
+        loadSonglistList(songlistCurrentPage - 1);
+    } else if (action === 'next' && songlistCurrentPage < songlistTotalPages) {
+        loadSonglistList(songlistCurrentPage + 1);
+    }
+}
+
+// 刷新歌单列表
+function refreshSonglistList() {
+    loadSonglistTags();
+    loadSonglistList(songlistCurrentPage);
+}
+
+// 显示歌单搜索视图
+function showSonglistSearchView() {
+    document.getElementById('songlistListView').style.display = 'none';
+    document.getElementById('songlistDetailView').style.display = 'none';
+    document.getElementById('songlistSearchView').style.display = 'block';
+    document.getElementById('songlistSearchInput').focus();
+}
+
+// 显示歌单列表视图
+function showSonglistListView() {
+    document.getElementById('songlistListView').style.display = 'block';
+    document.getElementById('songlistSearchView').style.display = 'none';
+    document.getElementById('songlistDetailView').style.display = 'none';
+}
+
+// 搜索歌单
+async function searchSonglist() {
+    const keyword = document.getElementById('songlistSearchInput').value.trim();
+    
+    if (!keyword) {
+        showNotification({ type: 'warning', message: '请输入搜索关键词' });
+        return;
+    }
+    
+    const source = document.getElementById('onlineSourceSelect').value;
+    const grid = document.getElementById('songlistSearchGrid');
+    
+    songlistSearchPage = 1;
+    grid.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>搜索中...</p></div>';
+    
+    try {
+        const result = await apiRequest('/api/online-songlist-search', 'POST', {
+            source,
+            keyword,
+            page: 1,
+            limit: 20
+        });
+        
+        if (result.success && result.list) {
+            songlistSearchTotal = result.total || result.list.length;
+            songlistSearchTotalPages = Math.ceil(songlistSearchTotal / 20) || 1;
+            
+            if (result.list.length === 0) {
+                grid.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>未找到相关歌单</p></div>';
+            } else {
+                renderSonglistSearchGrid(result.list);
+            }
+            
+            updateSonglistSearchPagination();
+        } else {
+            grid.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>搜索失败</p></div>';
+        }
+    } catch (error) {
+        console.error('搜索歌单失败:', error);
+        grid.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>搜索失败</p></div>';
+    }
+}
+
+// 渲染歌单搜索结果
+function renderSonglistSearchGrid(list) {
+    const grid = document.getElementById('songlistSearchGrid');
+    
+    grid.innerHTML = list.map(item => `
+        <div class="songlist-card" onclick="openSonglistDetail('${item.id}')">
+            ${item.img 
+                ? `<img class="songlist-card-img" src="${item.img}" alt="${item.name}" onerror="this.outerHTML='<div class=\\'songlist-card-img-placeholder\\'><i class=\\'fas fa-list-ul\\'></i></div>'">`
+                : `<div class="songlist-card-img-placeholder"><i class="fas fa-list-ul"></i></div>`
+            }
+            <div class="songlist-card-content">
+                <div class="songlist-card-title" title="${item.name}">${item.name}</div>
+                <div class="songlist-card-meta">
+                    <span class="songlist-card-playcount">
+                        <i class="fas fa-play"></i> ${item.play_count || '0'}
+                    </span>
+                    ${item.author ? `<span class="songlist-card-author">${item.author}</span>` : ''}
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 更新歌单搜索分页
+function updateSonglistSearchPagination() {
+    const prevBtn = document.getElementById('songlistSearchPrevBtn');
+    const nextBtn = document.getElementById('songlistSearchNextBtn');
+    const pageInfo = document.getElementById('songlistSearchPageInfo');
+    
+    prevBtn.disabled = songlistSearchPage <= 1;
+    nextBtn.disabled = songlistSearchPage >= songlistSearchTotalPages;
+    pageInfo.textContent = `${songlistSearchPage} / ${songlistSearchTotalPages}`;
+}
+
+// 歌单搜索分页
+function changeSonglistSearchPage(action) {
+    const keyword = document.getElementById('songlistSearchInput').value.trim();
+    const source = document.getElementById('onlineSourceSelect').value;
+    
+    if (action === 'prev' && songlistSearchPage > 1) {
+        songlistSearchPage--;
+        loadSonglistSearch(keyword, songlistSearchPage);
+    } else if (action === 'next' && songlistSearchPage < songlistSearchTotalPages) {
+        songlistSearchPage++;
+        loadSonglistSearch(keyword, songlistSearchPage);
+    }
+}
+
+// 加载歌单搜索（分页）
+async function loadSonglistSearch(keyword, page) {
+    const source = document.getElementById('onlineSourceSelect').value;
+    const grid = document.getElementById('songlistSearchGrid');
+    
+    grid.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>加载中...</p></div>';
+    
+    try {
+        const result = await apiRequest('/api/online-songlist-search', 'POST', {
+            source,
+            keyword,
+            page,
+            limit: 20
+        });
+        
+        if (result.success && result.list) {
+            if (result.list.length === 0) {
+                grid.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>未找到相关歌单</p></div>';
+            } else {
+                renderSonglistSearchGrid(result.list);
+            }
+            updateSonglistSearchPagination();
+        }
+    } catch (error) {
+        console.error('加载歌单搜索失败:', error);
+    }
+}
+
+// 打开歌单详情
+async function openSonglistDetail(id) {
+    const source = document.getElementById('onlineSourceSelect').value;
+    
+    // 显示详情视图
+    document.getElementById('songlistListView').style.display = 'none';
+    document.getElementById('songlistSearchView').style.display = 'none';
+    document.getElementById('songlistDetailView').style.display = 'block';
+    
+    const resultsDiv = document.getElementById('songlistDetailResults');
+    resultsDiv.innerHTML = '<div class="songlist-detail-empty"><i class="fas fa-spinner fa-spin"></i><p>加载歌曲中...</p></div>';
+    
+    try {
+        const result = await apiRequest('/api/online-songlist-detail', 'POST', {
+            source,
+            id
+        });
+        
+        if (result.success) {
+            // 保存当前歌单信息
+            currentSonglistDetail = {
+                source,
+                id,
+                info: result.info || {},
+                total: result.total || 0
+            };
+            currentSonglistSongs = result.list || [];
+            
+            // 更新歌单信息
+            document.getElementById('songlistDetailTitle').innerHTML = 
+                `歌单详情 <span class="count">(${result.total || 0} 首)</span>`;
+            
+            const info = result.info || {};
+            document.getElementById('songlistInfoName').textContent = info.name || '未知歌单';
+            document.getElementById('songlistInfoAuthor').textContent = info.author ? `创建者: ${info.author}` : '';
+            document.getElementById('songlistInfoDesc').textContent = info.desc || '暂无描述';
+            
+            const imgEl = document.getElementById('songlistInfoImg');
+            if (info.img) {
+                imgEl.src = info.img;
+                imgEl.style.display = 'block';
+                imgEl.onerror = function() {
+                    this.outerHTML = '<div class="songlist-info-img-placeholder"><i class="fas fa-list-ul"></i></div>';
+                };
+            } else {
+                imgEl.outerHTML = '<div class="songlist-info-img-placeholder"><i class="fas fa-list-ul"></i></div>';
+            }
+            
+            // 渲染歌曲列表
+            if (result.list && result.list.length > 0) {
+                renderSonglistSongs(result.list);
+            } else {
+                resultsDiv.innerHTML = '<div class="songlist-detail-empty"><i class="fas fa-music"></i><p>歌单为空</p></div>';
+            }
+        } else {
+            resultsDiv.innerHTML = '<div class="songlist-detail-empty"><i class="fas fa-exclamation-triangle"></i><p>加载失败</p></div>';
+        }
+    } catch (error) {
+        console.error('加载歌单详情失败:', error);
+        resultsDiv.innerHTML = '<div class="songlist-detail-empty"><i class="fas fa-exclamation-triangle"></i><p>加载失败</p></div>';
+    }
+}
+
+// 渲染歌单歌曲列表
+function renderSonglistSongs(songs) {
+    const resultsDiv = document.getElementById('songlistDetailResults');
+    const source = document.getElementById('onlineSourceSelect').value;
+    
+    resultsDiv.innerHTML = songs.map((song, index) => `
+        <div class="online-music-item" data-index="${index}" data-source="${source}" data-songid="${song.songmid || song.id || index}" data-name="${song.name || '未知歌曲'}" data-singer="${song.singer || ''}" data-album="${song.albumName || ''}" data-pic="${song.img || ''}" data-interval="${song.interval || '0'}">
+            <div class="online-music-index">${index + 1}</div>
+            <div class="online-music-info">
+                <div class="online-music-title">${song.name || '未知歌曲'}</div>
+                <div class="online-music-artist">${song.singer || '-'}</div>
+            </div>
+            <div class="online-music-album">${song.albumName || '-'}</div>
+            <div class="online-music-duration">${song.interval || '--:--'}</div>
+            <div class="online-music-actions">
+                <button onclick="event.stopPropagation(); playSonglistSong(${index})" class="online-music-play-btn" title="播放">
+                    <i class="fas fa-play"></i>
+                </button>
+                <button onclick="event.stopPropagation(); addSonglistSongToPlaylist(${index})" class="online-music-add-btn" title="添加到播放列表">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 添加歌单歌曲到播放列表
+async function addSonglistSongToPlaylist(index) {
+    const song = currentSonglistSongs[index];
+    if (!song) return;
+    
+    const source = document.getElementById('onlineSourceSelect').value;
+    
+    try {
+        const result = await apiRequest('/api/add-online-to-playlist', 'POST', {
+            source,
+            songId: song.songmid || song.id,
+            name: song.name,
+            singer: song.singer,
+            albumName: song.albumName,
+            picUrl: song.img,
+            interval: song.interval,
+            songInfo: song
+        });
+        
+        if (result.success) {
+            showNotification({ type: 'success', message: '已添加到播放列表' });
+            loadPlaylistData();
+        } else {
+            showNotification({ type: 'warning', message: result.message || '添加失败' });
+        }
+    } catch (error) {
+        console.error('添加歌曲失败:', error);
+        showNotification({ type: 'error', message: '添加失败' });
+    }
+}
+
+// 播放歌单歌曲
+async function playSonglistSong(index) {
+    const song = currentSonglistSongs[index];
+    if (!song) return;
+    
+    const source = document.getElementById('onlineSourceSelect').value;
+    
+    showNotification({ type: 'info', message: '正在获取播放链接...' });
+    
+    try {
+        const response = await fetch('/api/play-online', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                source: source,
+                songId: song.songmid || song.id,
+                name: song.name,
+                singer: song.singer,
+                albumName: song.albumName || '',
+                picUrl: song.img || '',
+                interval: song.interval || '',
+                songInfo: song
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification({ type: 'success', message: `正在播放：${song.name}` });
+            const playlistResult = await apiRequest('/api/playlist');
+            if (playlistResult.playlist) {
+                currentPlaylist = playlistResult.playlist;
+                renderPlaylist();
+            }
+            await syncStatusWithServer();
+            updateProgressBar();
+        } else {
+            showNotification({ type: 'error', message: result.message || '播放失败' });
+        }
+    } catch (error) {
+        console.error('播放歌曲失败:', error);
+        showNotification({ type: 'error', message: '播放失败' });
+    }
+}
+
+// 播放全部歌单歌曲
+async function playAllSonglistSongs() {
+    if (currentSonglistSongs.length === 0) return;
+    
+    const source = document.getElementById('onlineSourceSelect').value;
+    
+    try {
+        // 清空当前播放列表
+        await apiRequest('/api/clear-playlist', 'POST');
+        
+        // 逐个添加歌曲
+        for (let i = 0; i < currentSonglistSongs.length; i++) {
+            const song = currentSonglistSongs[i];
+            await apiRequest('/api/add-online-to-playlist', 'POST', {
+                source,
+                songId: song.songmid || song.id,
+                name: song.name,
+                singer: song.singer,
+                albumName: song.albumName,
+                picUrl: song.img,
+                interval: song.interval,
+                songInfo: song
+            });
+        }
+        
+        // 播放第一首
+        await apiRequest('/api/play/0');
+        
+        loadPlaylistData();
+        showNotification({ type: 'success', message: `已添加 ${currentSonglistSongs.length} 首歌曲到播放列表` });
+    } catch (error) {
+        console.error('播放全部失败:', error);
+        showNotification({ type: 'error', message: '播放失败' });
+    }
+}
 
 

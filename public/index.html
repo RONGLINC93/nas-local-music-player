@@ -111,6 +111,9 @@
                     <div class="online-tabs">
                         <button class="online-tab active" id="tabRank" onclick="switchOnlineTab('rank')">
                             <i class="fas fa-chart-line"></i> 排行榜
+                        </button>                        
+                        <button class="online-tab" id="tabSonglist" onclick="switchOnlineTab('songlist')">
+                            <i class="fas fa-list-ul"></i> 歌单
                         </button>
                         <button class="online-tab" id="tabSearch" onclick="switchOnlineTab('search')">
                             <i class="fas fa-search"></i> 搜索
@@ -198,6 +201,114 @@
                                 <i class="fas fa-globe"></i>
                                 <p>输入关键词搜索在线音乐</p>
                                 <p class="empty-hint">支持酷我、酷狗、QQ音乐、网易云、咪咕等音乐源</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- 歌单区域 -->
+                    <section class="online-songlist-section" id="onlineSonglistSection" style="display: none;">
+                        <!-- 歌单列表视图 -->
+                        <div id="songlistListView">
+                            <div class="section-header">
+                                <div class="songlist-filters">
+                                    <select id="songlistSortSelect" class="songlist-select" onchange="loadSonglistList()">
+                                        <option value="hot">最热</option>
+                                        <option value="new">最新</option>
+                                        <option value="5">推荐</option>
+                                        <option value="6">热藏</option>
+                                        <option value="8">飙升</option>
+                                    </select>
+                                    <select id="songlistTagSelect" class="songlist-select songlist-tag-select" onchange="loadSonglistList()">
+                                        <option value="">全部分类</option>
+                                    </select>
+                                </div>
+                                <div class="songlist-header-actions">
+                                    <button onclick="showSonglistSearchView()" class="songlist-search-btn" title="搜索歌单">
+                                        <i class="fas fa-search"></i>
+                                    </button>
+                                    <!-- 歌单分页 -->
+                            <div class="online-pagination" id="songlistPagination">
+                                <button class="online-pagination-btn" onclick="changeSonglistPage('prev')" id="songlistPrevBtn" disabled>
+                                    <i class="fas fa-chevron-left"></i>
+                                </button>
+                                <span class="online-pagination-info" id="songlistPageInfo">1 / 1</span>
+                                <button class="online-pagination-btn" onclick="changeSonglistPage('next')" id="songlistNextBtn" disabled>
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
+                                    <button onclick="refreshSonglistList()" class="songlist-refresh-btn" title="刷新歌单">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <!-- 歌单列表 -->
+                            <div class="songlist-grid" id="songlistGrid">
+                                <div class="empty-state">
+                                    <i class="fas fa-list-ul"></i>
+                                    <p>加载歌单中...</p>
+                                </div>
+                            </div>                            
+                        </div>
+
+                        <!-- 歌单搜索视图 -->
+                        <div id="songlistSearchView" style="display: none;">
+                            <div class="section-header">
+                                <div class="songlist-search-bar">
+                                    <div class="songlist-search-wrapper">
+                                        <input type="text" id="songlistSearchInput" class="songlist-search-input" placeholder="搜索歌单..." onkeypress="if(event.key==='Enter')searchSonglist()">
+                                        <button onclick="searchSonglist()" class="songlist-search-btn-inner">
+                                            <i class="fas fa-search"></i>
+                                        </button>
+                                    </div>
+                                    <button onclick="showSonglistListView()" class="songlist-back-btn">
+                                        <i class="fas fa-arrow-left"></i> 返回
+                                    </button>
+                                </div>
+                            </div>
+                            <!-- 搜索结果 -->
+                            <div class="songlist-grid" id="songlistSearchGrid">
+                                <div class="empty-state">
+                                    <i class="fas fa-search"></i>
+                                    <p>输入关键词搜索歌单</p>
+                                </div>
+                            </div>
+                            <div class="online-pagination" id="songlistSearchPagination">
+                                <button class="online-pagination-btn" onclick="changeSonglistSearchPage('prev')" id="songlistSearchPrevBtn" disabled>
+                                    <i class="fas fa-chevron-left"></i>
+                                </button>
+                                <span class="online-pagination-info" id="songlistSearchPageInfo">1 / 1</span>
+                                <button class="online-pagination-btn" onclick="changeSonglistSearchPage('next')" id="songlistSearchNextBtn" disabled>
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 歌单详情视图 -->
+                        <div id="songlistDetailView" style="display: none;">
+                            <div class="section-header">
+                                <button onclick="showSonglistListView()" class="songlist-back-btn">
+                                    <i class="fas fa-arrow-left"></i> 返回歌单
+                                </button>
+                                <h2 id="songlistDetailTitle">歌单详情 <span class="count" id="songlistDetailCount"></span></h2>
+                                <button onclick="playAllSonglistSongs()" class="songlist-playall-btn" id="songlistPlayAllBtn">
+                                    <i class="fas fa-play"></i> 播放全部
+                                </button>
+                            </div>
+                            <!-- 歌单信息 -->
+                            <div class="songlist-info" id="songlistInfo">
+                                <img id="songlistInfoImg" class="songlist-info-img" src="" alt="">
+                                <div class="songlist-info-text">
+                                    <h3 id="songlistInfoName"></h3>
+                                    <p id="songlistInfoAuthor"></p>
+                                    <p id="songlistInfoDesc" class="songlist-info-desc"></p>
+                                </div>
+                            </div>
+                            <!-- 歌曲列表 -->
+                            <div class="songlist-detail-results" id="songlistDetailResults">
+                                <div class="songlist-detail-empty">
+                                    <i class="fas fa-music"></i>
+                                    <p>加载歌曲中...</p>
+                                </div>
                             </div>
                         </div>
                     </section>

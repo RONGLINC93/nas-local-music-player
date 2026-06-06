@@ -16,6 +16,9 @@ const ffmpeg = require('fluent-ffmpeg');
 const userApi = require('./server/userApi');
 const customSourceHandlers = require('./server/customSourceHandlers');
 
+// 在线歌单模块
+const songList = require('./server/songList');
+
 const app = express();
 const PORT = process.env.PORT || 9524;
 
@@ -6687,6 +6690,124 @@ app.post('/api/online-play-url', async (req, res) => {
         });
     } catch (error) {
         console.error('获取播放链接失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 获取歌单标签
+app.post('/api/online-songlist-tags', async (req, res) => {
+    try {
+        const { source } = req.body;
+        
+        if (!source) {
+            return res.status(400).json({ success: false, error: '缺少音源参数' });
+        }
+        
+        const tags = await songList.getTags(source);
+        
+        res.json({
+            success: true,
+            tags: tags.tags || [],
+            hotTag: tags.hotTag || [],
+            source
+        });
+    } catch (error) {
+        console.error('获取歌单标签失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 获取歌单列表
+app.post('/api/online-songlist-list', async (req, res) => {
+    try {
+        const { source, sortId, tagId, page = 1 } = req.body;
+        
+        if (!source) {
+            return res.status(400).json({ success: false, error: '缺少音源参数' });
+        }
+        
+        const result = await songList.getList(source, sortId, tagId, page);
+        
+        res.json({
+            success: true,
+            list: result.list,
+            total: result.total,
+            page: result.page,
+            limit: result.limit,
+            source
+        });
+    } catch (error) {
+        console.error('获取歌单列表失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 获取歌单详情
+app.post('/api/online-songlist-detail', async (req, res) => {
+    try {
+        const { source, id, page = 1 } = req.body;
+        
+        if (!source || !id) {
+            return res.status(400).json({ success: false, error: '缺少参数' });
+        }
+        
+        const result = await songList.getListDetail(source, id, page);
+        
+        res.json({
+            success: true,
+            list: result.list,
+            total: result.total,
+            page: result.page,
+            limit: result.limit,
+            info: result.info,
+            source
+        });
+    } catch (error) {
+        console.error('获取歌单详情失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 搜索歌单
+app.post('/api/online-songlist-search', async (req, res) => {
+    try {
+        const { source, keyword, page = 1, limit = 20 } = req.body;
+        
+        if (!source || !keyword) {
+            return res.status(400).json({ success: false, error: '缺少参数' });
+        }
+        
+        const result = await songList.search(source, keyword, page, limit);
+        
+        res.json({
+            success: true,
+            list: result.list,
+            total: result.total,
+            page,
+            limit,
+            source
+        });
+    } catch (error) {
+        console.error('搜索歌单失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 获取支持的歌单音源列表
+app.get('/api/online-songlist-sources', (req, res) => {
+    try {
+        const sources = songList.getSources().map(sourceId => ({
+            id: sourceId,
+            name: ONLINE_SOURCES.find(s => s.id === sourceId)?.name || sourceId,
+            sortList: songList.getSortList(sourceId)
+        }));
+        
+        res.json({
+            success: true,
+            sources
+        });
+    } catch (error) {
+        console.error('获取歌单音源列表失败:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });

@@ -1,5 +1,55 @@
 [
   {
+    "title": "12.31",
+    "artist": "郑润泽",
+    "album": "12.31",
+    "duration": 254,
+    "path": "online://wy/3388509025",
+    "playUrl": "http://m701.music.126.net/20260606221059/1687d6dfcd3f1332ea316ef02262a0b9/jdymusic/obj/wo3DlMOGwrbDjj7DisKw/80587394035/5a00/45fc/41f1/b3f2aa2e57bc34d7154cf8ad1dc39e45.mp3?vuutv=R4QBWKqE3jN2eHzfya4ZJYC/mgx3K16t+596cpqoBeq5oSNxSV6xKzsrFDa2CsR+vun41GlOCV1RD/RW4nt6zQGz0ir8QSKxhqYGGybpPtJAE/8HlfWjbgetaTu/z0XeXH4Zn6m3uNsRK7A21lcmZg==&cdntag=bWFyaz1vc193ZWIscXVhbGl0eV9zdGFuZGFyZA",
+    "picUrl": "https://p1.music.126.net/yXVhyEsDocNo9YUapxwaVA==/109951173311841082.jpg",
+    "source": "wy",
+    "sourceName": "网易云音乐",
+    "isOnline": true,
+    "songInfo": {
+      "songId": "3388509025",
+      "name": "12.31",
+      "singer": "郑润泽",
+      "albumName": "12.31",
+      "albumId": "379339465",
+      "interval": 254,
+      "picUrl": "https://p1.music.126.net/yXVhyEsDocNo9YUapxwaVA==/109951173311841082.jpg",
+      "source": "wy",
+      "quality": "128",
+      "sourceName": "网易云音乐",
+      "globalIndex": 0
+    }
+  },
+  {
+    "title": "玻璃",
+    "artist": "Gareth.T",
+    "album": "玻璃",
+    "duration": 185,
+    "path": "online://wy/3382908505",
+    "playUrl": "http://m701.music.126.net/20260606221108/61174aba708fdb31ad5abaa38f7df381/jdymusic/obj/wo3DlMOGwrbDjj7DisKw/80273710388/9d3a/2a5a/1b09/85ba75b572cdc96e6f613d7d82e62b6e.mp3?vuutv=DRmpAHwSZqJY1VdOGvgs59ZCDioDa9czA6dsuU3bIM+AAKvjzYL23WGhcS6TDJwl5du6LrH6LO/hhQgkdgi5kRmzyNmJxp4iZroWMcjr9sN3Gs7X3/syVOtIcHpA+8NNeKP9ZMzYVHZ74uEW0F6nFw==&cdntag=bWFyaz1vc193ZWIscXVhbGl0eV9zdGFuZGFyZA",
+    "picUrl": "https://p1.music.126.net/MSKoQP60up7v3y1P1d3JIQ==/109951173234747322.jpg",
+    "source": "wy",
+    "sourceName": "网易云音乐",
+    "isOnline": true,
+    "songInfo": {
+      "songId": "3382908505",
+      "name": "玻璃",
+      "singer": "Gareth.T",
+      "albumName": "玻璃",
+      "albumId": "376798712",
+      "interval": 185,
+      "picUrl": "https://p1.music.126.net/MSKoQP60up7v3y1P1d3JIQ==/109951173234747322.jpg",
+      "source": "wy",
+      "quality": "128",
+      "sourceName": "网易云音乐",
+      "globalIndex": 1
+    }
+  },
+  {
     "title": "毛不易-爱啊.flac",
     "artist": "未知艺术家",
     "album": "未知专辑",
@@ -190,5 +240,48 @@
     "duration": 0,
     "path": "D:\\Desktop\\nas-local-music-player\\music\\毛不易\\毛不易&周深-家乡人.flac",
     "filename": "毛不易&周深-家乡人.flac"
+  },
+  {
+    "title": "岁月如笔写春秋 (Cover 河南三妹5233)",
+    "artist": "蔡蔡",
+    "album": "",
+    "duration": 248,
+    "path": "online://wy/3387284569",
+    "playUrl": "http://m701.music.126.net/20260606221225/f2a0f94416be054fc2c88be48a3f8dc4/jdymusic/obj/wo3DlMOGwrbDjj7DisKw/80517054893/1139/d15f/8764/d16f750368a1a7ec34596dd28118f2e3.mp3?vuutv=8QG3yxCppzZacKVD60U8YUhgaTA87srMrSLDL2XFuT/Oy3VHTBwVllORY6KHnNJiPT2QlBKJiu5bZjYICdQlqa34KsIDksit44PWGqJiiLo0IcJuu2ys9gse1kkE0j1m8tZT8Pdft06u/8RSthL01Q==&cdntag=bWFyaz1vc193ZWIscXVhbGl0eV9zdGFuZGFyZA",
+    "picUrl": "http://p1.music.126.net/FhGbLawJV2YYmIHKqO8iCw==/109951173294010099.jpg",
+    "source": "wy",
+    "sourceName": "网易云音乐",
+    "isOnline": true,
+    "songInfo": {
+      "songId": "3387284569",
+      "name": "岁月如笔写春秋 (Cover 河南三妹5233)",
+      "singer": "蔡蔡",
+      "albumName": ""
+    }
+  },
+  {
+    "title": "一半一半",
+    "artist": "Top Barry/INDEcompany",
+    "album": "一半一半",
+    "duration": 235,
+    "path": "online://wy/3333988321",
+    "playUrl": "http://m701.music.126.net/20260606221739/a8c3c434c72a1b578e94f4203775b23d/jdymusic/obj/wo3DlMOGwrbDjj7DisKw/77463886600/e85f/691e/c49d/64912a1051ffafea99f8185c05ef7033.mp3?vuutv=BJ2u/96wodkH9TFSRSZwQVBFhsQUJ6WrpS+YrFwWsd/dr4k9/QfbfWBOB/phaLZnfgBQpoMV5GzVqMZhw5819x3bf6kTU+8ph5DPYPIog08UIowrjfuK+m9K6jvcs+3L3Spvvmiow4B2dRBuq2OiIw==&cdntag=bWFyaz1vc193ZWIscXVhbGl0eV9zdGFuZGFyZA",
+    "picUrl": "https://p2.music.126.net/EgbPD3CwVQojZ4OWse4YrA==/109951172511748152.jpg",
+    "source": "wy",
+    "sourceName": "网易云音乐",
+    "isOnline": true,
+    "songInfo": {
+      "songId": "3333988321",
+      "name": "一半一半",
+      "singer": "Top Barry/INDEcompany",
+      "albumName": "一半一半",
+      "albumId": "356555705",
+      "interval": 235,
+      "picUrl": "https://p2.music.126.net/EgbPD3CwVQojZ4OWse4YrA==/109951172511748152.jpg",
+      "source": "wy",
+      "quality": "128",
+      "sourceName": "网易云音乐",
+      "globalIndex": 8
+    }
   }
 ]

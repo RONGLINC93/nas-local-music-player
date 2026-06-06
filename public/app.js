@@ -2258,6 +2258,13 @@ function closeAboutModal() {
 
 // 打开更新模态框
 function openUpdateModal() {
+    // 检查是否为本地访问（127.0.0.1），如果是则禁用更新功能
+    const currentHost = window.location.hostname;
+    if (currentHost === '127.0.0.1' || currentHost === 'localhost') {
+        showNotification({ type: 'info', message: '本地运行时禁用手动更新功能' });
+        return;
+    }
+    
     const modal = document.getElementById('updateModal');
     if (!modal) {
         console.error('更新模态框未找到');
@@ -2538,6 +2545,16 @@ async function checkUpdate() {
     
     if (!statusMsg || !btnCheck) {
         console.error('检查更新元素未找到');
+        return;
+    }
+    
+    // 检查是否为本地访问（127.0.0.1），如果是则禁用更新功能
+    const currentHost = window.location.hostname;
+    if (currentHost === '127.0.0.1' || currentHost === 'localhost') {
+        statusMsg.className = 'update-status-msg info';
+        statusMsg.style.display = 'block';
+        statusMsg.innerHTML = '<i class="fas fa-info-circle"></i> 本地运行时禁用自动更新功能';
+        showNotification({ type: 'info', message: '本地运行时禁用自动更新功能' });
         return;
     }
     
@@ -6939,8 +6956,31 @@ async function applySelectedSources() {
 }
 
 // 删除音源文件
-async function deleteSourceFile(filename) {
-    if (!confirm(`确定要删除音源文件 "${filename}" 吗？`)) {
+let pendingSourceFileToDelete = null;
+
+function deleteSourceFile(filename) {
+    pendingSourceFileToDelete = filename;
+    document.getElementById('deleteSourceFileName').textContent = `"${filename}"`;
+    const modal = document.getElementById('deleteSourceFileModal');
+    if (modal) {
+        modal.classList.add('show');
+    }
+}
+
+// 关闭删除音源文件模态框
+function closeDeleteSourceFileModal() {
+    pendingSourceFileToDelete = null;
+    const modal = document.getElementById('deleteSourceFileModal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
+}
+
+// 确认删除音源文件
+async function confirmDeleteSourceFile() {
+    const filename = pendingSourceFileToDelete;
+    if (!filename) {
+        closeDeleteSourceFileModal();
         return;
     }
     
@@ -6959,6 +6999,8 @@ async function deleteSourceFile(filename) {
         }
     } catch (error) {
         showNotification({ type: 'error', message: '删除失败' });
+    } finally {
+        closeDeleteSourceFileModal();
     }
 }
 

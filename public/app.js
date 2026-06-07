@@ -7451,7 +7451,7 @@ async function loadSonglistList(page = 1) {
             songlistTotalPages = songlistTotalPages || 1;
             
             if (result.list.length === 0) {
-                grid.innerHTML = '<div class="empty-state"><i class="fas fa-list-ul"></i><p>暂无歌单</p></div>';
+                grid.innerHTML = '<div class="songlist-empty"><i class="fas fa-list-ul"></i><p>暂无歌单</p><p class="empty-hint">点击刷新按钮重新加载</p></div>';
             } else {
                 renderSonglistGrid(result.list);
             }

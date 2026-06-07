@@ -2137,6 +2137,55 @@ body {
     border: 1px solid rgba(14, 165, 233, 0.15);
 }
 
+/* 歌单空状态样式 */
+.songlist-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 120px 20px;
+    text-align: center;
+    background: linear-gradient(135deg, #fdf4ff 0%, #fae8ff 100%);
+    border-radius: 16px;
+    border: 1px solid rgba(192, 132, 252, 0.2);
+}
+
+.songlist-empty i {
+    font-size: 72px;
+    margin-bottom: 24px;
+    background: linear-gradient(135deg, #c084fc 0%, #a855f7 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: songlistFloat 3s ease-in-out infinite;
+}
+
+@keyframes songlistFloat {
+    0%, 100% {
+        transform: translateY(0px) scale(1);
+    }
+    50% {
+        transform: translateY(-10px) scale(1.05);
+    }
+}
+
+.songlist-empty p:first-of-type {
+    font-size: 18px;
+    font-weight: 600;
+    color: #6b21a8;
+    margin-bottom: 12px;
+}
+
+.songlist-empty .empty-hint {
+    font-size: 14px;
+    color: #7c3aed;
+    padding: 12px 20px;
+    background: rgba(168, 85, 247, 0.08);
+    border-radius: 8px;
+    max-width: 300px;
+    border: 1px solid rgba(168, 85, 247, 0.15);
+}
+
 .playlist-item {
     display: flex;
     align-items: center;

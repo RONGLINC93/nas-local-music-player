@@ -120,16 +120,6 @@
                         </button>
                     </div>
                     
-                    <!-- 搜索区域（默认隐藏） -->
-                    <div class="online-search-bar" id="onlineSearchBar" style="display: none;">
-                        <div class="online-search-wrapper">
-                            <input type="text" id="onlineSearchInput" class="online-search-input" placeholder="搜索在线音乐..." onkeypress="if(event.key==='Enter')searchOnlineMusic()">
-                            <button onclick="searchOnlineMusic()" class="online-search-btn">
-                                <i class="fas fa-search"></i>
-                            </button>
-                        </div>
-                    </div>
-                    
                     <!-- 音源选择（靠右） -->
                     <div class="online-source-bar">
                         <select id="onlineSourceSelect" class="online-source-select" onchange="onSourceChange()">
@@ -146,20 +136,17 @@
                 <div class="content-area">
                     <!-- 排行榜区域 -->
                     <section class="online-rank-section" id="onlineRankSection">
-                        <div class="section-header">
-                            <div class="rank-type-container">
+                        <div class="section-header rank-header">
+                            <div class="rank-header-row rank-header-row-top">
                                 <select id="rankTypeSelect" class="rank-type-select" onchange="loadRankList()">
                                     <option value="hot">热门榜</option>
                                     <option value="new">新歌榜</option>
                                     <option value="soaring">飙升榜</option>
                                     <option value="original">原创榜</option>
                                 </select>   
-                                <span class="count" id="rankCount">(0 首)</span> <!-- 刷新按钮 -->
-                                 <button onclick="refreshRankList()" class="rank-refresh-btn" title="刷新排行榜">
-                                    <i class="fas fa-refresh"></i>
-                                </button></div>
-                            <div class="rank-controls">
-                                                            
+                                <span class="count" id="rankCount">(0 首)</span>
+                            </div>
+                            <div class="rank-header-row rank-header-row-bottom">
                                 <!-- 排行榜分页 -->
                                 <div class="online-pagination" id="rankPagination" style="display: none;">
                                     <button id="rankPrevBtn" class="online-pagination-btn" onclick="changeRankPage('prev')" disabled>
@@ -170,7 +157,9 @@
                                         <i class="fas fa-chevron-right"></i>
                                     </button>
                                 </div>
-                               
+                                <button onclick="refreshRankList()" class="rank-refresh-btn" title="刷新排行榜">
+                                    <i class="fas fa-refresh"></i>
+                                </button>
                             </div>
                         </div>
                         <div class="online-results" id="rankResults">
@@ -184,19 +173,30 @@
                     <!-- 搜索结果区域（默认隐藏） -->
                     <section class="online-results-section" id="onlineResultsSection" style="display: none;">
                         <div class="section-header">
-                            <h2>搜索结果 <span class="count" id="onlineCount">(0 首)</span></h2>
-                            <!-- 在线搜索结果分页 -->
-                            <div class="online-pagination" id="onlinePagination" style="display: none;">
-                                <button class="online-pagination-btn" onclick="changeOnlinePage('prev')" id="onlinePrevBtn">
-                                    <i class="fas fa-chevron-left"></i>
-                                </button>
-                                <span class="online-pagination-info" id="onlinePageInfo"></span>
-                                <button class="online-pagination-btn" onclick="changeOnlinePage('next')" id="onlineNextBtn">
-                                    <i class="fas fa-chevron-right"></i>
-                                </button>
+                            <!-- 搜索框 -->
+                            <div class="online-search-bar" id="onlineSearchBar">
+                                <div class="online-search-wrapper">
+                                    <input type="text" id="onlineSearchInput" class="online-search-input" placeholder="搜索在线音乐..." onkeypress="if(event.key==='Enter')searchOnlineMusic()">
+                                    <button onclick="searchOnlineMusic()" class="online-search-btn">
+                                        <i class="fas fa-search"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="search-result-header">
+                                <h2>搜索结果 <span class="count" id="onlineCount">(0 首)</span></h2>
+                                <!-- 在线搜索结果分页 -->
+                                <div class="online-pagination" id="onlinePagination" style="display: none;">
+                                    <button class="online-pagination-btn" onclick="changeOnlinePage('prev')" id="onlinePrevBtn">
+                                        <i class="fas fa-chevron-left"></i>
+                                    </button>
+                                    <span class="online-pagination-info" id="onlinePageInfo"></span>
+                                    <button class="online-pagination-btn" onclick="changeOnlinePage('next')" id="onlineNextBtn">
+                                        <i class="fas fa-chevron-right"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        <div class="online-results" id="onlineResults">
+                        <div class="online-search-results" id="onlineResults">
                             <div class="empty-state">
                                 <i class="fas fa-globe"></i>
                                 <p>输入关键词搜索在线音乐</p>
@@ -209,8 +209,8 @@
                     <section class="online-songlist-section" id="onlineSonglistSection" style="display: none;">
                         <!-- 歌单列表视图 -->
                         <div id="songlistListView">
-                            <div class="section-header">
-                                <div class="songlist-filters">
+                            <div class="section-header songlist-header">
+                                <div class="songlist-header-row songlist-header-row-top">
                                     <select id="songlistSortSelect" class="songlist-select" onchange="loadSonglistList()">
                                         <option value="hot">最热</option>
                                         <option value="new">最新</option>
@@ -221,21 +221,21 @@
                                     <select id="songlistTagSelect" class="songlist-select songlist-tag-select" onchange="loadSonglistList()">
                                         <option value="">全部分类</option>
                                     </select>
-                                </div>
-                                <div class="songlist-header-actions">
                                     <button onclick="showSonglistSearchView()" class="songlist-search-btn" title="搜索歌单">
                                         <i class="fas fa-search"></i>
                                     </button>
+                                </div>
+                                <div class="songlist-header-row songlist-header-row-bottom">
                                     <!-- 歌单分页 -->
-                            <div class="online-pagination" id="songlistPagination">
-                                <button class="online-pagination-btn" onclick="changeSonglistPage('prev')" id="songlistPrevBtn" disabled>
-                                    <i class="fas fa-chevron-left"></i>
-                                </button>
-                                <span class="online-pagination-info" id="songlistPageInfo">1 / 1</span>
-                                <button class="online-pagination-btn" onclick="changeSonglistPage('next')" id="songlistNextBtn" disabled>
-                                    <i class="fas fa-chevron-right"></i>
-                                </button>
-                            </div>
+                                    <div class="online-pagination" id="songlistPagination">
+                                        <button class="online-pagination-btn" onclick="changeSonglistPage('prev')" id="songlistPrevBtn" disabled>
+                                            <i class="fas fa-chevron-left"></i>
+                                        </button>
+                                        <span class="online-pagination-info" id="songlistPageInfo">1 / 1</span>
+                                        <button class="online-pagination-btn" onclick="changeSonglistPage('next')" id="songlistNextBtn" disabled>
+                                            <i class="fas fa-chevron-right"></i>
+                                        </button>
+                                    </div>
                                     <button onclick="refreshSonglistList()" class="songlist-refresh-btn" title="刷新歌单">
                                         <i class="fas fa-sync-alt"></i>
                                     </button>
@@ -284,14 +284,14 @@
                         </div>
 
                         <!-- 歌单详情视图 -->
-                        <div id="songlistDetailView" style="display: none;">
+                        <div id="songlistDetailView" style="display: none;" class="songlist-detail-view">
                             <div class="section-header">
                                 <button onclick="showSonglistListView()" class="songlist-back-btn">
-                                    <i class="fas fa-arrow-left"></i> 返回歌单
+                                    <i class="fas fa-arrow-left"></i> <span>返回歌单</span>
                                 </button>
                                 <h2 id="songlistDetailTitle">歌单详情 <span class="count" id="songlistDetailCount"></span></h2>
                                 <button onclick="playAllSonglistSongs()" class="songlist-playall-btn" id="songlistPlayAllBtn">
-                                    <i class="fas fa-play"></i> 播放全部
+                                    <i class="fas fa-play"></i> <span>播放全部</span>
                                 </button>
                             </div>
                             <!-- 歌单信息 -->
@@ -1871,6 +1871,22 @@
                     <i class="fas fa-trash"></i> 确认清除
                 </button>
             </div>
+        </div>
+    </div>
+
+    <!-- 在线音乐全局上下文菜单 -->
+    <div id="onlineContextMenu" class="online-context-menu">
+        <div class="online-context-menu-item" onclick="onlineMenuPlay()">
+            <i class="fas fa-play"></i>
+            <span>播放</span>
+        </div>
+        <div class="online-context-menu-item" onclick="onlineMenuDownload()">
+            <i class="fas fa-download"></i>
+            <span>下载</span>
+        </div>
+        <div class="online-context-menu-item" onclick="onlineMenuAddToPlaylist()">
+            <i class="fas fa-plus"></i>
+            <span>添加到播放列表</span>
         </div>
     </div>
 

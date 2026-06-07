@@ -1472,7 +1472,7 @@ function searchMusic(keyword) {
     countEl.textContent = `(${filtered.length} 首)`;
     
     if (filtered.length === 0) {
-        playlistEl.innerHTML = '<div class="loading">未找到匹配的音乐</div>';
+        playlistEl.innerHTML = '<div class="playlist-no-match"><i class="fas fa-search"></i><p>未找到匹配的音乐</p><p class="empty-hint">请尝试其他关键词搜索</p></div>';
         return;
     }
     
@@ -6137,7 +6137,6 @@ function switchOnlineTab(tab) {
     const rankSection = document.getElementById('onlineRankSection');
     const searchSection = document.getElementById('onlineResultsSection');
     const songlistSection = document.getElementById('onlineSonglistSection');
-    const searchBar = document.getElementById('onlineSearchBar');
     
     if (tab === 'rank') {
         rankTab.classList.add('active');
@@ -6146,7 +6145,6 @@ function switchOnlineTab(tab) {
         rankSection.style.display = 'block';
         searchSection.style.display = 'none';
         songlistSection.style.display = 'none';
-        searchBar.style.display = 'none';
         
         // 检查缓存，如果有就直接显示
         const rankType = document.getElementById('rankTypeSelect').value;
@@ -6165,7 +6163,6 @@ function switchOnlineTab(tab) {
         searchSection.style.display = 'block';
         rankSection.style.display = 'none';
         songlistSection.style.display = 'none';
-        searchBar.style.display = 'flex';
     } else if (tab === 'songlist') {
         songlistTab.classList.add('active');
         rankTab.classList.remove('active');
@@ -6173,7 +6170,6 @@ function switchOnlineTab(tab) {
         songlistSection.style.display = 'block';
         rankSection.style.display = 'none';
         searchSection.style.display = 'none';
-        searchBar.style.display = 'none';
         
         // 加载歌单列表
         if (!songlistLoaded) {
@@ -6420,10 +6416,17 @@ function renderRankResults() {
                     <button class="online-play-btn" onclick="playOnlineSong('${cacheKey}')" title="播放">
                         <i class="fas fa-play"></i>
                     </button>
+                    <button class="online-download-btn" onclick="downloadOnlineSong('${cacheKey}')" title="下载">
+                        <i class="fas fa-download"></i>
+                    </button>
                     <button class="online-add-btn" onclick="addToPlaylistFromOnline('${cacheKey}')" title="添加到播放列表">
                         <i class="fas fa-plus"></i>
                     </button>
                 </div>
+                <!-- 移动端菜单按钮 - 使用全局菜单 -->
+                <button class="online-item-menu-btn" onclick="event.stopPropagation(); toggleOnlineItemMenu(event, '${cacheKey}')" title="更多">
+                    <i class="fas fa-ellipsis-v"></i>
+                </button>
             </div>`;
     });
     
@@ -6567,10 +6570,17 @@ function renderOnlineResults() {
                     <button class="online-play-btn" onclick="playOnlineSong('${cacheKey}')" title="播放">
                         <i class="fas fa-play"></i>
                     </button>
+                    <button class="online-download-btn" onclick="downloadOnlineSong('${cacheKey}')" title="下载">
+                        <i class="fas fa-download"></i>
+                    </button>
                     <button class="online-add-btn" onclick="addToPlaylistFromOnline('${cacheKey}')" title="添加到播放列表">
                         <i class="fas fa-plus"></i>
                     </button>
                 </div>
+                <!-- 移动端菜单按钮 - 使用全局菜单 -->
+                <button class="online-item-menu-btn" onclick="event.stopPropagation(); toggleOnlineItemMenu(event, '${cacheKey}')" title="更多">
+                    <i class="fas fa-ellipsis-v"></i>
+                </button>
             </div>
         `;
     });
@@ -6617,6 +6627,201 @@ async function addToPlaylistFromOnline(cacheKey) {
     } catch (error) {
         console.error('添加失败:', error);
         showNotification({ type: 'error', message: '添加失败，请重试' });
+    }
+}
+
+// 下载在线音乐
+async function downloadOnlineSong(cacheKey) {
+    const song = onlineSongCache[cacheKey];
+    if (!song) {
+        showNotification({ type: 'error', message: '歌曲信息丢失，请重新搜索' });
+        return;
+    }
+    
+    showNotification({ type: 'info', message: `正在获取下载链接...` });
+    
+    try {
+        const response = await fetch('/api/download-online', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                source: song.source,
+                songId: song.songId,
+                name: song.name,
+                singer: song.singer,
+                albumName: song.albumName || '',
+                // 传递完整的歌曲信息给自定义音源
+                songInfo: song
+            })
+        });
+        
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            const artistName = song.singer ? `${song.singer} - ` : '';
+            link.download = `${artistName}${song.name}.mp3`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+            
+            showNotification({ type: 'success', message: `下载完成：${song.name}` });
+        } else {
+            const result = await response.json();
+            showNotification({ type: 'error', message: result.error || '下载失败' });
+        }
+    } catch (error) {
+        console.error('下载失败:', error);
+        showNotification({ type: 'error', message: '下载失败，请重试' });
+    }
+}
+
+// 当前选中的在线音乐项
+let currentOnlineMenuKey = null;
+
+// 切换在线音乐项菜单显示 - 使用全局上下文菜单
+function toggleOnlineItemMenu(event, cacheKey) {
+    event.stopPropagation();
+    
+    const menu = document.getElementById('onlineContextMenu');
+    
+    // 如果点击的是同一个菜单按钮，则只关闭
+    if (currentOnlineMenuKey === cacheKey && menu.classList.contains('show')) {
+        closeOnlineContextMenu();
+        return;
+    }
+    
+    currentOnlineMenuKey = cacheKey;
+    
+    // 获取鼠标位置
+    const mouseX = event.clientX;
+    const mouseY = event.clientY;
+    
+    // 获取菜单尺寸
+    const menuWidth = menu.offsetWidth || 160;
+    const menuHeight = menu.offsetHeight || 120;
+    
+    // 计算菜单位置（以鼠标为基准，菜单显示在鼠标下方）
+    let left = mouseX;
+    let top = mouseY + 10; // 鼠标下方10px
+    
+        menu.style.top = `${top}px`;
+    menu.style.left = `${left - menuWidth - 10 - window.scrollX}px`;
+    menu.classList.add('show');
+
+
+    // 点击其他地方关闭菜单
+    setTimeout(() => {
+        document.addEventListener('click', closeOnlineContextMenu, { once: true });
+    }, 0);
+}
+
+// 关闭在线音乐上下文菜单
+function closeOnlineContextMenu() {
+    const menu = document.getElementById('onlineContextMenu');
+    menu.classList.remove('show');
+    currentOnlineMenuKey = null;
+}
+
+// 在线菜单 - 播放
+function onlineMenuPlay() {
+    closeOnlineContextMenu();
+    if (currentOnlineMenuKey && currentOnlineMenuKey.startsWith('songlist_')) {
+        const index = parseInt(currentOnlineMenuKey.replace('songlist_', ''));
+        playSonglistSong(index);
+    } else if (currentOnlineMenuKey) {
+        playOnlineSong(currentOnlineMenuKey);
+    }
+}
+
+// 在线菜单 - 下载
+function onlineMenuDownload() {
+    closeOnlineContextMenu();
+    if (currentOnlineMenuKey && currentOnlineMenuKey.startsWith('songlist_')) {
+        const index = parseInt(currentOnlineMenuKey.replace('songlist_', ''));
+        downloadSonglistSong(index);
+    } else if (currentOnlineMenuKey) {
+        downloadOnlineSong(currentOnlineMenuKey);
+    }
+}
+
+// 在线菜单 - 添加到播放列表
+function onlineMenuAddToPlaylist() {
+    closeOnlineContextMenu();
+    if (currentOnlineMenuKey && currentOnlineMenuKey.startsWith('songlist_')) {
+        const index = parseInt(currentOnlineMenuKey.replace('songlist_', ''));
+        addSonglistSongToPlaylist(index);
+    } else if (currentOnlineMenuKey) {
+        addToPlaylistFromOnline(currentOnlineMenuKey);
+    }
+}
+
+// 点击其他地方关闭菜单
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.online-item-menu-btn') && !e.target.closest('.online-context-menu')) {
+        closeOnlineContextMenu();
+    }
+});
+
+// 下载歌单中的在线歌曲
+async function downloadSonglistSong(index) {
+    const source = document.getElementById('onlineSourceSelect').value;
+    const songElement = document.querySelector(`.online-music-item[data-index="${index}"]`);
+    
+    if (!songElement) {
+        showNotification({ type: 'error', message: '歌曲信息丢失' });
+        return;
+    }
+    
+    const songId = songElement.dataset.songid;
+    const name = songElement.dataset.name;
+    const singer = songElement.dataset.singer;
+    const albumName = songElement.dataset.album;
+    
+    showNotification({ type: 'info', message: `正在获取下载链接...` });
+    
+    try {
+        const response = await fetch('/api/download-online', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                source: source,
+                songId: songId,
+                name: name,
+                singer: singer,
+                albumName: albumName || '',
+                songInfo: {
+                    songId: songId,
+                    name: name,
+                    singer: singer,
+                    albumName: albumName,
+                    source: source
+                }
+            })
+        });
+        
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            const artistName = singer ? `${singer} - ` : '';
+            link.download = `${artistName}${name}.mp3`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+            
+            showNotification({ type: 'success', message: `下载完成：${name}` });
+        } else {
+            const result = await response.json();
+            showNotification({ type: 'error', message: result.error || '下载失败' });
+        }
+    } catch (error) {
+        console.error('下载失败:', error);
+        showNotification({ type: 'error', message: '下载失败，请重试' });
     }
 }
 
@@ -7525,10 +7730,17 @@ function renderSonglistSongs(songs) {
                 <button onclick="event.stopPropagation(); playSonglistSong(${index})" class="online-music-play-btn" title="播放">
                     <i class="fas fa-play"></i>
                 </button>
+                <button onclick="event.stopPropagation(); downloadSonglistSong(${index})" class="online-music-download-btn" title="下载">
+                    <i class="fas fa-download"></i>
+                </button>
                 <button onclick="event.stopPropagation(); addSonglistSongToPlaylist(${index})" class="online-music-add-btn" title="添加到播放列表">
                     <i class="fas fa-plus"></i>
                 </button>
             </div>
+            <!-- 移动端菜单按钮 - 使用全局菜单 -->
+            <button class="online-item-menu-btn" onclick="event.stopPropagation(); toggleOnlineItemMenu(event, 'songlist_${index}')" title="更多">
+                <i class="fas fa-ellipsis-v"></i>
+            </button>
         </div>
     `).join('');
 }

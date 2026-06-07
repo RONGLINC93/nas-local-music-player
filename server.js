@@ -2700,6 +2700,49 @@ function sendFileDownload(res, filePath) {
     }
 }
 
+// 在线音乐下载函数
+async function downloadOnlineMusic(res, playUrl, title, artist) {
+    try {
+        // 构建文件名
+        const artistName = artist ? `${artist} - ` : '';
+        const fileName = `${artistName}${title}.mp3`;
+        
+        // 设置响应头
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+        res.setHeader('Content-Type', 'audio/mpeg');
+        
+        // 发起请求获取在线音乐数据
+        const response = await fetch(playUrl);
+        
+        if (!response.ok) {
+            throw new Error(`获取在线音乐失败: ${response.status}`);
+        }
+        
+        // 将响应流直接管道到客户端
+        const stream = response.body;
+        if (stream) {
+            const reader = stream.getReader();
+            const pump = async () => {
+                const { done, value } = await reader.read();
+                if (done) {
+                    console.log(`📥 在线音乐下载完成：${fileName}`);
+                    return;
+                }
+                res.write(value);
+                return pump();
+            };
+            await pump();
+            res.end();
+        } else {
+            throw new Error('无法获取音乐流');
+        }
+        
+    } catch (error) {
+        console.error('在线音乐下载失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+}
+
 // 通过路径下载文件 API
 app.get('/api/download', (req, res) => {
     const filePath = decodeURIComponent(req.query.path);
@@ -3773,6 +3816,62 @@ app.post('/api/batch-download', async (req, res) => {
     }
 });
 
+// 在线音乐下载 API
+app.post('/api/download-online', async (req, res) => {
+    try {
+        const { source, songId, name, singer, albumName, songInfo } = req.body;
+        
+        // 使用完整的歌曲信息
+        const fullSongInfo = songInfo || { 
+            songId: songId, 
+            name: name, 
+            singer: singer, 
+            albumName: albumName 
+        };
+        
+        // 获取播放链接
+        let playUrl = await getMusicPlayUrl(source, fullSongInfo, '128');
+        
+        // 如果当前平台无法获取播放链接，尝试其他平台
+        if (!playUrl) {
+            console.log(`当前平台 ${source} 无法获取播放链接，尝试其他平台...`);
+            
+            const platforms = ['kw', 'kg', 'tx', 'wy', 'mg'];
+            const currentIndexInPlatforms = platforms.indexOf(source);
+            const otherPlatforms = currentIndexInPlatforms >= 0 
+                ? platforms.filter((_, i) => i !== currentIndexInPlatforms)
+                : platforms;
+            
+            for (const platform of otherPlatforms) {
+                try {
+                    const platformName = ONLINE_SOURCES.find(s => s.id === platform)?.name || platform;
+                    console.log(`尝试从 ${platformName} 获取播放链接...`);
+                    
+                    playUrl = await getMusicPlayUrl(platform, fullSongInfo, '128');
+                    
+                    if (playUrl) {
+                        console.log(`成功从 ${platformName} 获取播放链接`);
+                        break;
+                    }
+                } catch (e) {
+                    console.log(`尝试 ${platform} 失败:`, e.message);
+                }
+            }
+        }
+        
+        if (!playUrl) {
+            return res.status(500).json({ success: false, error: '无法获取播放链接（版权限制或需要付费）' });
+        }
+        
+        // 下载在线音乐
+        downloadOnlineMusic(res, playUrl, name, singer);
+        
+    } catch (error) {
+        console.error('在线音乐下载失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 app.get('/api/play/:index', async (req, res) => {
     const index = parseInt(req.params.index);
     if (index < 0 || index >= currentPlaylist.length) {
@@ -4079,7 +4178,7 @@ function playMusicFromPosition(filePath, startTime, shouldPlay) {
 }
 
 // 通过播放列表索引下载文件 API
-app.get('/api/download/:index', (req, res) => {
+app.get('/api/download/:index', async (req, res) => {
     const index = parseInt(req.params.index);
 
     if (index < 0 || index >= currentPlaylist.length) {
@@ -4087,9 +4186,66 @@ app.get('/api/download/:index', (req, res) => {
     }
 
     const track = currentPlaylist[index];
-    const filePath = track.path;
     
-    sendFileDownload(res, filePath);
+    // 判断是否是在线音乐
+    if (track.isOnline || track.path.startsWith('online://')) {
+        try {
+            // 使用完整的歌曲信息
+            const songInfo = track.songInfo || { 
+                songId: track.path.split('/')[2], 
+                name: track.title, 
+                singer: track.artist, 
+                albumName: track.album 
+            };
+            
+            // 获取播放链接
+            let playUrl = await getMusicPlayUrl(track.source, songInfo, '128');
+            
+            // 如果当前平台无法获取播放链接，尝试其他平台
+            if (!playUrl) {
+                console.log(`当前平台 ${track.sourceName} 无法获取播放链接，尝试其他平台...`);
+                
+                const platforms = ['kw', 'kg', 'tx', 'wy', 'mg'];
+                const currentIndexInPlatforms = platforms.indexOf(track.source);
+                const otherPlatforms = currentIndexInPlatforms >= 0 
+                    ? platforms.filter((_, i) => i !== currentIndexInPlatforms)
+                    : platforms;
+                
+                for (const platform of otherPlatforms) {
+                    try {
+                        const platformName = ONLINE_SOURCES.find(s => s.id === platform)?.name || platform;
+                        console.log(`尝试从 ${platformName} 获取播放链接...`);
+                        
+                        playUrl = await getMusicPlayUrl(platform, songInfo, '128');
+                        
+                        if (playUrl) {
+                            track.source = platform;
+                            track.sourceName = platformName;
+                            console.log(`成功从 ${platformName} 获取播放链接`);
+                            break;
+                        }
+                    } catch (e) {
+                        console.log(`尝试 ${platform} 失败:`, e.message);
+                    }
+                }
+            }
+            
+            if (!playUrl) {
+                return res.status(500).json({ success: false, error: '无法获取播放链接（版权限制或需要付费）' });
+            }
+            
+            // 下载在线音乐
+            downloadOnlineMusic(res, playUrl, track.title, track.artist);
+            
+        } catch (error) {
+            console.error('在线音乐下载失败:', error.message);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    } else {
+        // 本地音乐下载
+        const filePath = track.path;
+        sendFileDownload(res, filePath);
+    }
 });
 
 app.get('/api/next', async (req, res) => {
@@ -7795,23 +7951,28 @@ async function getMusicPlayUrl(source, songInfo, quality = '128') {
     const proxyServers = {
         kg: [
             `http://ts.tempmusics.tk/url/kg/${hash}/${quality}`,
+            `http://tm.tempmusics.tk/url/kg/${hash}/${quality}`,
             `https://api.vvhan.com/api/music/kg?id=${hash}`,
             `http://124.71.215.146:3000/url/kg/${hash}/${quality}`
         ],
         wy: [
             `http://ts.tempmusics.tk/url/wy/${songId}/${quality}`,
+            `http://tm.tempmusics.tk/url/wy/${songId}/${quality}`,
             `http://124.71.215.146:3000/url/wy/${songId}/${quality}`
         ],
         kw: [
             `http://ts.tempmusics.tk/url/kw/${songId}/${quality}`,
+            `http://tm.tempmusics.tk/url/kw/${songId}/${quality}`,
             `http://124.71.215.146:3000/url/kw/${songId}/${quality}`
         ],
         tx: [
             `http://ts.tempmusics.tk/url/tx/${songId}/${quality}`,
+            `http://tm.tempmusics.tk/url/tx/${songId}/${quality}`,
             `http://124.71.215.146:3000/url/tx/${songId}/${quality}`
         ],
         mg: [
             `http://ts.tempmusics.tk/url/mg/${copyrightId || songId}/${quality}`,
+            `http://tm.tempmusics.tk/url/mg/${copyrightId || songId}/${quality}`,
             `http://124.71.215.146:3000/url/mg/${copyrightId || songId}/${quality}`
         ]
     };

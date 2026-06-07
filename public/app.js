@@ -6222,7 +6222,7 @@ async function loadRankList(rankType = null, page = null) {
     
     // 只有用户主动触发时显示加载状态
     if (!rankType) {
-        resultsContainer.innerHTML = '<div class="online-loading"><i class="fas fa-spinner"></i><p>正在加载排行榜...</p></div>';
+        resultsContainer.innerHTML = '<div class="online-loading"><i class="fas fa-spinner fa-spin"></i><p>正在加载排行榜...</p></div>';
     }
     
     try {
@@ -7435,7 +7435,7 @@ async function loadSonglistList(page = 1) {
     const grid = document.getElementById('songlistGrid');
     
     songlistCurrentPage = page;
-    grid.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>加载歌单中...</p></div>';
+    grid.innerHTML = '<div class="songlist-loading"><i class="fas fa-spinner"></i><p>加载歌单中...</p></div>';
     
     try {
         const result = await apiRequest('/api/online-songlist-list', 'POST', {
@@ -7543,7 +7543,7 @@ async function searchSonglist() {
     const grid = document.getElementById('songlistSearchGrid');
     
     songlistSearchPage = 1;
-    grid.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>搜索中...</p></div>';
+    grid.innerHTML = '<div class="songlist-loading"><i class="fas fa-spinner"></i><p>搜索中...</p></div>';
     
     try {
         const result = await apiRequest('/api/online-songlist-search', 'POST', {
@@ -7626,7 +7626,7 @@ async function loadSonglistSearch(keyword, page) {
     const source = document.getElementById('onlineSourceSelect').value;
     const grid = document.getElementById('songlistSearchGrid');
     
-    grid.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>加载中...</p></div>';
+    grid.innerHTML = '<div class="songlist-loading"><i class="fas fa-spinner"></i><p>加载中...</p></div>';
     
     try {
         const result = await apiRequest('/api/online-songlist-search', 'POST', {

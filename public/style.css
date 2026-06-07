@@ -2143,21 +2143,18 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 120px 20px;
+    padding: 100px 20px;
     text-align: center;
-    background: linear-gradient(135deg, #fdf4ff 0%, #fae8ff 100%);
-    border-radius: 16px;
-    border: 1px solid rgba(192, 132, 252, 0.2);
 }
 
 .songlist-empty i {
-    font-size: 72px;
+font-size: 72px;
     margin-bottom: 24px;
-    background: linear-gradient(135deg, #c084fc 0%, #a855f7 100%);
+    background: linear-gradient(180deg, #1e3a8a 0%, #3b82f6 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    animation: songlistFloat 3s ease-in-out infinite;
+    animation: musicFloat 3s ease-in-out infinite;
 }
 
 @keyframes songlistFloat {
@@ -2172,7 +2169,7 @@ body {
 .songlist-empty p:first-of-type {
     font-size: 18px;
     font-weight: 600;
-    color: #6b21a8;
+    color: #0c4a6e;
     margin-bottom: 12px;
 }
 
@@ -2184,6 +2181,104 @@ body {
     border-radius: 8px;
     max-width: 300px;
     border: 1px solid rgba(168, 85, 247, 0.15);
+}
+
+/* 在线音乐加载状态样式 */
+.online-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 100px 20px;
+    text-align: center;
+}
+
+.online-loading i {
+    font-size: 48px;
+    margin-bottom: 20px;
+    color: #3b82f6;
+    animation: loadingPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes loadingPulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.6;
+        transform: scale(1.1);
+    }
+}
+
+.online-loading p {
+    font-size: 14px;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+/* 歌单加载状态样式 */
+.songlist-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 100px 20px;
+    text-align: center;
+    background: linear-gradient(135deg, #fdf4ff 0%, #fae8ff 100%);
+    border-radius: 16px;
+    border: 1px solid rgba(192, 132, 252, 0.2);
+}
+
+.songlist-loading i {
+    font-size: 56px;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, #c084fc 0%, #a855f7 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: spin 1.5s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.songlist-loading p {
+    font-size: 15px;
+    color: #6b21a8;
+    font-weight: 500;
+}
+
+/* 歌单详情加载状态样式 */
+.songlist-detail-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 20px;
+    text-align: center;
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border-radius: 12px;
+    border: 1px solid rgba(251, 191, 36, 0.2);
+}
+
+.songlist-detail-empty i {
+    font-size: 48px;
+    margin-bottom: 16px;
+    color: #f59e0b;
+    animation: bounce 1s ease-in-out infinite;
+}
+
+.songlist-detail-empty p {
+    font-size: 14px;
+    color: #92400e;
+    font-weight: 500;
 }
 
 .playlist-item {

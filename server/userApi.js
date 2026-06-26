@@ -1,11 +1,11 @@
 "use strict";
-const vm2 = require("vm2");
 const fs = require('fs');
 const path = require('path');
 const needle = require('needle');
 const crypto = require('crypto');
 const zlib = require('zlib');
 const util = require('util');
+const vm = require('vm');
 const inflate = util.promisify(zlib.inflate);
 const deflate = util.promisify(zlib.deflate);
 
@@ -275,30 +275,38 @@ async function loadUserApi(apiInfo) {
     sandbox.globalThis = sandbox;
 
     try {
+        const context = vm.createContext(sandbox);
         if (apiInfo.allowUnsafeVM) {
             console.log(`[UserApi] ${fullApiInfo.name} 正在以原生 VM 模式启动...`);
-            const vm = require('vm');
-            const context = vm.createContext(sandbox);
             vm.runInContext(apiInfo.script, context, {
                 filename: `custom_source_${fullApiInfo.id}.js`,
                 timeout: 10000
             });
         } else {
+            let script;
             try {
-                const vmInstance = new vm2.VM({
-                    timeout: 10000,
-                    sandbox,
-                    eval: true,
-                    wasm: false,
+                script = new vm.Script(apiInfo.script, {
+                    filename: `custom_source_${fullApiInfo.id}.js`,
+                    timeout: 10000
                 });
-                await vmInstance.run(apiInfo.script);
-            } catch (e) {
-                const isContextError = e.message.includes('contextified object') || e.message.includes('Operation not allowed');
-                if (isContextError) {
-                    console.warn(`[UserApi] ${fullApiInfo.name} 触发 vm2 安全限制，正在提示用户开启 VM 模式`);
+            } catch (compileErr) {
+                if (compileErr.message.includes('-script') || compileErr.message.includes('Script')) {
                     throw new Error('REQUIRE_UNSAFE_VM');
                 }
-                throw e;
+                throw compileErr;
+            }
+            try {
+                script.runInContext(context, {
+                    timeout: 10000
+                });
+            } catch (runErr) {
+                if (runErr.message.includes('Script execution timed out')) {
+                    throw new Error('REQUIRE_UNSAFE_VM');
+                }
+                if (runErr.message.includes('contextified') || runErr.message.includes('Operation not allowed')) {
+                    throw new Error('REQUIRE_UNSAFE_VM');
+                }
+                throw runErr;
             }
         }
 

@@ -1,8 +1,6 @@
 services:
   nas-local-music-player:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: node:22-slim  # 使用官方镜像，避免构建
     container_name: nas-local-music-player
     restart: unless-stopped
     ports:
@@ -24,3 +22,9 @@ services:
     group_add:
       - audio
     privileged: true
+    command: >
+      sh -c "
+        apt-get update && apt-get install -y alsa-utils ffmpeg &&
+        npm install --production &&
+        node server.js
+      "

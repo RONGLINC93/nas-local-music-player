@@ -1,5 +1,5 @@
 "use strict";
-const ivm = require("isolated-vm");
+const vm2 = require("vm2");
 const fs = require('fs');
 const path = require('path');
 const needle = require('needle');
@@ -285,216 +285,17 @@ async function loadUserApi(apiInfo) {
             });
         } else {
             try {
-                // 使用 isolated-vm 创建安全的沙箱环境
-                const isolate = new ivm.Isolate({ memoryLimit: 128 });
-                const context = await isolate.createContext();
-                const jail = context.global;
-
-                // 构建 jail 环境
-                await Promise.all([
-                    jail.set('console', {
-                        log: new ivm.Callback((...args) => console.log(...args.map(a => typeof a === 'string' ? a : String(a)))),
-                        warn: new ivm.Callback((...args) => console.warn(...args.map(a => typeof a === 'string' ? a : String(a)))),
-                        error: new ivm.Callback((...args) => console.error(...args.map(a => typeof a === 'string' ? a : String(a)))),
-                        info: new ivm.Callback((...args) => console.info(...args.map(a => typeof a === 'string' ? a : String(a)))),
-                    }),
-                    jail.set('setTimeout', new ivm.Callback((fnRef, delay) => {
-                        if (fnRef && typeof fnRef.apply === 'function') {
-                            setTimeout(() => fnRef.applyIgnored(undefined, []), delay);
-                        } else if (typeof fnRef === 'function') {
-                            setTimeout(fnRef, delay);
-                        }
-                    })),
-                    jail.set('clearTimeout', new ivm.Callback((id) => clearTimeout(id))),
-                    jail.set('setInterval', new ivm.Callback(() => {})),
-                    jail.set('clearInterval', new ivm.Callback(() => {})),
-                    jail.set('atob', new ivm.Callback((s) => Buffer.from(String(s), 'base64').toString('binary'))),
-                    jail.set('btoa', new ivm.Callback((s) => Buffer.from(String(s), 'binary').toString('base64'))),
-                    jail.set('URL', ivm.ExternalCopy(URL).copyInto({ release: true })),
-                    jail.set('URLSearchParams', ivm.ExternalCopy(URLSearchParams).copyInto({ release: true })),
-                    jail.set('TextEncoder', ivm.ExternalCopy(TextEncoder).copyInto({ release: true })),
-                    jail.set('TextDecoder', ivm.ExternalCopy(TextDecoder).copyInto({ release: true })),
-                ]);
-
-                // 设置 process.nextTick 和 env
-                await jail.set('process', {
-                    nextTick: new ivm.Callback((fnRef, ...args) => {
-                        if (fnRef && typeof fnRef.apply === 'function') {
-                            process.nextTick(() => fnRef.applyIgnored(undefined, args));
-                        }
-                    }),
-                    env: { NODE_ENV: process.env.NODE_ENV || 'production' }
-                });
-
-                // 构建 lx 对象，通过 Reference 跨隔离调用
-                const lxSendCallback = new ivm.Callback((eventName, data) => {
-                    const dData = typeof data === 'object' ? data : data;
-                    if (eventName === 'inited') {
-                        if (dData && dData.sources) {
-                            registeredSources = dData.sources;
-                            console.log(`[UserApi-${fullApiInfo.name}] Registered sources:`, Object.keys(registeredSources).join(', '));
-                        }
-                        if (initResolve) initResolve();
-                    } else if (eventName === 'updateAlert') {
-                        const error = new Error(`发现新版本,需要更新: ${JSON.stringify(dData)}`);
-                        if (initReject) initReject(error);
-                    }
-                });
-
-                const lxOnCallback = new ivm.Callback((eventName, handlerRef) => {
-                    if (eventName === 'request') {
-                        eventHandlers.set('request', handlerRef);
-                    }
-                });
-
-                const lxRequestCallback = new ivm.Callback((url, options, callbackRef) => {
-                    const safeOptions = typeof options === 'object' ? options : {};
-                    const { method = 'get', timeout, headers, body, form, formData } = safeOptions;
-                    let requestOptions = {
-                        headers,
-                        response_timeout: typeof timeout === 'number' && timeout > 0 ? Math.min(timeout, 60000) : 60000
-                    };
-                    let data = body;
-                    if (form) {
-                        data = form;
-                        requestOptions.json = false;
-                    } else if (formData) {
-                        data = formData;
-                        requestOptions.json = false;
-                    }
-                    needle.request(method, url, data, requestOptions, (err, resp, body) => {
-                        try {
-                            if (err) {
-                                if (callbackRef && typeof callbackRef.apply === 'function') {
-                                    callbackRef.applyIgnored(undefined, [err, null, null]);
-                                }
-                            } else {
-                                let parsedBody = body;
-                                if (typeof body === 'string') {
-                                    try { parsedBody = JSON.parse(body); } catch { }
-                                }
-                                const safeResp = {
-                                    statusCode: resp.statusCode,
-                                    statusMessage: resp.statusMessage,
-                                    headers: resp.headers,
-                                    body: parsedBody
-                                };
-                                if (callbackRef && typeof callbackRef.apply === 'function') {
-                                    callbackRef.applyIgnored(undefined, [null, safeResp, parsedBody]);
-                                }
-                            }
-                        } catch (cbErr) {
-                            console.error('[UserApi] lx.request callback error:', cbErr.message);
-                        }
-                    });
-                });
-
-                // lx.utils
-                const lxUtils = {
-                    buffer: {
-                        from: new ivm.Callback((d, e) => {
-                            try { return Buffer.from(d, e); } catch { return null; }
-                        }),
-                        bufToString: new ivm.Callback((b, f) => {
-                            try { return Buffer.isBuffer(b) ? b.toString(f) : Buffer.from(b, 'binary').toString(f); } catch { return ''; }
-                        })
-                    },
-                    crypto: {
-                        md5: new ivm.Callback((str) => crypto.createHash('md5').update(String(str || '')).digest('hex')),
-                        sha1: new ivm.Callback((str) => crypto.createHash('sha1').update(String(str || '')).digest('hex')),
-                        sha256: new ivm.Callback((str) => crypto.createHash('sha256').update(String(str || '')).digest('hex')),
-                        aesEncrypt: new ivm.Callback((buffer, mode, key, iv) => {
-                            try {
-                                const algorithm = `aes-${Buffer.byteLength(key)}-${mode}`;
-                                const cipher = crypto.createCipheriv(algorithm, key, iv);
-                                return Buffer.concat([cipher.update(buffer), cipher.final()]);
-                            } catch { return null; }
-                        }),
-                        aesDecrypt: new ivm.Callback((buffer, mode, key, iv) => {
-                            try {
-                                const algorithm = `aes-${Buffer.byteLength(key)}-${mode}`;
-                                const decipher = crypto.createDecipheriv(algorithm, key, iv);
-                                return Buffer.concat([decipher.update(buffer), decipher.final()]);
-                            } catch { return null; }
-                        }),
-                        aesEncrypt2: new ivm.Callback((buffer, mode, key, iv) => {
-                            try {
-                                const algorithm = `aes-${Buffer.byteLength(key)}-${mode}`;
-                                const cipher = crypto.createCipheriv(algorithm, key, iv);
-                                cipher.setAutoPadding(false);
-                                return Buffer.concat([cipher.update(buffer), cipher.final()]);
-                            } catch { return null; }
-                        }),
-                        aesDecrypt2: new ivm.Callback((buffer, mode, key, iv) => {
-                            try {
-                                const algorithm = `aes-${Buffer.byteLength(key)}-${mode}`;
-                                const decipher = crypto.createDecipheriv(algorithm, key, iv);
-                                decipher.setAutoPadding(false);
-                                return Buffer.concat([decipher.update(buffer), decipher.final()]);
-                            } catch { return null; }
-                        }),
-                        rsaEncrypt: new ivm.Callback((buffer, key) => {
-                            try { return crypto.publicEncrypt(key, buffer); } catch { return null; }
-                        }),
-                        rsaDecrypt: new ivm.Callback((buffer, key) => {
-                            try { return crypto.privateDecrypt(key, buffer); } catch { return null; }
-                        }),
-                        randomBytes: new ivm.Callback((size) => crypto.randomBytes(size)),
-                        hmac: new ivm.Callback((algorithm, key, data) => {
-                            try { return crypto.createHmac(algorithm, key).update(data).digest('hex'); } catch { return null; }
-                        })
-                    },
-                    zlib: {
-                        inflate: new ivm.Callback((buffer) => zlib.inflate(buffer)),
-                        deflate: new ivm.Callback((buffer) => zlib.deflate(buffer)),
-                        inflateRaw: new ivm.Callback((buffer) => zlib.inflateRaw(buffer)),
-                        deflateRaw: new ivm.Callback((buffer) => zlib.deflateRaw(buffer)),
-                    }
-                };
-
-                // 构建完整的 lx 对象
-                const lxObject = {
-                    version: '2.0.0',
-                    env: 'desktop',
-                    platform: 'web',
-                    currentScriptInfo: {
-                        name: fullApiInfo.name,
-                        description: fullApiInfo.description,
-                        version: fullApiInfo.version,
-                        author: fullApiInfo.author,
-                        homepage: fullApiInfo.homepage,
-                        rawScript: fullApiInfo.script,
-                    },
-                    EVENT_NAMES: {
-                        request: 'request',
-                        inited: 'inited',
-                        updateAlert: 'updateAlert'
-                    },
-                    utils: lxUtils,
-                    request: lxRequestCallback,
-                    send: lxSendCallback,
-                    on: lxOnCallback,
-                };
-
-                await jail.set('lx', lxObject);
-
-                // 设置 global/window/globalThis 引用
-                await jail.set('global', jail);
-                await jail.set('window', jail);
-                await jail.set('globalThis', jail);
-
-                // 执行脚本，设置超时
-                const script = await isolate.compileScript(apiInfo.script, {
-                    filename: `custom_source_${fullApiInfo.id}.js`,
-                });
-
-                await script.run(context, {
+                const vmInstance = new vm2.VM({
                     timeout: 10000,
+                    sandbox,
+                    eval: true,
+                    wasm: false,
                 });
+                await vmInstance.run(apiInfo.script);
             } catch (e) {
-                const isTimeoutError = e.message.includes('Script execution timed out');
-                if (isTimeoutError) {
-                    console.warn(`[UserApi] ${fullApiInfo.name} 脚本执行超时`);
+                const isContextError = e.message.includes('contextified object') || e.message.includes('Operation not allowed');
+                if (isContextError) {
+                    console.warn(`[UserApi] ${fullApiInfo.name} 触发 vm2 安全限制，正在提示用户开启 VM 模式`);
                     throw new Error('REQUIRE_UNSAFE_VM');
                 }
                 throw e;
@@ -516,11 +317,6 @@ async function loadUserApi(apiInfo) {
                     let inputData = { action, source, info };
                     if (apiInfo.allowUnsafeVM) {
                         inputData = JSON.parse(JSON.stringify(inputData));
-                    }
-                    // isolated-vm 中 handler 是 ivm.Reference，需要特殊调用
-                    if (handler instanceof ivm.Reference) {
-                        const result = await handler.apply(undefined, [inputData], { result: { promise: true, copy: true } });
-                        return decontextify(result);
                     }
                     const result = await handler(inputData);
                     return decontextify(result);

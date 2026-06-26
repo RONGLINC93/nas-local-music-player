@@ -1,5 +1,5 @@
-# 使用 Node.js 25 Alpine 精简版作为基础镜像
-FROM node:25-alpine
+# 使用 Node.js 22 Alpine LTS 精简版作为基础镜像
+FROM docker.io/library/node:22-alpine
 
 # 安装系统级依赖：
 # - alsa-lib: ALSA 音频库，用于音频输出

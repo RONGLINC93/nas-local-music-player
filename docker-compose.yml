@@ -1,8 +1,8 @@
-version: '3.8'
-
 services:
   nas-local-music-player:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: nas-local-music-player
     restart: unless-stopped
     ports:

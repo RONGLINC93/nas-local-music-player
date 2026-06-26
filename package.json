@@ -8,7 +8,6 @@
   },
   "dependencies": {
     "adm-zip": "^0.5.10",
-    "canvas": "^3.2.3",
     "express": "^4.18.2",
     "ffmetadata": "^1.7.0",
     "fluent-ffmpeg": "^2.1.3",

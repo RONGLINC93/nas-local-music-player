@@ -1,14 +1,14 @@
-# 使用 Node.js 22 Alpine LTS 精简版作为基础镜像
-FROM docker.io/library/node:22-alpine
+# 使用 Node.js 22 Debian Slim 作为基础镜像
+# 使用阿里云公共镜像源，避免私有镜像代理认证问题
+FROM registry.cn-hangzhou.aliyuncs.com/library/node:22-slim
 
 # 安装系统级依赖：
-# - alsa-lib: ALSA 音频库，用于音频输出
 # - alsa-utils: ALSA 工具集，包含 aplay 等音频播放命令
 # - ffmpeg: 多媒体框架，用于音频解码和处理
-# - icu-data-full: 国际化组件，提供完整的中文语言支持
-RUN apk add --no-cache alsa-lib alsa-utils ffmpeg \
-    && apk add --no-cache icu-data-full \
-    && rm -rf /var/cache/apk/*
+# - libasound2: ALSA 音频库
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    alsa-utils ffmpeg libasound2 \
+    && rm -rf /var/lib/apt/lists/*
 
 # 设置容器内工作目录
 WORKDIR /app

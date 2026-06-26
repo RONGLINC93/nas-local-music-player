@@ -26,8 +26,8 @@
 
 ## 用户偏好 (User Preferences)
 - 当用户说"发布"时，执行完整发布流程（release.ps1）
-- 当用户说"推送"时，执行完整流程：git add → git commit → git push（自动提交并推送所有更改）
-- 当用户说"拉取"时，只执行 git pull，拉取远程最新代码到本地
+- 当用户说"推送"时，执行命令完整流程：git add → git commit → git push（自动提交并推送所有更改）
+- 当用户说"拉取"时，只执行命令 git pull，拉取远程最新代码到本地
 - **修改代码后，更新 CHANGELOG.md，不发布**
 - **更新日志处理**：当用户说"更新日志"时，从 PROJECT_MEMORY.md 读取当前版本号，在 CHANGELOG.md 中查找该版本号：
   - 如果版本号不存在：新建该版本号的条目

@@ -1,12 +1,12 @@
 services:
   nas-local-music-player:
-    image: node:22-slim  # 使用官方镜像，避免构建
+    build: .
     container_name: nas-local-music-player
     restart: unless-stopped
     ports:
       - "9524:9524"
     volumes:
-      - "/vol2/1000/web/nas-local-music-player:/app"
+      - "./:/app"
       - "/dev/snd:/dev/snd"
       - "/vol6/@team/影视音1/音乐:/app/music"
     working_dir: "/app"
@@ -22,9 +22,3 @@ services:
     group_add:
       - audio
     privileged: true
-    command: >
-      sh -c "
-        apt-get update && apt-get install -y alsa-utils ffmpeg &&
-        npm install --production &&
-        node server.js
-      "

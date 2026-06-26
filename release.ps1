@@ -128,11 +128,20 @@ if ($releaseCheck) {
     $startIndex = $changelog.IndexOf($pattern)
     if ($startIndex -ge 0) {
         $startIndex = $changelog.IndexOf("`n", $startIndex) + 1
-        $nextVersion = $changelog.IndexOf("`n## ", $startIndex)
-        if ($nextVersion -ge 0) {
-            $releaseNotes = $changelog.Substring($startIndex, $nextVersion - $startIndex).Trim()
+        # 查找下一个版本标题（## [x.x.x] 格式），避免误匹配正文中的 ## 或 #### 日期
+        $remainingText = $changelog.Substring($startIndex)
+        $nextVersionIndex = -1
+        # 使用正则查找匹配位置
+        $regex = [regex]::New('(?m)^## \[\d+\.\d+\.\d+\]')
+        $regexMatch = $regex.Match($remainingText)
+        if ($regexMatch.Success) {
+            $nextVersionIndex = $startIndex + $regexMatch.Index
+        }
+        
+        if ($nextVersionIndex -ge 0) {
+            $releaseNotes = $changelog.Substring($startIndex, $nextVersionIndex - $startIndex).Trim()
         } else {
-            $releaseNotes = $changelog.Substring($startIndex).Trim()
+            $releaseNotes = $remainingText.Trim()
         }
     }
 

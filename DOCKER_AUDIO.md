@@ -30,32 +30,30 @@ node server.js
 #### Docker Compose 配置（已更新）
 
 ```yaml
-version: '3.8'
-
 services:
   nas-local-music-player:
-    image: node:25-alpine
+    build: .
     container_name: nas-local-music-player
     restart: unless-stopped
     ports:
       - "9524:9524"
     volumes:
-      - "/path/to/nas-local-music-player:/app"
-      - "/dev/snd:/dev/snd"              # 挂载声卡设备
-      - "/etc/asound.conf:/etc/asound.conf:ro"  # ALSA 配置文件
-      - "/proc/asound:/proc/asound:ro"   # ALSA 信息
+      - "./:/app"
+      - "/dev/snd:/dev/snd"
+      - "/vol6/@team/影视音1/音乐:/app/music"
     working_dir: "/app"
-    command: "node server.js"
     environment:
       - NODE_ENV=production
       - PORT=9524
       - IS_DOCKER=true
       - ALSA_ENABLED=true
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
     devices:
-      - "/dev/snd:/dev/snd"              # 声卡设备
+      - "/dev/snd:/dev/snd"
     group_add:
-      - audio                            # 添加 audio 组权限
-    privileged: true                     # 特权模式（可选）
+      - audio
+    privileged: true
 ```
 
 #### 配置说明

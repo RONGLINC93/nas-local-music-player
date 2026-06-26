@@ -2,7 +2,7 @@ services:
   nas-local-music-player:
     build: .
     container_name: nas-local-music-player
-    restart: unless-stopped
+    restart: always
     ports:
       - "9524:9524"
     volumes:

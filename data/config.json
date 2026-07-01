@@ -1,7 +1,7 @@
 {
     "playMode": "random",
     "audioDevice": "HDAUDIO\\FUNC_01&VEN_10DE&DEV_0081&SUBSYS_10DE11E6&REV_1001\\5&391D76C4&0&0001",
-    "playOutput": "server",
+    "playOutput": "client",
     "maxConvertWorkers": 4,
     "maxUploadWorkers": 5,
     "onlineSource": "wy"

@@ -4531,60 +4531,120 @@ app.post('/api/play-output', (req, res) => {
 
 // 客户端音频流 API
 app.get('/api/stream/:index', async (req, res) => {
+    console.log(`[Stream] 请求音频流，索引: ${req.params.index}`);
     const index = parseInt(req.params.index);
 
     if (index < 0 || index >= currentPlaylist.length) {
+        console.error(`[Stream] 索引超出范围: ${index}, 播放列表长度: ${currentPlaylist.length}`);
         return res.status(404).json({ success: false, message: '歌曲不存在' });
     }
 
     const track = currentPlaylist[index];
+    console.log(`[Stream] 歌曲信息: ${track.title}, isOnline: ${track.isOnline}, path: ${track.path}`);
     
     // 判断是否是在线音乐
     if (track.isOnline || track.path.startsWith('online://')) {
         try {
-            const songInfo = track.songInfo || { 
-                songId: track.path.split('/')[2], 
-                name: track.title, 
-                singer: track.artist, 
-                albumName: track.album 
-            };
-            
-            let playUrl = await getMusicPlayUrl(track.source, songInfo, '128');
+            // 优先使用已存储的 playUrl（来自 /api/play-online）
+            let playUrl = track.playUrl;
+            console.log(`[Stream] 已有 playUrl: ${playUrl ? '是' : '否'}`);
             
             if (!playUrl) {
-                const platforms = ['kw', 'kg', 'tx', 'wy', 'mg'];
-                for (const platform of platforms) {
-                    if (platform === track.source) continue;
-                    try {
-                        playUrl = await getMusicPlayUrl(platform, songInfo, '128');
-                        if (playUrl) {
-                            track.source = platform;
-                            break;
+                console.log(`[Stream] 重新获取播放链接...`);
+                const songInfo = track.songInfo || { 
+                    songId: track.path.split('/')[2], 
+                    name: track.title, 
+                    singer: track.artist, 
+                    albumName: track.album 
+                };
+                
+                playUrl = await getMusicPlayUrl(track.source, songInfo, '128');
+                console.log(`[Stream] 获取 playUrl 结果: ${playUrl ? playUrl.substring(0, 100) : '失败'}`);
+                
+                if (!playUrl) {
+                    const platforms = ['kw', 'kg', 'tx', 'wy', 'mg'];
+                    for (const platform of platforms) {
+                        if (platform === track.source) continue;
+                        try {
+                            playUrl = await getMusicPlayUrl(platform, songInfo, '128');
+                            if (playUrl) {
+                                track.source = platform;
+                                console.log(`[Stream] 从备用平台 ${platform} 获取到链接`);
+                                break;
+                            }
+                        } catch (e) {
+                            console.log(`[Stream] 平台 ${platform} 获取失败: ${e.message}`);
                         }
-                    } catch (e) {
-                        // 继续尝试下一个
                     }
                 }
             }
             
             if (!playUrl) {
+                console.error(`[Stream] 无法获取播放链接`);
                 return res.status(500).json({ success: false, error: '无法获取播放链接' });
             }
             
-            // 代理在线音频流
-            res.setHeader('Content-Type', 'audio/mpeg');
-            res.setHeader('Accept-Ranges', 'bytes');
+            console.log(`[Stream] 开始代理音频流: ${playUrl.substring(0, 100)}...`);
             
+            // 代理在线音频流
             const response = await fetch(playUrl);
+            console.log(`[Stream] fetch 响应状态: ${response.status}`);
+            
             if (!response.ok) {
                 throw new Error(`获取在线音乐失败: ${response.status}`);
             }
             
-            response.body.pipe(res);
+            const contentType = response.headers.get('content-type') || 'audio/mpeg';
+            const contentLength = response.headers.get('content-length');
+            
+            console.log(`[Stream] Content-Type: ${contentType}, Content-Length: ${contentLength || '未知'}`);
+            
+            res.setHeader('Content-Type', contentType);
+            res.setHeader('Accept-Ranges', 'bytes');
+            if (contentLength) {
+                res.setHeader('Content-Length', contentLength);
+            }
+            
+            // 使用 Web Streams API 读取并转发数据
+            const stream = response.body;
+            if (!stream) {
+                throw new Error('响应体为空');
+            }
+            
+            const reader = stream.getReader();
+            const pump = async () => {
+                try {
+                    const { done, value } = await reader.read();
+                    if (done) {
+                        console.log(`[Stream] 流式传输完成: ${track.title}`);
+                        res.end();
+                        return;
+                    }
+                    res.write(value);
+                    return pump();
+                } catch (err) {
+                    console.error(`[Stream] 读取流错误: ${err.message}`);
+                    if (!res.headersSent) {
+                        res.status(500).json({ success: false, error: err.message });
+                    } else {
+                        res.end();
+                    }
+                }
+            };
+            pump();
+            
+            // 客户端断开连接时取消读取
+            res.on('close', () => {
+                reader.cancel();
+                console.log(`[Stream] 客户端断开连接`);
+            });
             
         } catch (error) {
-            console.error('在线音乐流式播放失败:', error.message);
-            res.status(500).json({ success: false, error: error.message });
+            console.error(`[Stream] 在线音乐流式播放失败: ${error.message}`);
+            console.error(`[Stream] 错误堆栈:`, error.stack);
+            if (!res.headersSent) {
+                res.status(500).json({ success: false, error: error.message });
+            }
         }
     } else {
         // 本地音乐流式播放
@@ -7211,9 +7271,6 @@ app.post('/api/play-online', async (req, res) => {
             return res.json({ success: false, error: '无法获取播放链接' });
         }
         
-        // 停止当前播放
-        stopMusic();
-        
         // 创建在线音乐元数据（保存完整的 songInfo）
         const onlineTrack = {
             title: name || '未知歌曲',
@@ -7248,11 +7305,26 @@ app.post('/api/play-online', async (req, res) => {
             console.error('更新播放列表缓存失败:', error.message);
         }
         
-        isPlaying = true;
         currentDuration = onlineTrack.duration;
-        playbackStartTime = Date.now();
         
         console.log(`🎵 在线播放：${onlineTrack.title} (${onlineTrack.sourceName})`);
+        
+        // 客户端模式：只添加到播放列表，不启动服务器播放
+        if (playOutput === 'client') {
+            return res.json({
+                success: true,
+                current: onlineTrack,
+                currentIndex,
+                playlist: currentPlaylist,
+                clientMode: true
+            });
+        }
+        
+        // 服务器模式：停止当前播放并播放在线音乐流
+        stopMusic();
+        
+        isPlaying = true;
+        playbackStartTime = Date.now();
         
         // 播放在线音乐流
         playOnlineMusic(playUrl);

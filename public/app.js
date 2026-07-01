@@ -7156,7 +7156,16 @@ async function playOnlineSong(cacheKey) {
         
         if (result.success) {
             showNotification({ type: 'success', message: `正在播放：${song.name}` });
-            // 更新播放列表
+            
+            // 客户端模式：使用客户端播放
+            if (result.clientMode) {
+                currentPlaylist = result.playlist || currentPlaylist;
+                renderPlaylist();
+                playTrack(result.currentIndex);
+                return;
+            }
+            
+            // 服务器模式：更新播放列表和状态
             const playlistResult = await apiRequest('/api/playlist');
             if (playlistResult.playlist) {
                 currentPlaylist = playlistResult.playlist;
@@ -7212,6 +7221,15 @@ async function playOnlineSong(cacheKey) {
                         
                         if (altResult.success) {
                             showNotification({ type: 'success', message: `正在播放：${foundSong.name}（${getSourceName(platform)}）` });
+                            
+                            // 客户端模式
+                            if (altResult.clientMode) {
+                                currentPlaylist = altResult.playlist || currentPlaylist;
+                                renderPlaylist();
+                                playTrack(altResult.currentIndex);
+                                return;
+                            }
+                            
                             const playlistResult = await apiRequest('/api/playlist');
                             if (playlistResult.playlist) {
                                 currentPlaylist = playlistResult.playlist;
@@ -8082,6 +8100,45 @@ async function playSonglistSong(index) {
     if (!song) return;
     
     const source = document.getElementById('onlineSourceSelect').value;
+    
+    // 客户端模式：先添加到播放列表，然后用客户端播放
+    if (playOutput === 'client') {
+        try {
+            showNotification({ type: 'info', message: '正在获取播放链接...' });
+            
+            const response = await fetch('/api/play-online', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    source: source,
+                    songId: song.songmid || song.id,
+                    name: song.name,
+                    singer: song.singer,
+                    albumName: song.albumName || '',
+                    picUrl: song.img || '',
+                    interval: song.interval || '',
+                    songInfo: song
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                // 更新播放列表
+                currentPlaylist = result.playlist || currentPlaylist;
+                renderPlaylist();
+                
+                // 用客户端播放
+                playTrack(result.currentIndex);
+            } else {
+                showNotification({ type: 'error', message: result.message || '播放失败' });
+            }
+        } catch (error) {
+            console.error('播放歌曲失败:', error);
+            showNotification({ type: 'error', message: '播放失败' });
+        }
+        return;
+    }
     
     showNotification({ type: 'info', message: '正在获取播放链接...' });
     

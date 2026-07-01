@@ -1915,6 +1915,57 @@ body {
     text-align: center;
 }
 
+/* 播放输出切换 */
+.player-volume-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.player-output-switch {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.output-switch-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    color: #666;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.output-switch-btn:hover {
+    background: #e5e7eb;
+    color: #3b82f6;
+    border-color: #3b82f6;
+}
+
+.output-switch-btn i {
+    font-size: 14px;
+}
+
+.output-switch-btn.active-client {
+    background: #dbeafe;
+    border-color: #3b82f6;
+    color: #3b82f6;
+}
+
+.output-switch-btn.active-server {
+    background: #f0fdf4;
+    border-color: #22c55e;
+    color: #22c55e;
+}
+
 /* 播放列表 */
 .playlist-section {
     margin-bottom: 100px;
@@ -5984,7 +6035,29 @@ font-size: 72px;
         width: 80px;
     }
 
+    .player-volume-group {
+        order: 2;
+        margin-left: auto;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 4px;
+    }
 
+    .player-output-switch {
+        width: 100%;
+        justify-content: flex-end;
+        margin-top: 2px;
+    }
+
+    .output-switch-btn {
+        padding: 4px 8px;
+        font-size: 11px;
+        gap: 4px;
+    }
+
+    .output-switch-btn i {
+        font-size: 12px;
+    }
 
     .device-section {
         padding: 0px;

@@ -1060,12 +1060,22 @@
             </div>
 
             <!-- 音量控制 -->
-            <div class="player-volume">
-                <button class="mute-btn" id="muteBtn" onclick="toggleMute()">
-                    <i class="fas fa-volume-up volume-icon"></i>
-                </button>
-                <input type="range" id="volumeSlider" min="0" max="100" value="100" oninput="changeVolume(this.value)">
-                <span class="volume-value" id="volumeValue">100%</span>
+            <div class="player-volume-group">
+                <div class="player-volume">
+                    <button class="mute-btn" id="muteBtn" onclick="toggleMute()">
+                        <i class="fas fa-volume-up volume-icon"></i>
+                    </button>
+                    <input type="range" id="volumeSlider" min="0" max="100" value="100" oninput="changeVolume(this.value)">
+                    <span class="volume-value" id="volumeValue">100%</span>
+                </div>
+
+                <!-- 播放输出切换 -->
+                <div class="player-output-switch">
+                    <button class="output-switch-btn" id="outputSwitchBtn" onclick="togglePlayOutput()" title="切换播放输出方式">
+                        <i class="fas fa-server" id="outputSwitchIcon"></i>
+                        <span id="outputSwitchText">服务器</span>
+                    </button>
+                </div>
             </div>
         </footer>
     </div>
@@ -1956,7 +1966,7 @@
         </div>
     </div>
 
-    <script src="app.js?v=1.0.1"></script>
+    <script src="app.js?v=1.0.2"></script>
 </body>
 
 </html>

@@ -602,6 +602,34 @@ function seekClient(progress) {
 }
 
 // 切换播放输出方式
+// 快捷切换播放输出方式（播放栏按钮）
+async function togglePlayOutput() {
+    const newOutput = playOutput === 'server' ? 'client' : 'server';
+    await changePlayOutput(newOutput);
+    updateOutputSwitchButton();
+}
+
+// 更新播放输出切换按钮的状态
+function updateOutputSwitchButton() {
+    const icon = document.getElementById('outputSwitchIcon');
+    const text = document.getElementById('outputSwitchText');
+    const btn = document.getElementById('outputSwitchBtn');
+    
+    if (!icon || !text || !btn) return;
+    
+    if (playOutput === 'server') {
+        icon.className = 'fas fa-server';
+        text.textContent = '服务器';
+        btn.className = 'output-switch-btn active-server';
+        btn.title = '当前：服务器声卡，点击切换到客户端浏览器';
+    } else {
+        icon.className = 'fas fa-laptop';
+        text.textContent = '客户端';
+        btn.className = 'output-switch-btn active-client';
+        btn.title = '当前：客户端浏览器，点击切换到服务器声卡';
+    }
+}
+
 async function changePlayOutput(output) {
     try {
         const result = await apiRequest('/api/play-output', 'POST', { output });
@@ -609,6 +637,15 @@ async function changePlayOutput(output) {
             const oldOutput = playOutput;
             playOutput = output;
             console.log(`📱 播放输出已切换为：${output === 'server' ? '服务器声卡' : '客户端浏览器'}`);
+            
+            // 更新播放管理页面的单选按钮
+            const radioButtons = document.querySelectorAll('input[name="playOutput"]');
+            radioButtons.forEach(radio => {
+                radio.checked = (radio.value === output);
+            });
+            
+            // 更新播放栏快捷切换按钮
+            updateOutputSwitchButton();
             
             // 如果当前正在播放，需要停止旧模式并重新以新模式播放
             if (isPlaying && currentIndex >= 0) {
@@ -3016,6 +3053,9 @@ async function loadPlayOutput() {
             radioButtons.forEach(radio => {
                 radio.checked = (radio.value === playOutput);
             });
+            
+            // 更新播放栏快捷切换按钮状态
+            updateOutputSwitchButton();
         }
     } catch (error) {
         console.error('加载播放输出方式失败:', error);

@@ -745,7 +745,7 @@
                         </div>
                         <h2>NAS本地音乐播放器</h2>
                         <p class="version">版本 <span id="currentVersion">加载中...</span></p>
-                        <p class="description">一个轻量级的本地音乐播放器，支持通过网页界面控制飞牛osNAS服务器，通过插入AUX音频或USB声卡设备，实现音乐播放。</p>
+                        <p class="description">一个轻量级的本地音乐播放器，支持通过网页界面控制飞牛osNAS服务器，支持服务器声卡和客户端浏览器两种播放输出方式，实现灵活的音乐播放体验。</p>
 
                         <!-- 系统更新区域 -->
                         <div class="update-section">
@@ -823,7 +823,7 @@
                             <h4><i class="fas fa-volume-up"></i> 发声原理</h4>
                             
                             <div class="principle-section">
-                                <h5><i class="fas fa-cogs"></i> 音频播放流程</h5>
+                                <h5><i class="fas fa-cogs"></i> 服务器声卡播放流程</h5>
                                 <div class="flow-diagram">
                                     <div class="flow-step">
                                         <span class="step-number">1</span>
@@ -860,6 +860,43 @@
                             </div>
 
                             <div class="principle-section">
+                                <h5><i class="fas fa-laptop"></i> 客户端浏览器播放流程</h5>
+                                <div class="flow-diagram">
+                                    <div class="flow-step">
+                                        <span class="step-number">1</span>
+                                        <div class="step-content">
+                                            <strong>请求音频流</strong>
+                                            <p>客户端浏览器通过 HTTP 请求向服务器获取音频流（支持 Range 请求，可实现 seek 跳转）</p>
+                                        </div>
+                                    </div>
+                                    <div class="flow-arrow">↓</div>
+                                    <div class="flow-step">
+                                        <span class="step-number">2</span>
+                                        <div class="step-content">
+                                            <strong>流式传输</strong>
+                                            <p>服务器将音频文件以流的形式传输到浏览器，本地音乐直接读取，在线音乐代理转发</p>
+                                        </div>
+                                    </div>
+                                    <div class="flow-arrow">↓</div>
+                                    <div class="flow-step">
+                                        <span class="step-number">3</span>
+                                        <div class="step-content">
+                                            <strong>浏览器解码播放</strong>
+                                            <p>浏览器使用 HTML5 Audio 元素解码并播放音频，通过设备自带的扬声器/耳机输出声音</p>
+                                        </div>
+                                    </div>
+                                    <div class="flow-arrow">↓</div>
+                                    <div class="flow-step">
+                                        <span class="step-number">4</span>
+                                        <div class="step-content">
+                                            <strong>状态同步</strong>
+                                            <p>客户端自动同步播放状态（播放、暂停、结束）到服务器，保持多端状态一致</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="principle-section">
                                 <h5><i class="fas fa-laptop"></i> 多平台播放方案</h5>
                                 <table class="platform-table">
                                     <thead>
@@ -890,27 +927,31 @@
                                             <td>ffmpeg → aplay</td>
                                             <td>ffmpeg 解码后通过管道转发给 aplay 输出到 ALSA</td>
                                         </tr>
+                                        <tr>
+                                            <td>客户端浏览器</td>
+                                            <td>HTML5 Audio</td>
+                                            <td>通过 HTTP 流式传输，浏览器内置播放器解码，无需服务器声卡</td>
+                                        </tr>
                                     </tbody>
                                 </table>
                             </div>
 
                             <div class="principle-section">
-                                <h5><i class="fas fa-headphones"></i> 声卡设备管理</h5>
+                                <h5><i class="fas fa-headphones"></i> 播放输出方式</h5>
                                 <ul>
-                                    <li><strong>自动检测</strong>：程序启动时自动扫描系统所有可用的声卡设备</li>
-                                    <li><strong>设备切换</strong>：在"声卡管理"页面选择输出设备，设置即时生效</li>
-                                    <li><strong>设备测试</strong>：支持测试当前选中的声卡是否正常工作</li>
-                                    <li><strong>持久化</strong>：选择的设备会保存到配置，下次启动自动使用</li>
+                                    <li><strong>服务器声卡模式</strong>：通过服务器连接的声卡设备播放，适合 NAS 连接音箱的场景</li>
+                                    <li><strong>客户端浏览器模式</strong>：通过访问网页的设备内置扬声器/耳机播放，适合手机/电脑远程听歌</li>
+                                    <li><strong>切换方式</strong>：在"播放管理"页面选择输出方式，切换时自动停止旧模式并以新模式重新播放</li>
+                                    <li><strong>持久化</strong>：选择的输出方式会保存到配置，下次启动自动使用</li>
                                 </ul>
-                                <p class="tip"><i class="fas fa-lightbulb"></i> <strong>提示：</strong>插入 USB 声卡或 AUX 音频线后，建议在声卡管理页面点击刷新按钮重新检测设备</p>
+                                <p class="tip"><i class="fas fa-lightbulb"></i> <strong>提示：</strong>客户端模式下，播放、暂停、音量调节等操作由浏览器控制，状态自动同步到服务器</p>
                             </div>
 
                             <div class="principle-section">
                                 <h5><i class="fas fa-sliders-h"></i> 音量控制原理</h5>
                                 <ul>
-                                    <li>前端网页通过 HTTP API 向服务器发送音量设置请求</li>
-                                    <li>服务器保存音量值到配置文件（config.json）</li>
-                                    <li>播放时通过播放器参数控制输出音量</li>
+                                    <li><strong>服务器声卡模式</strong>：前端网页通过 HTTP API 向服务器发送音量设置请求，服务器通过播放器参数控制输出音量</li>
+                                    <li><strong>客户端浏览器模式</strong>：通过 HTML5 Audio 的 volume 属性直接控制浏览器播放音量</li>
                                     <li>多客户端共享同一音量设置，修改后全局生效</li>
                                 </ul>
                             </div>

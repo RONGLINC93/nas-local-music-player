@@ -40,7 +40,7 @@
                 </div>
                 <div class="nav-item" data-view="device">
                     <i class="fas fa-volume-up nav-icon"></i>
-                    <span>声卡管理</span>
+                    <span>播放管理</span>
                 </div>
                 <div class="nav-item" data-view="online-settings">
                     <i class="fas fa-cog nav-icon"></i>
@@ -591,15 +591,40 @@
                 <div class="content-area">
                     <section class="device-section">
                         <div class="section-header">
-                            <h2>声卡设备管理</h2>
+                            <h2>播放管理</h2>
                             <button onclick="testAudioDevice()" class="device-test-btn" title="测试声卡">
                                 <i class="fas fa-play-circle"></i>
                                 测试播放
                             </button>
                         </div>
+                        
+                        <!-- 播放输出方式 -->
+                        <div class="audio-device-card">
+                            <h4><i class="fas fa-broadcast-tower"></i> 播放输出方式</h4>
+                            <p class="audio-device-description">选择音频播放的输出方式</p>
+                            <div class="play-output-options" id="playOutputOptions">                                
+                                <label class="play-output-option">
+                                    <input type="radio" name="playOutput" value="client" onchange="changePlayOutput('client')">
+                                    <div class="play-output-label">
+                                        <i class="fas fa-laptop"></i>
+                                        <span>客户端浏览器</span>
+                                        <small>通过访问网页的浏览器内置播放器播放</small>
+                                    </div>
+                                </label>
+                                <label class="play-output-option">
+                                    <input type="radio" name="playOutput" value="server" checked onchange="changePlayOutput('server')">
+                                    <div class="play-output-label">
+                                        <i class="fas fa-server"></i>
+                                        <span>服务器声卡</span>
+                                        <small>通过服务器连接的声卡设备播放</small>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                        
                         <!-- 声卡设备管理 -->
                         <div class="audio-device-card">
-                            <h4><i class="fas fa-volume-up"></i> 已识别声卡设备</h4>
+                            <h4><i class="fas fa-volume-up"></i> 服务端已识别声卡设备</h4>
                             <p class="audio-device-description">选择音频输出设备，当前选中的设备将用于播放音乐</p>
                             <div class="audio-device-list" id="deviceList">
                                 <p class="empty-state">加载中...</p>

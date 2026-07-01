@@ -10,6 +10,8 @@ let currentPlayMode = 'sequence'; // 当前播放模式
 let selectedPlaylistTracks = new Set(); // 播放列表选中的歌曲索引
 let lastClickedPlaylistIndex = -1; // 上次点击的播放列表索引（用于Shift多选）
 let taskListPollInterval = null; // 任务列表轮询定时器
+let playOutput = 'server'; // 播放输出方式：server(服务器声卡), client(客户端浏览器)
+let clientAudio = null; // 客户端 Audio 元素
 
 const playModeIcons = {
     'sequence': 'fas fa-list',
@@ -72,11 +74,32 @@ function updatePlayPauseButton() {
     }
 }
 
+// 更新播放进度 UI（仅更新界面，不请求服务端）
+function updateProgressUI(currentTime, duration) {
+    if (!duration || duration <= 0) return;
+    
+    const percent = (currentTime / duration) * 100;
+    currentDuration = duration;
+    
+    const progressBar = document.getElementById('progressBar');
+    const currentTimeEl = document.getElementById('currentTime');
+    const durationEl = document.getElementById('duration');
+    
+    if (progressBar) progressBar.style.width = `${percent}%`;
+    if (currentTimeEl) currentTimeEl.textContent = formatDuration(currentTime);
+    if (durationEl) durationEl.textContent = formatDuration(duration);
+}
+
 // 更新播放进度
 function updateProgress() {
     // 没有播放歌曲时才停止更新
     if (currentIndex < 0) {
         stopProgressUpdate();
+        return;
+    }
+    
+    // 客户端模式下，进度由 HTML5 Audio 的 timeupdate 事件处理
+    if (playOutput === 'client') {
         return;
     }
     
@@ -120,6 +143,16 @@ function updateProgress() {
 
 // 同步播放状态（用于多客户端同步）
 function syncPlaybackStatus(status) {
+    // 客户端模式下，不同步服务端播放状态（客户端自己控制播放）
+    if (playOutput === 'client') {
+        // 仅同步播放模式
+        if (status.playMode && status.playMode !== currentPlayMode) {
+            currentPlayMode = status.playMode;
+            updatePlayModeButton();
+        }
+        return;
+    }
+    
     if (status.current) {
         const songChanged = status.currentIndex !== currentIndex;
         
@@ -392,27 +425,256 @@ async function setMusicDir() {
     }
 }
 
+// ==================== 客户端播放功能 ====================
+
+// 初始化客户端 Audio 元素
+function initClientAudio() {
+    if (!clientAudio) {
+        clientAudio = new Audio();
+        clientAudio.volume = currentVolume / 100;
+        clientAudio.muted = currentMuted;
+        
+        // 监听播放事件
+        clientAudio.addEventListener('play', () => {
+            isPlaying = true;
+            updatePlayPauseButton();
+            startProgressUpdate();
+            // 同步状态到服务器
+            syncClientPlaybackState('playing', clientAudio.currentTime, clientAudio.duration);
+        });
+        
+        clientAudio.addEventListener('pause', () => {
+            isPlaying = false;
+            updatePlayPauseButton();
+            stopProgressUpdate(clientAudio.currentTime);
+            syncClientPlaybackState('paused', clientAudio.currentTime, clientAudio.duration);
+        });
+        
+        clientAudio.addEventListener('ended', () => {
+            isPlaying = false;
+            updatePlayPauseButton();
+            stopProgressUpdate();
+            syncClientPlaybackState('ended', 0, clientAudio.duration);
+            // 触发自动播放下一首
+            handleClientPlaybackEnded();
+        });
+        
+        clientAudio.addEventListener('timeupdate', () => {
+            if (isPlaying && progressUpdateInterval) {
+                // 使用客户端实际进度更新 UI
+                updateProgressUI(clientAudio.currentTime, clientAudio.duration);
+            }
+        });
+        
+        clientAudio.addEventListener('error', (e) => {
+            console.error('客户端播放错误:', e);
+            showError('音频播放失败');
+        });
+    }
+}
+
+// 同步客户端播放状态到服务器
+async function syncClientPlaybackState(state, currentTime, duration) {
+    try {
+        await apiRequest('/api/client-playback-state', 'POST', {
+            state,
+            currentTime,
+            duration
+        });
+    } catch (error) {
+        console.error('同步播放状态失败:', error);
+    }
+}
+
+// 处理客户端播放结束后的自动播放逻辑
+async function handleClientPlaybackEnded() {
+    if (currentPlayMode === 'loop') {
+        // 单曲循环：重新播放当前歌曲
+        playTrack(currentIndex);
+    } else if (currentPlayMode === 'single') {
+        // 单曲播放：停止
+        currentIndex = -1;
+        updateNowPlaying(null);
+        renderPlaylist();
+    } else if (currentPlayMode === 'random') {
+        // 随机播放
+        if (currentPlaylist.length > 1) {
+            let randomIndex;
+            do {
+                randomIndex = Math.floor(Math.random() * currentPlaylist.length);
+            } while (randomIndex === currentIndex && currentPlaylist.length > 1);
+            playTrack(randomIndex);
+        }
+    } else {
+        // 顺序播放
+        if (currentIndex < currentPlaylist.length - 1) {
+            playTrack(currentIndex + 1);
+        }
+    }
+}
+
+// 客户端播放指定索引的歌曲
+async function playTrackClient(index) {
+    if (!clientAudio) {
+        initClientAudio();
+    }
+    
+    const track = currentPlaylist[index];
+    currentIndex = index;
+    
+    // 停止当前播放
+    clientAudio.pause();
+    clientAudio.currentTime = 0;
+    
+    // 设置音频源
+    clientAudio.src = `/api/stream/${index}`;
+    
+    // 更新 UI
+    updateNowPlaying(track);
+    renderPlaylist();
+    
+    // 开始播放
+    try {
+        await clientAudio.play();
+        isPlaying = true;
+        updatePlayPauseButton();
+        startProgressUpdate();
+    } catch (error) {
+        console.error('客户端播放失败:', error);
+        showError('播放失败');
+    }
+}
+
+// 客户端暂停/继续
+function togglePlayClient() {
+    if (!clientAudio) return;
+    
+    if (isPlaying) {
+        clientAudio.pause();
+    } else {
+        if (currentIndex === -1 && currentPlaylist.length > 0) {
+            playTrackClient(0);
+        } else {
+            clientAudio.play();
+        }
+    }
+}
+
+// 客户端停止
+function stopClient() {
+    if (clientAudio) {
+        clientAudio.pause();
+        clientAudio.currentTime = 0;
+        clientAudio.src = '';
+    }
+    currentIndex = -1;
+    isPlaying = false;
+    updateNowPlaying(null);
+    updatePlayPauseButton();
+    renderPlaylist();
+    stopProgressUpdate();
+}
+
+// 客户端音量控制
+function changeVolumeClient(value) {
+    currentVolume = parseInt(value);
+    if (clientAudio) {
+        clientAudio.volume = currentVolume / 100;
+    }
+    updateVolumeDisplay();
+}
+
+// 客户端静音切换
+function toggleMuteClient() {
+    currentMuted = !currentMuted;
+    if (clientAudio) {
+        clientAudio.muted = currentMuted;
+    }
+    updateMuteButton();
+    updateVolumeDisplay();
+}
+
+// 客户端 seek
+function seekClient(progress) {
+    if (clientAudio && clientAudio.duration) {
+        clientAudio.currentTime = progress * clientAudio.duration;
+    }
+}
+
+// 切换播放输出方式
+async function changePlayOutput(output) {
+    try {
+        const result = await apiRequest('/api/play-output', 'POST', { output });
+        if (result.success) {
+            const oldOutput = playOutput;
+            playOutput = output;
+            console.log(`📱 播放输出已切换为：${output === 'server' ? '服务器声卡' : '客户端浏览器'}`);
+            
+            // 如果当前正在播放，需要停止旧模式并重新以新模式播放
+            if (isPlaying && currentIndex >= 0) {
+                // 停止旧模式的播放
+                if (oldOutput === 'client') {
+                    // 旧模式是客户端，停止客户端音频
+                    if (clientAudio) {
+                        clientAudio.pause();
+                        clientAudio.src = '';
+                    }
+                } else {
+                    // 旧模式是服务器，停止服务器播放
+                    await apiRequest('/api/stop');
+                }
+                
+                // 重新播放
+                const currentIndex_saved = currentIndex;
+                currentIndex = -1;
+                isPlaying = false;
+                stopProgressUpdate();
+                
+                // 延迟一下再播放，确保状态切换完成
+                setTimeout(() => {
+                    playTrack(currentIndex_saved);
+                }, 200);
+            }
+            
+            showNotification({
+                type: 'info',
+                message: `播放输出：${output === 'server' ? '服务器声卡' : '客户端浏览器'}`,
+                duration: 2000
+            });
+        }
+    } catch (error) {
+        console.error('切换播放输出失败:', error);
+        showError('切换失败');
+    }
+}
+
+// ==================== 结束客户端播放功能 ====================
+
 async function playTrack(index) {
     if (index < 0 || index >= currentPlaylist.length) return;
     
     const track = currentPlaylist[index];
     
-    if (currentMuted) {
+    if (currentMuted && playOutput === 'server') {
         showInfo('⚠️ 当前处于静音状态，将无法听到声音');
     }
     
     try {
-        const result = await apiRequest(`/api/play/${index}`);
-        
-        if (result.success) {
-            currentIndex = index;
-            isPlaying = true;
-            updateNowPlaying(result.current);
-            updatePlayPauseButton();
-            renderPlaylist();
-            startProgressUpdate();
+        if (playOutput === 'client') {
+            await playTrackClient(index);
         } else {
-            showError('播放失败');
+            const result = await apiRequest(`/api/play/${index}`);
+            
+            if (result.success) {
+                currentIndex = index;
+                isPlaying = true;
+                updateNowPlaying(result.current);
+                updatePlayPauseButton();
+                renderPlaylist();
+                startProgressUpdate();
+            } else {
+                showError('播放失败');
+            }
         }
     } catch (error) {
         console.error('播放失败:', error);
@@ -431,27 +693,31 @@ async function togglePlay() {
     }
     
     try {
-        if (isPlaying) {
-            await apiRequest('/api/pause');
-            
-            // 立即获取最新状态（包括当前播放位置）
-            const status = await apiRequest('/api/status');
-            
-            // 更新状态
-            isPlaying = false;
-            updatePlayPauseButton();
-            // 传入进度参数，保留当前进度
-            stopProgressUpdate(status.progress);
+        if (playOutput === 'client') {
+            togglePlayClient();
         } else {
-            if (currentMuted) {
-                showInfo('⚠️ 当前处于静音状态，将无法听到声音');
+            if (isPlaying) {
+                await apiRequest('/api/pause');
+                
+                // 立即获取最新状态（包括当前播放位置）
+                const status = await apiRequest('/api/status');
+                
+                // 更新状态
+                isPlaying = false;
+                updatePlayPauseButton();
+                // 传入进度参数，保留当前进度
+                stopProgressUpdate(status.progress);
+            } else {
+                if (currentMuted) {
+                    showInfo('⚠️ 当前处于静音状态，将无法听到声音');
+                }
+                await apiRequest('/api/resume');
+                isPlaying = true;
+                startProgressUpdate();
+                updateNowPlaying(currentPlaylist[currentIndex]);
             }
-            await apiRequest('/api/resume');
-            isPlaying = true;
-            startProgressUpdate();
-            updateNowPlaying(currentPlaylist[currentIndex]);
+            updatePlayPauseButton();
         }
-        updatePlayPauseButton();
     } catch (error) {
         console.error('操作失败:', error);
         showError('操作失败');
@@ -460,13 +726,17 @@ async function togglePlay() {
 
 async function stop() {
     try {
-        await apiRequest('/api/stop');
-        currentIndex = -1;
-        isPlaying = false;
-        updateNowPlaying(null);
-        updatePlayPauseButton();
-        renderPlaylist();
-        stopProgressUpdate();
+        if (playOutput === 'client') {
+            stopClient();
+        } else {
+            await apiRequest('/api/stop');
+            currentIndex = -1;
+            isPlaying = false;
+            updateNowPlaying(null);
+            updatePlayPauseButton();
+            renderPlaylist();
+            stopProgressUpdate();
+        }
     } catch (error) {
         console.error('停止失败:', error);
         showError('停止失败');
@@ -2735,23 +3005,44 @@ async function loadVolume() {
     }
 }
 
+async function loadPlayOutput() {
+    try {
+        const result = await apiRequest('/api/play-output');
+        if (result.success) {
+            playOutput = result.playOutput;
+            
+            // 更新单选按钮状态
+            const radioButtons = document.querySelectorAll('input[name="playOutput"]');
+            radioButtons.forEach(radio => {
+                radio.checked = (radio.value === playOutput);
+            });
+        }
+    } catch (error) {
+        console.error('加载播放输出方式失败:', error);
+    }
+}
+
 async function changeVolume(volume) {
     try {
         const valueEl = document.getElementById('volumeValue');
         valueEl.textContent = `${volume}%`;
         
-        const response = await fetch('/api/volume', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ volume: parseInt(volume) })
-        });
-        
-        const result = await response.json();
-        if (result.success) {
-            currentMuted = result.muted;
-            updateVolumeIcon(parseInt(volume), result.muted);
+        if (playOutput === 'client') {
+            changeVolumeClient(volume);
+        } else {
+            const response = await fetch('/api/volume', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ volume: parseInt(volume) })
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                currentMuted = result.muted;
+                updateVolumeIcon(parseInt(volume), result.muted);
+            }
         }
     } catch (error) {
         console.error('设置音量失败:', error);
@@ -2779,13 +3070,17 @@ function updateVolumeIcon(volume, muted) {
 
 async function toggleMute() {
     try {
-        const result = await apiRequest('/api/mute', 'POST');
-        if (result.success) {
-            // 更新本地静音状态
-            currentMuted = result.muted;
-            // 更新图标
-            const slider = document.getElementById('volumeSlider');
-            updateVolumeIcon(parseInt(slider.value), result.muted);
+        if (playOutput === 'client') {
+            toggleMuteClient();
+        } else {
+            const result = await apiRequest('/api/mute', 'POST');
+            if (result.success) {
+                // 更新本地静音状态
+                currentMuted = result.muted;
+                // 更新图标
+                const slider = document.getElementById('volumeSlider');
+                updateVolumeIcon(parseInt(slider.value), result.muted);
+            }
         }
     } catch (error) {
         console.error('静音切换失败:', error);
@@ -2887,13 +3182,17 @@ async function endDrag(e) {
     
     if (currentDragTime > 0 && currentIndex >= 0) {
         try {
-            await apiRequest(`/api/seek?time=${currentDragTime}`);
-            
-            // 如果正在播放，更新播放开始时间
-            if (isPlaying) {
-                playbackStartTime = Date.now() - (currentDragTime * 1000);
+            if (playOutput === 'client') {
+                seekClient(currentDragTime / (currentDuration || 1));
             } else {
-                pausedElapsed = currentDragTime;
+                await apiRequest(`/api/seek?time=${currentDragTime}`);
+                
+                // 如果正在播放，更新播放开始时间
+                if (isPlaying) {
+                    playbackStartTime = Date.now() - (currentDragTime * 1000);
+                } else {
+                    pausedElapsed = currentDragTime;
+                }
             }
         } catch (error) {
             console.error('跳转失败:', error);
@@ -2902,11 +3201,12 @@ async function endDrag(e) {
 }
 
 window.onload = async () => {
-    // 加载核心界面（播放状态、声卡、音量、在线设置）
+    // 加载核心界面（播放状态、声卡、音量、播放输出方式、在线设置）
     await Promise.all([
         loadStatus(),
         loadAudioDevices(),
         loadVolume(),
+        loadPlayOutput(),
         loadOnlineSettings()
     ]);
     updatePlayModeButton();

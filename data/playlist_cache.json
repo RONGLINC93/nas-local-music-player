@@ -1,1 +1,27 @@
-[]
+[
+  {
+    "title": "于是",
+    "artist": "郑润泽",
+    "album": "于是",
+    "duration": 232,
+    "path": "online://wy/1303464858",
+    "playUrl": "http://m801.music.126.net/20260701094820/fd706ff789dbe608a193a5e3d2b2337e/jdymusic/obj/wo3DlMOGwrbDjj7DisKw/28481680626/8c3f/dd57/4c1c/84333f57c88a35512dd3ba34a1a1816f.mp3?vuutv=wxUGlWYoEkP2kRZZfFcOGQOtsgtxug7UGvXsOHtcj9rjpoupt0jtAYgdKGF0/uZXbb/lcoVXiyBcYs2b1ZGAfCEU+XXgGgsbyZAIEnd1lpqKuqyLrvLhCsNFqCbFO9a5q/asMyONR/eYwbxVIjpkdw==&cdntag=bWFyaz1vc193ZWIscXVhbGl0eV9zdGFuZGFyZA",
+    "picUrl": "https://p2.music.126.net/PEGvmO3OqgGOkx4m9qxAJA==/109951163478499713.jpg",
+    "source": "wy",
+    "sourceName": "网易云音乐",
+    "isOnline": true,
+    "songInfo": {
+      "songId": "1303464858",
+      "name": "于是",
+      "singer": "郑润泽",
+      "albumName": "于是",
+      "albumId": "72363421",
+      "interval": 232,
+      "picUrl": "https://p2.music.126.net/PEGvmO3OqgGOkx4m9qxAJA==/109951163478499713.jpg",
+      "source": "wy",
+      "quality": "128",
+      "sourceName": "网易云音乐",
+      "globalIndex": 2
+    }
+  }
+]

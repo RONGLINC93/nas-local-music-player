@@ -84,6 +84,7 @@ let isMuted = false; // 是否静音
 let playbackStartTime = null; // 播放开始时间
 let currentDuration = 0; // 当前歌曲时长（秒）
 let currentAudioDevice = 'default'; // 当前选中的声卡设备
+let playOutput = 'server'; // 播放输出方式：server(服务器声卡), client(客户端浏览器)
 let playMode = 'sequence'; // 播放模式：sequence(顺序播放), random(随机播放), single(单曲播放), loop(单曲循环)
 let onlineSource = 'wy'; // 在线音乐默认音源平台
 let pausedElapsed = 0; // 暂停时的已播放秒数
@@ -167,6 +168,10 @@ function loadConfig() {
                 currentAudioDevice = config.audioDevice;
                 console.log(`📂 已加载配置，声卡设备：${currentAudioDevice}`);
             }
+            if (config.playOutput) {
+                playOutput = config.playOutput;
+                console.log(`📂 已加载配置，播放输出：${playOutput === 'server' ? '服务器声卡' : '客户端浏览器'}`);
+            }
             if (config.maxConvertWorkers !== undefined) {
                 maxConvertWorkers = Math.max(1, Math.min(10, parseInt(config.maxConvertWorkers, 10) || 2));
                 console.log(`⚙️ 已加载配置，转换线程数：${maxConvertWorkers}`);
@@ -190,6 +195,7 @@ function saveConfig() {
         const config = { 
             playMode: playMode,
             audioDevice: currentAudioDevice,
+            playOutput: playOutput,
             maxConvertWorkers: maxConvertWorkers,
             maxUploadWorkers: maxUploadWorkers,
             onlineSource: onlineSource
@@ -4501,6 +4507,168 @@ app.post('/api/play-mode', (req, res) => {
     saveConfig();
     console.log(`🎵 播放模式已切换为：${mode}`);
     res.json({ success: true, playMode: mode });
+});
+
+// 获取播放输出方式
+app.get('/api/play-output', (req, res) => {
+    res.json({ success: true, playOutput: playOutput });
+});
+
+// 设置播放输出方式
+app.post('/api/play-output', (req, res) => {
+    const { output } = req.body;
+    const validOutputs = ['server', 'client'];
+
+    if (!validOutputs.includes(output)) {
+        return res.json({ success: false, message: '无效的播放输出方式' });
+    }
+
+    playOutput = output;
+    saveConfig();
+    console.log(`📱 播放输出已切换为：${output === 'server' ? '服务器声卡' : '客户端浏览器'}`);
+    res.json({ success: true, playOutput: output });
+});
+
+// 客户端音频流 API
+app.get('/api/stream/:index', async (req, res) => {
+    const index = parseInt(req.params.index);
+
+    if (index < 0 || index >= currentPlaylist.length) {
+        return res.status(404).json({ success: false, message: '歌曲不存在' });
+    }
+
+    const track = currentPlaylist[index];
+    
+    // 判断是否是在线音乐
+    if (track.isOnline || track.path.startsWith('online://')) {
+        try {
+            const songInfo = track.songInfo || { 
+                songId: track.path.split('/')[2], 
+                name: track.title, 
+                singer: track.artist, 
+                albumName: track.album 
+            };
+            
+            let playUrl = await getMusicPlayUrl(track.source, songInfo, '128');
+            
+            if (!playUrl) {
+                const platforms = ['kw', 'kg', 'tx', 'wy', 'mg'];
+                for (const platform of platforms) {
+                    if (platform === track.source) continue;
+                    try {
+                        playUrl = await getMusicPlayUrl(platform, songInfo, '128');
+                        if (playUrl) {
+                            track.source = platform;
+                            break;
+                        }
+                    } catch (e) {
+                        // 继续尝试下一个
+                    }
+                }
+            }
+            
+            if (!playUrl) {
+                return res.status(500).json({ success: false, error: '无法获取播放链接' });
+            }
+            
+            // 代理在线音频流
+            res.setHeader('Content-Type', 'audio/mpeg');
+            res.setHeader('Accept-Ranges', 'bytes');
+            
+            const response = await fetch(playUrl);
+            if (!response.ok) {
+                throw new Error(`获取在线音乐失败: ${response.status}`);
+            }
+            
+            response.body.pipe(res);
+            
+        } catch (error) {
+            console.error('在线音乐流式播放失败:', error.message);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    } else {
+        // 本地音乐流式播放
+        const filePath = track.path;
+        
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ success: false, error: '文件不存在' });
+        }
+        
+        const stat = fs.statSync(filePath);
+        const range = req.headers.range;
+        
+        if (range) {
+            // 支持 Range 请求（seek）
+            const parts = range.replace(/bytes=/, '').split('-');
+            const start = parseInt(parts[0], 10);
+            const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+            const chunksize = (end - start) + 1;
+            const file = fs.createReadStream(filePath, { start, end });
+            
+            res.writeHead(206, {
+                'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+                'Accept-Ranges': 'bytes',
+                'Content-Length': chunksize,
+                'Content-Type': 'audio/mpeg'
+            });
+            file.pipe(res);
+        } else {
+            // 完整文件流
+            res.writeHead(200, {
+                'Content-Length': stat.size,
+                'Content-Type': 'audio/mpeg'
+            });
+            const file = fs.createReadStream(filePath);
+            file.pipe(res);
+        }
+    }
+});
+
+// 客户端播放状态同步 API
+app.post('/api/client-playback-state', (req, res) => {
+    const { state, currentTime, duration } = req.body;
+    
+    if (state === 'playing') {
+        isPlaying = true;
+        playbackStartTime = Date.now() - (currentTime * 1000);
+        currentDuration = duration || currentDuration;
+        console.log(`📱 客户端播放状态：播放中，进度 ${currentTime.toFixed(1)}s`);
+    } else if (state === 'paused') {
+        isPlaying = false;
+        pausedElapsed = currentTime;
+        console.log(`📱 客户端播放状态：暂停，进度 ${currentTime.toFixed(1)}s`);
+    } else if (state === 'ended') {
+        isPlaying = false;
+        playbackStartTime = null;
+        console.log(`📱 客户端播放状态：播放结束`);
+        
+        // 处理自动播放下一首
+        if (playMode === 'loop') {
+            playMusic(currentPlaylist[currentIndex].path);
+        } else if (playMode === 'single') {
+            currentIndex = -1;
+        } else if (playMode === 'random') {
+            if (currentPlaylist.length > 1) {
+                let randomIndex;
+                do {
+                    randomIndex = Math.floor(Math.random() * currentPlaylist.length);
+                } while (randomIndex === currentIndex && currentPlaylist.length > 1);
+                currentIndex = randomIndex;
+                isPlaying = true;
+                playMusic(currentPlaylist[currentIndex].path);
+            }
+        } else {
+            if (currentIndex < currentPlaylist.length - 1) {
+                const nextIndex = currentIndex + 1;
+                const nextTrack = currentPlaylist[nextIndex];
+                currentIndex = nextIndex;
+                isPlaying = true;
+                playMusic(nextTrack.path);
+            }
+        }
+    }
+    
+    res.json({ success: true });
 });
 
 let currentPlayer = null;

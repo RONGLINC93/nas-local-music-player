@@ -838,6 +838,111 @@ async function confirmClearCache() {
     }
 }
 
+// 缓存大小限制相关
+let currentCacheLimit = 0;
+
+function formatCacheLimit(sizeMB) {
+    if (sizeMB <= 0) return '不限制';
+    if (sizeMB >= 1024) return (sizeMB / 1024).toFixed(sizeMB % 1024 === 0 ? 0 : 1) + ' GB';
+    return sizeMB + ' MB';
+}
+
+async function loadCacheLimit() {
+    try {
+        const result = await apiRequest('/api/cache-limit', 'GET');
+        if (result.success) {
+            currentCacheLimit = result.cacheLimitSize || 0;
+            updateCacheLimitUI();
+        }
+    } catch (error) {
+        console.error('加载缓存限制失败:', error);
+    }
+}
+
+function updateCacheLimitUI() {
+    const hintEl = document.getElementById('cacheLimitHint');
+    const customEl = document.getElementById('cacheLimitCustom');
+    const inputEl = document.getElementById('cacheLimitInput');
+    
+    if (hintEl) {
+        hintEl.textContent = formatCacheLimit(currentCacheLimit);
+    }
+    
+    // 更新单选按钮
+    const radios = document.querySelectorAll('input[name="cacheLimit"]');
+    let matched = false;
+    radios.forEach(radio => {
+        if (radio.value === 'custom') return;
+        const val = parseInt(radio.value, 10);
+        if (val === currentCacheLimit) {
+            radio.checked = true;
+            matched = true;
+        }
+    });
+    
+    if (!matched && currentCacheLimit > 0) {
+        // 自定义值
+        const customRadio = document.querySelector('input[name="cacheLimit"][value="custom"]');
+        if (customRadio) customRadio.checked = true;
+        if (customEl) customEl.style.display = 'flex';
+        if (inputEl) inputEl.value = currentCacheLimit;
+    } else {
+        if (customEl) customEl.style.display = 'none';
+    }
+}
+
+function setCacheLimitPreset(sizeMB) {
+    const customEl = document.getElementById('cacheLimitCustom');
+    if (customEl) customEl.style.display = 'none';
+    saveCacheLimit(sizeMB);
+}
+
+function showCustomCacheLimit() {
+    const customEl = document.getElementById('cacheLimitCustom');
+    if (customEl) customEl.style.display = 'flex';
+    const inputEl = document.getElementById('cacheLimitInput');
+    if (inputEl) inputEl.focus();
+}
+
+async function saveCacheLimit(customValue) {
+    let limit;
+    if (customValue !== undefined) {
+        limit = customValue;
+    } else {
+        const inputEl = document.getElementById('cacheLimitInput');
+        limit = parseInt(inputEl.value, 10);
+        if (isNaN(limit) || limit < 0) {
+            showError('请输入有效的缓存大小');
+            return;
+        }
+    }
+    
+    try {
+        const result = await apiRequest('/api/cache-limit', 'POST', { cacheLimitSize: limit });
+        if (result.success) {
+            currentCacheLimit = result.cacheLimitSize;
+            updateCacheLimitUI();
+            
+            let msg = '缓存限制已设置为 ' + formatCacheLimit(currentCacheLimit);
+            if (result.cleaned && result.removedCount > 0) {
+                msg += `，已自动清理 ${result.removedCount} 个旧缓存`;
+            }
+            showNotification({
+                type: 'success',
+                message: msg,
+                duration: 2500
+            });
+            
+            // 刷新缓存列表
+            refreshCacheList();
+        } else {
+            showError('设置失败: ' + (result.error || '未知错误'));
+        }
+    } catch (error) {
+        showError('设置失败: ' + error.message);
+    }
+}
+
 // ==================== 结束客户端播放功能 ====================
 
 async function playTrack(index) {
@@ -7851,6 +7956,7 @@ switchView = function(viewName) {
         // 加载播放相关设置
         loadAudioDevices();
         refreshCacheList();
+        loadCacheLimit();
         // 先加载设置（获取 activeSources），再刷新文件列表（使用 activeSources 显示选中状态）
         loadOnlineSettings().then(() => {
             refreshSourceFiles();

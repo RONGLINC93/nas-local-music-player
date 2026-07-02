@@ -4,5 +4,6 @@
     "playOutput": "client",
     "maxConvertWorkers": 4,
     "maxUploadWorkers": 5,
-    "onlineSource": "wy"
+    "onlineSource": "wy",
+    "cacheLimitSize": 0
 }

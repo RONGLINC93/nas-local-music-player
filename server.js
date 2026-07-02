@@ -160,6 +160,9 @@ const MUSIC_EXTENSIONS = ['.mp3', '.flac', '.wav', '.m4a', '.ogg', '.wma'];
 // 缓存元数据（内存缓存）
 let cacheMetadata = {};
 
+// 缓存大小限制（MB），0 表示不限制
+let cacheLimitSize = 0;
+
 // 缓存写入锁（防止并发写入同一文件）
 let cacheWriteLocks = new Set();
 
@@ -236,6 +239,13 @@ function addCacheMeta(source, songId, title, artist, album, ext, size) {
         cachedAt: Date.now()
     };
     saveCacheMetadata();
+    
+    // 缓存写入后，检查是否超出限制
+    if (cacheLimitSize > 0) {
+        setImmediate(() => {
+            checkAndCleanCache();
+        });
+    }
 }
 
 // 删除单个缓存
@@ -289,6 +299,44 @@ function getCacheTotalSize() {
     return totalSize;
 }
 
+// 检查并清理超出限制的缓存（删除最旧的）
+function checkAndCleanCache() {
+    if (cacheLimitSize <= 0) return { cleaned: false, freedSize: 0, removedCount: 0 };
+    
+    const limitBytes = cacheLimitSize * 1024 * 1024;
+    let totalSize = getCacheTotalSize();
+    
+    if (totalSize <= limitBytes) {
+        return { cleaned: false, freedSize: 0, removedCount: 0 };
+    }
+    
+    // 按缓存时间从旧到新排序
+    const sortedCaches = Object.entries(cacheMetadata)
+        .map(([cacheKey, meta]) => ({ cacheKey, meta }))
+        .sort((a, b) => (a.meta.cachedAt || 0) - (b.meta.cachedAt || 0));
+    
+    let freedSize = 0;
+    let removedCount = 0;
+    
+    for (const { cacheKey, meta } of sortedCaches) {
+        if (totalSize <= limitBytes) break;
+        
+        const size = meta.size || 0;
+        if (deleteCache(cacheKey)) {
+            totalSize -= size;
+            freedSize += size;
+            removedCount++;
+            console.log(`🧹 自动清理缓存: ${cacheKey} (${(size / 1024 / 1024).toFixed(2)} MB)`);
+        }
+    }
+    
+    if (removedCount > 0) {
+        console.log(`✅ 缓存清理完成，共删除 ${removedCount} 个缓存，释放 ${(freedSize / 1024 / 1024).toFixed(2)} MB`);
+    }
+    
+    return { cleaned: true, freedSize, removedCount };
+}
+
 // 从 Content-Type 推断文件扩展名
 function getExtFromContentType(contentType) {
     const map = {
@@ -337,6 +385,10 @@ function loadConfig() {
                 onlineSource = config.onlineSource;
                 console.log(`📂 已加载配置，在线音源平台：${onlineSource}`);
             }
+            if (config.cacheLimitSize !== undefined) {
+                cacheLimitSize = Math.max(0, parseInt(config.cacheLimitSize, 10) || 0);
+                console.log(`📦 已加载配置，缓存大小限制：${cacheLimitSize === 0 ? '不限制' : cacheLimitSize + ' MB'}`);
+            }
         }
     } catch (err) {
         console.log('加载配置文件失败，使用默认配置:', err.message);
@@ -351,7 +403,8 @@ function saveConfig() {
             playOutput: playOutput,
             maxConvertWorkers: maxConvertWorkers,
             maxUploadWorkers: maxUploadWorkers,
-            onlineSource: onlineSource
+            onlineSource: onlineSource,
+            cacheLimitSize: cacheLimitSize
         };
         fs.writeFileSync(APP_CONFIG_FILE, JSON.stringify(config, null, 4), 'utf8');
     } catch (err) {
@@ -4736,6 +4789,49 @@ app.delete('/api/cache', (req, res) => {
         }
     } catch (error) {
         console.error('清空缓存失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 获取缓存大小限制
+app.get('/api/cache-limit', (req, res) => {
+    try {
+        res.json({
+            success: true,
+            cacheLimitSize: cacheLimitSize,
+            currentSize: getCacheTotalSize()
+        });
+    } catch (error) {
+        console.error('获取缓存限制失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 设置缓存大小限制
+app.post('/api/cache-limit', (req, res) => {
+    try {
+        const { cacheLimitSize: newLimit } = req.body;
+        const limit = Math.max(0, parseInt(newLimit, 10) || 0);
+        cacheLimitSize = limit;
+        saveConfig();
+        
+        console.log(`📦 缓存大小限制已设置为：${limit === 0 ? '不限制' : limit + ' MB'}`);
+        
+        // 如果设置了限制，立即检查并清理
+        let cleanResult = { cleaned: false, freedSize: 0, removedCount: 0 };
+        if (limit > 0) {
+            cleanResult = checkAndCleanCache();
+        }
+        
+        res.json({
+            success: true,
+            cacheLimitSize: cacheLimitSize,
+            cleaned: cleanResult.cleaned,
+            freedSize: cleanResult.freedSize,
+            removedCount: cleanResult.removedCount
+        });
+    } catch (error) {
+        console.error('设置缓存限制失败:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });

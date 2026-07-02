@@ -406,6 +406,43 @@
                                         </button>
                                     </div>
                                 </div>
+                                
+                                <div class="cache-limit-setting">
+                                    <div class="cache-limit-header">
+                                        <span class="cache-limit-label"><i class="fas fa-sliders-h"></i> 缓存大小限制</span>
+                                        <span class="cache-limit-hint" id="cacheLimitHint">不限制</span>
+                                    </div>
+                                    <div class="cache-limit-control">
+                                        <div class="cache-limit-options">
+                                            <label class="cache-limit-option">
+                                                <input type="radio" name="cacheLimit" value="0" checked onchange="setCacheLimitPreset(0)">
+                                                <span>不限制</span>
+                                            </label>
+                                            <label class="cache-limit-option">
+                                                <input type="radio" name="cacheLimit" value="500" onchange="setCacheLimitPreset(500)">
+                                                <span>500 MB</span>
+                                            </label>
+                                            <label class="cache-limit-option">
+                                                <input type="radio" name="cacheLimit" value="1024" onchange="setCacheLimitPreset(1024)">
+                                                <span>1 GB</span>
+                                            </label>
+                                            <label class="cache-limit-option">
+                                                <input type="radio" name="cacheLimit" value="2048" onchange="setCacheLimitPreset(2048)">
+                                                <span>2 GB</span>
+                                            </label>
+                                            <label class="cache-limit-option">
+                                                <input type="radio" name="cacheLimit" value="custom" onchange="showCustomCacheLimit()">
+                                                <span>自定义</span>
+                                            </label>
+                                        </div>
+                                        <div class="cache-limit-custom" id="cacheLimitCustom" style="display: none;">
+                                            <input type="number" id="cacheLimitInput" min="0" placeholder="输入大小（MB）" class="cache-limit-input">
+                                            <button onclick="saveCacheLimit()" class="cache-limit-save-btn">
+                                                <i class="fas fa-check"></i> 应用
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
                                 <div class="cache-list" id="cacheList">
                                     <p class="empty-state">暂无缓存</p>
                                 </div>

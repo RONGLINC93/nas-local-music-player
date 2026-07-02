@@ -4777,6 +4777,37 @@ app.delete('/api/cache/:cacheKey', (req, res) => {
     }
 });
 
+// 下载单个缓存文件
+app.get('/api/cache/:cacheKey/download', (req, res) => {
+    try {
+        const { cacheKey } = req.params;
+        const meta = cacheMetadata[cacheKey];
+        if (!meta) {
+            return res.status(404).json({ success: false, error: '缓存不存在' });
+        }
+        
+        const cacheFilePath = getCacheFilePath(cacheKey, meta.ext || '.mp3');
+        if (!fs.existsSync(cacheFilePath)) {
+            return res.status(404).json({ success: false, error: '缓存文件不存在' });
+        }
+        
+        const fileName = `${meta.artist || '未知艺术家'} - ${meta.title || '未知歌曲'}.${meta.ext || 'mp3'}`;
+        const stat = fs.statSync(cacheFilePath);
+        
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+        res.setHeader('Content-Type', 'audio/mpeg');
+        res.setHeader('Content-Length', stat.size);
+        
+        const fileStream = fs.createReadStream(cacheFilePath);
+        fileStream.pipe(res);
+        
+        console.log(`📥 下载缓存: ${fileName}`);
+    } catch (error) {
+        console.error('下载缓存失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // 清空所有缓存
 app.delete('/api/cache', (req, res) => {
     try {

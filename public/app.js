@@ -60,10 +60,15 @@ function updateNowPlaying(track) {
         if (titleEl) titleEl.textContent = track.title;
         if (artistEl) artistEl.textContent = track.artist || '-';
         if (albumEl) albumEl.textContent = track.album || '-';
+        // 更新下载按钮显示
+        updateDownloadButton(track);
     } else {
         if (titleEl) titleEl.textContent = '未播放';
         if (artistEl) artistEl.textContent = '-';
         if (albumEl) albumEl.textContent = '-';
+        // 隐藏下载按钮
+        const downloadBtn = document.getElementById('downloadBtn');
+        if (downloadBtn) downloadBtn.style.display = 'none';
     }
 }
 
@@ -91,6 +96,8 @@ function updateProgressUI(currentTime, duration) {
     if (durationEl) durationEl.textContent = formatDuration(duration);
 }
 
+let hasCheckedDownloadButton = false;
+
 // 更新缓冲进度
 function updateBufferProgress() {
     if (playOutput !== 'client') return;
@@ -101,10 +108,19 @@ function updateBufferProgress() {
     
     try {
         if (clientAudio.buffered && clientAudio.buffered.length > 0) {
-            // 获取最后一个缓冲范围的结束位置
             const bufferedEnd = clientAudio.buffered.end(clientAudio.buffered.length - 1);
             const percent = (bufferedEnd / clientAudio.duration) * 100;
             bufferEl.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+            
+            if (percent >= 99 && !hasCheckedDownloadButton) {
+                hasCheckedDownloadButton = true;
+                const track = currentIndex >= 0 ? currentPlaylist[currentIndex] : null;
+                if (track && track.isOnline) {
+                    setTimeout(() => {
+                        updateDownloadButton(track);
+                    }, 2000);
+                }
+            }
         }
     } catch (e) {
         // 忽略错误
@@ -116,6 +132,96 @@ function clearBufferProgress() {
     const bufferEl = document.getElementById('bufferProgress');
     if (bufferEl) {
         bufferEl.style.width = '0%';
+    }
+    hasCheckedDownloadButton = false;
+}
+
+// 获取歌曲的 songId
+function getSongId(track) {
+    if (!track) return null;
+    if (track.songId) return track.songId;
+    if (track.songInfo && track.songInfo.songId) return track.songInfo.songId;
+    if (track.path && track.path.startsWith('online://')) {
+        const parts = track.path.split('/');
+        if (parts.length >= 3) return parts[2];
+    }
+    return null;
+}
+
+// 更新下载按钮显示状态
+async function updateDownloadButton(track) {
+    const downloadBtn = document.getElementById('downloadBtn');
+    if (!downloadBtn) return;
+    
+    if (!track) {
+        downloadBtn.style.display = 'none';
+        return;
+    }
+    
+    // 只要有歌曲在播放就显示下载按钮
+    downloadBtn.style.display = 'flex';
+    
+    // 本地文件
+    if (!track.isOnline) {
+        downloadBtn.title = '下载当前歌曲';
+        return;
+    }
+    
+    // 在线音乐：检查是否已缓存，更新标题提示
+    const songId = getSongId(track);
+    if (track.source && songId) {
+        try {
+            const result = await apiRequest('/api/cache', 'GET');
+            if (result.success && result.cacheList) {
+                const cacheKey = `${track.source}_${songId}`;
+                const cached = result.cacheList.some(item => item.cacheKey === cacheKey);
+                if (cached) {
+                    downloadBtn.title = '下载当前歌曲（已缓存）';
+                } else {
+                    downloadBtn.title = '下载当前歌曲（缓存中）';
+                }
+            }
+        } catch (e) {
+            downloadBtn.title = '下载当前歌曲';
+        }
+    }
+}
+
+// 下载当前播放的歌曲
+async function downloadCurrentTrack() {
+    if (currentIndex < 0) return;
+    
+    const track = currentPlaylist[currentIndex];
+    if (!track) return;
+    
+    // 本地文件：使用 /api/download 接口
+    if (!track.isOnline) {
+        const filePath = encodeURIComponent(track.path);
+        window.open(`/api/download?path=${filePath}`, '_blank');
+        return;
+    }
+    
+    // 在线音乐
+    const songId = getSongId(track);
+    if (track.source && songId) {
+        const cacheKey = `${track.source}_${songId}`;
+        try {
+            // 先检查缓存是否存在
+            const result = await apiRequest('/api/cache', 'GET');
+            const cached = result.success && result.cacheList 
+                ? result.cacheList.some(item => item.cacheKey === cacheKey) 
+                : false;
+            
+            if (cached) {
+                // 已缓存，从缓存下载
+                window.open(`/api/cache/${encodeURIComponent(cacheKey)}/download`, '_blank');
+            } else {
+                // 未缓存，提示用户
+                showInfo('歌曲正在缓存中，请稍候再试...');
+            }
+        } catch (e) {
+            showError('下载失败: ' + e.message);
+        }
     }
 }
 

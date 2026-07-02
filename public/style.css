@@ -1805,6 +1805,16 @@ body {
     box-shadow: 0 5px 20px rgba(59, 130, 246, 0.4);
 }
 
+.download-btn {
+    background: #e0f2fe;
+    color: #0284c7;
+}
+
+.download-btn:hover {
+    background: #0284c7 !important;
+    color: white;
+}
+
 .progress-container {
     display: flex;
     align-items: center;

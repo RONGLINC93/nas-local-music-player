@@ -153,7 +153,160 @@ const MUSIC_DIR = path.join(__dirname, 'music');
 const APP_CONFIG_FILE = path.join(__dirname, 'data', 'config.json'); // 应用配置文件
 const FOLDER_CACHE_FILE = path.join(__dirname, 'data', 'folder_cache.json'); // 文件夹缓存文件
 const PLAYLIST_CACHE_FILE = path.join(__dirname, 'data', 'playlist_cache.json');
+const CACHE_DIR = path.join(__dirname, 'data', 'cache'); // 在线音乐缓存目录
+const CACHE_META_FILE = path.join(__dirname, 'data', 'cache_meta.json'); // 缓存元数据文件
 const MUSIC_EXTENSIONS = ['.mp3', '.flac', '.wav', '.m4a', '.ogg', '.wma'];
+
+// 缓存元数据（内存缓存）
+let cacheMetadata = {};
+
+// 缓存写入锁（防止并发写入同一文件）
+let cacheWriteLocks = new Set();
+
+// 确保缓存目录存在
+function ensureCacheDir() {
+    if (!fs.existsSync(CACHE_DIR)) {
+        fs.mkdirSync(CACHE_DIR, { recursive: true });
+    }
+}
+
+// 加载缓存元数据
+function loadCacheMetadata() {
+    try {
+        if (fs.existsSync(CACHE_META_FILE)) {
+            const data = fs.readFileSync(CACHE_META_FILE, 'utf8');
+            cacheMetadata = JSON.parse(data);
+            console.log(`📦 已加载缓存元数据，共 ${Object.keys(cacheMetadata).length} 个缓存文件`);
+        }
+    } catch (err) {
+        console.error('加载缓存元数据失败:', err.message);
+        cacheMetadata = {};
+    }
+}
+
+// 保存缓存元数据
+function saveCacheMetadata() {
+    try {
+        fs.writeFileSync(CACHE_META_FILE, JSON.stringify(cacheMetadata, null, 2), 'utf8');
+    } catch (err) {
+        console.error('保存缓存元数据失败:', err.message);
+    }
+}
+
+// 生成缓存键
+function getCacheKey(source, songId) {
+    return `${source}_${songId}`;
+}
+
+// 获取缓存文件路径
+function getCacheFilePath(cacheKey, ext = '.mp3') {
+    return path.join(CACHE_DIR, `${cacheKey}${ext}`);
+}
+
+// 检查缓存是否存在
+function checkCache(source, songId) {
+    const cacheKey = getCacheKey(source, songId);
+    const meta = cacheMetadata[cacheKey];
+    if (!meta) return null;
+    
+    const filePath = getCacheFilePath(cacheKey, meta.ext || '.mp3');
+    if (fs.existsSync(filePath)) {
+        const stats = fs.statSync(filePath);
+        if (stats.size > 0) {
+            return { ...meta, filePath, size: stats.size, cacheKey };
+        }
+    }
+    // 文件不存在，清理元数据
+    delete cacheMetadata[cacheKey];
+    saveCacheMetadata();
+    return null;
+}
+
+// 保存缓存元数据
+function addCacheMeta(source, songId, title, artist, album, ext, size) {
+    const cacheKey = getCacheKey(source, songId);
+    cacheMetadata[cacheKey] = {
+        source,
+        songId,
+        title,
+        artist,
+        album,
+        ext,
+        size,
+        cachedAt: Date.now()
+    };
+    saveCacheMetadata();
+}
+
+// 删除单个缓存
+function deleteCache(cacheKey) {
+    const meta = cacheMetadata[cacheKey];
+    if (meta) {
+        const filePath = getCacheFilePath(cacheKey, meta.ext || '.mp3');
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
+        delete cacheMetadata[cacheKey];
+        saveCacheMetadata();
+        return true;
+    }
+    return false;
+}
+
+// 清空所有缓存
+function clearAllCache() {
+    try {
+        if (fs.existsSync(CACHE_DIR)) {
+            const files = fs.readdirSync(CACHE_DIR);
+            files.forEach(file => {
+                const filePath = path.join(CACHE_DIR, file);
+                if (fs.statSync(filePath).isFile()) {
+                    fs.unlinkSync(filePath);
+                }
+            });
+        }
+        cacheMetadata = {};
+        saveCacheMetadata();
+        return true;
+    } catch (err) {
+        console.error('清空缓存失败:', err.message);
+        return false;
+    }
+}
+
+// 获取缓存总大小
+function getCacheTotalSize() {
+    let totalSize = 0;
+    if (fs.existsSync(CACHE_DIR)) {
+        const files = fs.readdirSync(CACHE_DIR);
+        files.forEach(file => {
+            const filePath = path.join(CACHE_DIR, file);
+            if (fs.statSync(filePath).isFile()) {
+                totalSize += fs.statSync(filePath).size;
+            }
+        });
+    }
+    return totalSize;
+}
+
+// 从 Content-Type 推断文件扩展名
+function getExtFromContentType(contentType) {
+    const map = {
+        'audio/mpeg': '.mp3',
+        'audio/mp3': '.mp3',
+        'audio/flac': '.flac',
+        'audio/x-flac': '.flac',
+        'audio/wav': '.wav',
+        'audio/x-wav': '.wav',
+        'audio/mp4': '.m4a',
+        'audio/x-m4a': '.m4a',
+        'audio/ogg': '.ogg',
+        'audio/vorbis': '.ogg',
+        'audio/wma': '.wma',
+        'audio/x-ms-wma': '.wma'
+    };
+    return map[contentType] || '.mp3';
+}
 
 function loadConfig() {
     try {
@@ -303,6 +456,8 @@ async function scanMusicLibrary() {
 }
 
 loadConfig();
+ensureCacheDir();
+loadCacheMetadata();
 loadMusicLibrary();
 
 app.get('/api/playlist', (req, res) => {
@@ -4529,6 +4684,62 @@ app.post('/api/play-output', (req, res) => {
     res.json({ success: true, playOutput: output });
 });
 
+// 获取缓存列表和总大小
+app.get('/api/cache', (req, res) => {
+    try {
+        const cacheList = Object.entries(cacheMetadata).map(([cacheKey, meta]) => ({
+            cacheKey,
+            ...meta,
+            size: meta.size || 0
+        })).sort((a, b) => (b.cachedAt || 0) - (a.cachedAt || 0));
+        
+        const totalSize = getCacheTotalSize();
+        
+        res.json({
+            success: true,
+            cacheList,
+            totalSize,
+            count: cacheList.length
+        });
+    } catch (error) {
+        console.error('获取缓存列表失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 删除单个缓存
+app.delete('/api/cache/:cacheKey', (req, res) => {
+    try {
+        const { cacheKey } = req.params;
+        const result = deleteCache(cacheKey);
+        if (result) {
+            console.log(`🗑️ 已删除缓存: ${cacheKey}`);
+            res.json({ success: true, message: '缓存已删除' });
+        } else {
+            res.status(404).json({ success: false, error: '缓存不存在' });
+        }
+    } catch (error) {
+        console.error('删除缓存失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 清空所有缓存
+app.delete('/api/cache', (req, res) => {
+    try {
+        const result = clearAllCache();
+        if (result) {
+            console.log('🗑️ 已清空所有缓存');
+            res.json({ success: true, message: '所有缓存已清空' });
+        } else {
+            res.status(500).json({ success: false, error: '清空缓存失败' });
+        }
+    } catch (error) {
+        console.error('清空缓存失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // 客户端音频流 API
 app.get('/api/stream/:index', async (req, res) => {
     console.log(`[Stream] 请求音频流，索引: ${req.params.index}`);
@@ -4545,6 +4756,60 @@ app.get('/api/stream/:index', async (req, res) => {
     // 判断是否是在线音乐
     if (track.isOnline || track.path.startsWith('online://')) {
         try {
+            // 提取 source 和 songId
+            let source = track.source;
+            let songId;
+            if (track.songInfo && track.songInfo.songId) {
+                songId = track.songInfo.songId;
+            } else if (track.path.startsWith('online://')) {
+                songId = track.path.split('/')[2];
+            }
+            
+            // 检查缓存
+            const cached = source && songId ? checkCache(source, songId) : null;
+            if (cached) {
+                console.log(`[Stream] 使用缓存: ${track.title}, 大小: ${(cached.size / 1024 / 1024).toFixed(2)}MB`);
+                const filePath = cached.filePath;
+                const stat = fs.statSync(filePath);
+                const range = req.headers.range;
+                
+                const ext = cached.ext || '.mp3';
+                const contentTypeMap = {
+                    '.mp3': 'audio/mpeg',
+                    '.flac': 'audio/flac',
+                    '.wav': 'audio/wav',
+                    '.m4a': 'audio/mp4',
+                    '.ogg': 'audio/ogg',
+                    '.wma': 'audio/x-ms-wma'
+                };
+                const contentType = contentTypeMap[ext] || 'audio/mpeg';
+                
+                if (range) {
+                    const parts = range.replace(/bytes=/, '').split('-');
+                    const start = parseInt(parts[0], 10);
+                    const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+                    const chunksize = (end - start) + 1;
+                    const file = fs.createReadStream(filePath, { start, end });
+                    
+                    res.writeHead(206, {
+                        'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+                        'Accept-Ranges': 'bytes',
+                        'Content-Length': chunksize,
+                        'Content-Type': contentType
+                    });
+                    file.pipe(res);
+                } else {
+                    res.writeHead(200, {
+                        'Content-Length': stat.size,
+                        'Accept-Ranges': 'bytes',
+                        'Content-Type': contentType
+                    });
+                    const file = fs.createReadStream(filePath);
+                    file.pipe(res);
+                }
+                return;
+            }
+            
             // 优先使用已存储的 playUrl（来自 /api/play-online）
             let playUrl = track.playUrl;
             console.log(`[Stream] 已有 playUrl: ${playUrl ? '是' : '否'}`);
@@ -4569,6 +4834,7 @@ app.get('/api/stream/:index', async (req, res) => {
                             playUrl = await getMusicPlayUrl(platform, songInfo, '128');
                             if (playUrl) {
                                 track.source = platform;
+                                source = platform;
                                 console.log(`[Stream] 从备用平台 ${platform} 获取到链接`);
                                 break;
                             }
@@ -4605,10 +4871,28 @@ app.get('/api/stream/:index', async (req, res) => {
                 res.setHeader('Content-Length', contentLength);
             }
             
-            // 使用 Web Streams API 读取并转发数据
+            // 使用 Web Streams API 读取并转发数据，同时写入缓存
             const stream = response.body;
             if (!stream) {
                 throw new Error('响应体为空');
+            }
+            
+            const ext = getExtFromContentType(contentType);
+            const cacheKey = source && songId ? getCacheKey(source, songId) : null;
+            const cacheFilePath = cacheKey ? getCacheFilePath(cacheKey, ext) : null;
+            let cacheWriteStream = null;
+            let cachedBytes = 0;
+            
+            // 如果有缓存键，检查是否有其他请求正在写入该缓存
+            if (cacheKey && cacheFilePath) {
+                if (cacheWriteLocks.has(cacheKey)) {
+                    console.log(`[Cache] 跳过缓存写入，已有请求正在写入: ${cacheKey}`);
+                } else {
+                    cacheWriteLocks.add(cacheKey);
+                    ensureCacheDir();
+                    cacheWriteStream = fs.createWriteStream(cacheFilePath);
+                    console.log(`[Cache] 开始缓存: ${track.title} -> ${cacheKey}${ext}`);
+                }
             }
             
             const reader = stream.getReader();
@@ -4618,12 +4902,54 @@ app.get('/api/stream/:index', async (req, res) => {
                     if (done) {
                         console.log(`[Stream] 流式传输完成: ${track.title}`);
                         res.end();
+                        
+                        // 缓存完成，保存元数据
+                        if (cacheWriteStream) {
+                            cacheWriteStream.end(() => {
+                                cacheWriteLocks.delete(cacheKey);
+                                if (cachedBytes > 0) {
+                                    addCacheMeta(
+                                        source,
+                                        songId,
+                                        track.title,
+                                        track.artist,
+                                        track.album,
+                                        ext,
+                                        cachedBytes
+                                    );
+                                    console.log(`[Cache] 缓存完成: ${track.title}, 大小: ${(cachedBytes / 1024 / 1024).toFixed(2)}MB`);
+                                } else {
+                                    // 空文件，删除
+                                    if (fs.existsSync(cacheFilePath)) {
+                                        fs.unlinkSync(cacheFilePath);
+                                    }
+                                }
+                            });
+                        }
                         return;
                     }
                     res.write(value);
+                    
+                    // 写入缓存
+                    if (cacheWriteStream) {
+                        cacheWriteStream.write(value);
+                        cachedBytes += value.length;
+                    }
+                    
                     return pump();
                 } catch (err) {
                     console.error(`[Stream] 读取流错误: ${err.message}`);
+                    
+                    // 出错时清理不完整的缓存
+                    if (cacheWriteStream) {
+                        cacheWriteStream.end(() => {
+                            cacheWriteLocks.delete(cacheKey);
+                            if (fs.existsSync(cacheFilePath)) {
+                                fs.unlinkSync(cacheFilePath);
+                            }
+                        });
+                    }
+                    
                     if (!res.headersSent) {
                         res.status(500).json({ success: false, error: err.message });
                     } else {
@@ -4637,6 +4963,30 @@ app.get('/api/stream/:index', async (req, res) => {
             res.on('close', () => {
                 reader.cancel();
                 console.log(`[Stream] 客户端断开连接`);
+                
+                // 客户端提前断开，不完整的缓存保留还是删除？这里选择保留（下次播放可续传或继续）
+                if (cacheWriteStream) {
+                    cacheWriteStream.end(() => {
+                        cacheWriteLocks.delete(cacheKey);
+                        if (cachedBytes > 1024 * 100) { // 大于100KB才保留
+                            addCacheMeta(
+                                source,
+                                songId,
+                                track.title,
+                                track.artist,
+                                track.album,
+                                ext,
+                                cachedBytes
+                            );
+                            console.log(`[Cache] 部分缓存保留: ${track.title}, 大小: ${(cachedBytes / 1024 / 1024).toFixed(2)}MB`);
+                        } else {
+                            if (fs.existsSync(cacheFilePath)) {
+                                fs.unlinkSync(cacheFilePath);
+                                console.log(`[Cache] 缓存过小，已删除: ${track.title}`);
+                            }
+                        }
+                    });
+                }
             });
             
         } catch (error) {

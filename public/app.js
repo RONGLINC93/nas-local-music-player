@@ -12,6 +12,7 @@ let lastClickedPlaylistIndex = -1; // 上次点击的播放列表索引（用于
 let taskListPollInterval = null; // 任务列表轮询定时器
 let playOutput = 'server'; // 播放输出方式：server(服务器声卡), client(客户端浏览器)
 let clientAudio = null; // 客户端 Audio 元素
+let isStoppingClient = false; // 是否正在主动停止客户端播放
 
 const playModeIcons = {
     'sequence': 'fas fa-list',
@@ -467,6 +468,10 @@ function initClientAudio() {
         });
         
         clientAudio.addEventListener('error', (e) => {
+            if (isStoppingClient) {
+                isStoppingClient = false;
+                return;
+            }
             console.error('客户端播放错误:', e);
             showError('音频播放失败');
         });
@@ -563,6 +568,7 @@ function togglePlayClient() {
 // 客户端停止
 function stopClient() {
     if (clientAudio) {
+        isStoppingClient = true;
         clientAudio.pause();
         clientAudio.currentTime = 0;
         clientAudio.src = '';
@@ -653,6 +659,7 @@ async function changePlayOutput(output) {
                 if (oldOutput === 'client') {
                     // 旧模式是客户端，停止客户端音频
                     if (clientAudio) {
+                        isStoppingClient = true;
                         clientAudio.pause();
                         clientAudio.src = '';
                     }
@@ -682,6 +689,123 @@ async function changePlayOutput(output) {
     } catch (error) {
         console.error('切换播放输出失败:', error);
         showError('切换失败');
+    }
+}
+
+// ==================== 缓存管理功能 ====================
+
+// 格式化文件大小
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+    return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+}
+
+// 格式化日期
+function formatCacheDate(timestamp) {
+    if (!timestamp) return '未知';
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return '刚刚';
+    if (diffMins < 60) return `${diffMins}分钟前`;
+    if (diffHours < 24) return `${diffHours}小时前`;
+    if (diffDays < 7) return `${diffDays}天前`;
+    return date.toLocaleDateString();
+}
+
+// 获取音源名称
+function getSourceName(source) {
+    const sourceMap = {
+        'kw': '酷我',
+        'kg': '酷狗',
+        'tx': 'QQ',
+        'wy': '网易云',
+        'mg': '咪咕'
+    };
+    return sourceMap[source] || source;
+}
+
+// 刷新缓存列表
+async function refreshCacheList() {
+    try {
+        const result = await apiRequest('/api/cache');
+        if (result.success) {
+            document.getElementById('cacheCount').textContent = result.count || 0;
+            document.getElementById('cacheSize').textContent = formatFileSize(result.totalSize || 0);
+            
+            const cacheListEl = document.getElementById('cacheList');
+            if (!result.cacheList || result.cacheList.length === 0) {
+                cacheListEl.innerHTML = '<p class="empty-state">暂无缓存</p>';
+                return;
+            }
+            
+            cacheListEl.innerHTML = result.cacheList.map(item => `
+                <div class="cache-item">
+                    <div class="cache-item-info">
+                        <div class="cache-item-title">${escapeHtml(item.title || '未知歌曲')}</div>
+                        <div class="cache-item-meta">
+                            <span class="cache-item-source">${getSourceName(item.source)}</span>
+                            <span>${escapeHtml(item.artist || '未知艺术家')}</span>
+                            <span>${formatFileSize(item.size || 0)}</span>
+                            <span>${formatCacheDate(item.cachedAt)}</span>
+                        </div>
+                    </div>
+                    <button class="cache-item-delete" onclick="deleteCacheItem('${item.cacheKey}')" title="删除此缓存">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('刷新缓存列表失败:', error);
+    }
+}
+
+// 删除单个缓存
+async function deleteCacheItem(cacheKey) {
+    if (!confirm('确定要删除这个缓存吗？')) return;
+    
+    try {
+        const result = await apiRequest(`/api/cache/${encodeURIComponent(cacheKey)}`, 'DELETE');
+        if (result.success) {
+            showNotification({
+                type: 'success',
+                message: '缓存已删除',
+                duration: 2000
+            });
+            refreshCacheList();
+        } else {
+            showError('删除失败: ' + (result.error || '未知错误'));
+        }
+    } catch (error) {
+        showError('删除失败: ' + error.message);
+    }
+}
+
+// 清空所有缓存
+async function clearAllCache() {
+    if (!confirm('确定要清空所有缓存吗？此操作不可恢复。')) return;
+    
+    try {
+        const result = await apiRequest('/api/cache', 'DELETE');
+        if (result.success) {
+            showNotification({
+                type: 'success',
+                message: '所有缓存已清空',
+                duration: 2000
+            });
+            refreshCacheList();
+        } else {
+            showError('清空失败: ' + (result.error || '未知错误'));
+        }
+    } catch (error) {
+        showError('清空失败: ' + error.message);
     }
 }
 
@@ -3241,13 +3365,14 @@ async function endDrag(e) {
 }
 
 window.onload = async () => {
-    // 加载核心界面（播放状态、声卡、音量、播放输出方式、在线设置）
+    // 加载核心界面（播放状态、声卡、音量、播放输出方式、在线设置、缓存）
     await Promise.all([
         loadStatus(),
         loadAudioDevices(),
         loadVolume(),
         loadPlayOutput(),
-        loadOnlineSettings()
+        loadOnlineSettings(),
+        refreshCacheList()
     ]);
     updatePlayModeButton();
     initProgressDrag();

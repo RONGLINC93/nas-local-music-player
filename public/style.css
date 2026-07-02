@@ -3116,6 +3116,137 @@ font-size: 72px;
     color: #6b7280;
 }
 
+/* 缓存管理样式 */
+.cache-info {
+    padding: 10px 20px 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.cache-stats {
+    display: flex;
+    gap: 20px;
+    font-size: 14px;
+    color: #374151;
+}
+
+.cache-stats span {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cache-stats i {
+    color: #6366f1;
+}
+
+.cache-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.cache-refresh-btn,
+.cache-clear-btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s;
+}
+
+.cache-refresh-btn {
+    background: #eff6ff;
+    color: #4f46e5;
+}
+
+.cache-refresh-btn:hover {
+    background: #dbeafe;
+}
+
+.cache-clear-btn {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+.cache-clear-btn:hover {
+    background: #fee2e2;
+}
+
+.cache-list {
+    padding: 0 20px 20px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.cache-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background: #f9fafb;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    transition: background 0.2s;
+}
+
+.cache-item:hover {
+    background: #f3f4f6;
+}
+
+.cache-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.cache-item-title {
+    font-size: 14px;
+    color: #1f2937;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cache-item-meta {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 2px;
+    display: flex;
+    gap: 10px;
+}
+
+.cache-item-source {
+    display: inline-block;
+    padding: 1px 6px;
+    background: #e0e7ff;
+    color: #4338ca;
+    border-radius: 4px;
+    font-size: 11px;
+}
+
+.cache-item-delete {
+    background: none;
+    border: none;
+    color: #9ca3af;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.cache-item-delete:hover {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
 /* 播放输出方式样式 */
 .play-output-options {
     padding: 10px 20px 20px;
@@ -3186,6 +3317,13 @@ font-size: 72px;
     background: #ffffff;
     max-height: calc(100vh - 280px);
 }
+
+
+    .device-container {
+        padding: 0px;
+        max-height: calc(100vh - 160px);
+        overflow-y: auto;
+    }
 
 .device-item {
     display: flex;

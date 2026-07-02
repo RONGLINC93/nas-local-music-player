@@ -1834,9 +1834,27 @@ body {
     width: 0%;
     border-radius: 3px;
     transition: width 0.1s;
+    position: relative;
+    z-index: 2;
+}
+
+#bufferProgress {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 0%;
+    background: rgba(99, 102, 241, 0.3);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+    z-index: 1;
 }
 
 #progressBarContainer:hover #progressBar {
+    height: 6px;
+}
+
+#progressBarContainer:hover #bufferProgress {
     height: 6px;
 }
 

@@ -91,6 +91,34 @@ function updateProgressUI(currentTime, duration) {
     if (durationEl) durationEl.textContent = formatDuration(duration);
 }
 
+// 更新缓冲进度
+function updateBufferProgress() {
+    if (playOutput !== 'client') return;
+    if (!clientAudio || !clientAudio.duration) return;
+    
+    const bufferEl = document.getElementById('bufferProgress');
+    if (!bufferEl) return;
+    
+    try {
+        if (clientAudio.buffered && clientAudio.buffered.length > 0) {
+            // 获取最后一个缓冲范围的结束位置
+            const bufferedEnd = clientAudio.buffered.end(clientAudio.buffered.length - 1);
+            const percent = (bufferedEnd / clientAudio.duration) * 100;
+            bufferEl.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+        }
+    } catch (e) {
+        // 忽略错误
+    }
+}
+
+// 清除缓冲进度显示
+function clearBufferProgress() {
+    const bufferEl = document.getElementById('bufferProgress');
+    if (bufferEl) {
+        bufferEl.style.width = '0%';
+    }
+}
+
 // 更新播放进度
 function updateProgress() {
     // 没有播放歌曲时才停止更新
@@ -465,6 +493,11 @@ function initClientAudio() {
                 // 使用客户端实际进度更新 UI
                 updateProgressUI(clientAudio.currentTime, clientAudio.duration);
             }
+        });
+        
+        // 缓冲进度更新
+        clientAudio.addEventListener('progress', () => {
+            updateBufferProgress();
         });
         
         clientAudio.addEventListener('error', (e) => {
@@ -949,6 +982,9 @@ async function playTrack(index) {
     if (index < 0 || index >= currentPlaylist.length) return;
     
     const track = currentPlaylist[index];
+    
+    // 清除之前的缓冲进度
+    clearBufferProgress();
     
     if (currentMuted && playOutput === 'server') {
         showInfo('⚠️ 当前处于静音状态，将无法听到声音');

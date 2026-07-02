@@ -4,7 +4,9 @@
   "description": "NAS本地音乐播放器 - 通过网页控制播放",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "package": "node package.js",
+    "dev-package": "node dev-package.js"
   },
   "dependencies": {
     "adm-zip": "^0.5.10",

@@ -1,0 +1,8 @@
+*.zip
+.DS_Store
+Thumbs.db
+music/
+uploads/
+temp/
+temp_uploads/
+lx-music-sync-server/

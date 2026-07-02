@@ -1,9 +1,0 @@
-{
-    "playMode": "random",
-    "audioDevice": "USB\\VID_1B3F&PID_2008&MI_00\\9&5DE73C6&0&0000",
-    "playOutput": "client",
-    "maxConvertWorkers": 4,
-    "maxUploadWorkers": 5,
-    "onlineSource": "wy",
-    "cacheLimitSize": 0
-}

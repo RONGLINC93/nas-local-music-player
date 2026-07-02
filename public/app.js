@@ -790,8 +790,18 @@ async function deleteCacheItem(cacheKey) {
 
 // 清空所有缓存
 async function clearAllCache() {
-    if (!confirm('确定要清空所有缓存吗？此操作不可恢复。')) return;
-    
+    const modal = document.getElementById('clearCacheModal');
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeClearCacheModal() {
+    const modal = document.getElementById('clearCacheModal');
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+async function confirmClearCache() {
     try {
         const result = await apiRequest('/api/cache', 'DELETE');
         if (result.success) {
@@ -801,6 +811,7 @@ async function clearAllCache() {
                 duration: 2000
             });
             refreshCacheList();
+            closeClearCacheModal();
         } else {
             showError('清空失败: ' + (result.error || '未知错误'));
         }
@@ -7819,11 +7830,16 @@ switchView = function(viewName) {
     originalSwitchView(viewName);
     
     if (viewName === 'online-settings') {
+        // 加载播放相关设置
+        loadAudioDevices();
+        refreshCacheList();
         // 先加载设置（获取 activeSources），再刷新文件列表（使用 activeSources 显示选中状态）
         loadOnlineSettings().then(() => {
             refreshSourceFiles();
         });
         setTimeout(initSourceDragDrop, 100);
+        // 初始化二级菜单
+        setTimeout(initSettingsSubnav, 100);
     } else if (viewName === 'online') {
         // 进入在线音乐页面时，确保在线设置已加载
         loadOnlineSettings().then(() => {
@@ -7841,6 +7857,77 @@ switchView = function(viewName) {
         });
     }
 };
+
+// 系统设置二级菜单
+let settingsScrollHandler = null;
+
+function initSettingsSubnav() {
+    const scrollContainer = document.querySelector('#view-online-settings .content-area');
+    const navItems = document.querySelectorAll('#view-online-settings .settings-subnav-item');
+    
+    if (!scrollContainer || navItems.length === 0) return;
+    
+    // 移除旧的滚动监听
+    if (settingsScrollHandler) {
+        scrollContainer.removeEventListener('scroll', settingsScrollHandler);
+    }
+    
+    // 绑定菜单项点击事件
+    navItems.forEach(item => {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
+            const targetId = this.getAttribute('data-target');
+            const targetEl = document.getElementById(targetId);
+            if (targetEl) {
+                targetEl.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+            }
+        });
+    });
+    
+    // 滚动时高亮当前菜单项
+    settingsScrollHandler = function() {
+        const cards = [
+            'setting-play-output',
+            'setting-audio-device',
+            'setting-cache',
+            'setting-sources',
+            'setting-search'
+        ];
+        
+        const containerRect = scrollContainer.getBoundingClientRect();
+        let activeId = cards[0];
+        
+        for (let i = 0; i < cards.length; i++) {
+            const card = document.getElementById(cards[i]);
+            if (card) {
+                const cardRect = card.getBoundingClientRect();
+                const cardTop = cardRect.top - containerRect.top;
+                const containerHeight = scrollContainer.clientHeight;
+                
+                const cardMiddle = cardTop + cardRect.height / 2;
+                if (cardMiddle < containerHeight / 2) {
+                    activeId = cards[i];
+                }
+            }
+        }
+        
+        navItems.forEach(item => {
+            const target = item.getAttribute('data-target');
+            if (target === activeId) {
+                item.classList.add('active');
+            } else {
+                item.classList.remove('active');
+            }
+        });
+    };
+    
+    scrollContainer.addEventListener('scroll', settingsScrollHandler);
+    
+    setTimeout(settingsScrollHandler, 200);
+}
 
 // ========== 歌单功能 ==========
 let songlistLoaded = false;

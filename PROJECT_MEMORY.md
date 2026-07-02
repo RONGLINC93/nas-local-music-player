@@ -15,6 +15,10 @@
 - GitHub发布需要 .env 文件（包含 GITHUB_TOKEN 和 GITHUB_REPO）
 - 发布脚本: .\release.ps1 [-Message "xxx"] [-AutoIncrement]
 - CHANGELOG.md 需要手动维护，脚本会读取对应版本的说明作为 Release 内容
+- **所有确认提示必须使用自定义模态框**，禁止使用浏览器原生的 `confirm()`、`alert()`、`prompt()`
+  - 模态框风格统一：红色警告图标 + 确认/取消按钮
+  - 删除操作使用红色危险按钮（btn-danger）
+  - 模态框 HTML 结构参考 `deleteCacheModal`、`clearCacheModal` 等已有实现
 
 ## 经验教训 (Lessons Learned)
 - PowerShell 默认编码(GBK)会导致中文乱码，需要显式指定 -Encoding UTF8

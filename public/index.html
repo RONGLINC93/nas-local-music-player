@@ -1989,6 +1989,32 @@
         </div>
     </div>
 
+    <!-- 删除缓存确认对话框 -->
+    <div id="deleteCacheModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-exclamation-triangle"
+                        style="font-size: 24px; color: #ef4444; vertical-align: middle; margin-right: 8px;"></i>
+                    确认删除
+                </h3>
+                <button onclick="closeDeleteCacheModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="delete-confirm-content">
+                    <p>确定要删除缓存 <span id="deleteCacheTitle" style="font-weight: bold; color: #ef4444;"></span> 吗？</p>
+                    <p class="delete-warning">此操作将永久删除该缓存文件，不可恢复。</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeDeleteCacheModal()">取消</button>
+                <button type="button" id="btnConfirmDeleteCache" class="btn btn-danger" onclick="confirmDeleteCache()">
+                    <i class="fas fa-trash"></i> 确认删除
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- 清除任务确认对话框 -->
     <div id="clearTasksModal" class="modal">
         <div class="modal-content modal-sm">

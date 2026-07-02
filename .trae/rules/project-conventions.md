@@ -17,6 +17,10 @@
 - release.ps1 必须使用 UTF-8 编码处理中文
 - server.js 中 versionInfo 变量必须在条件块外声明
 - 不要手动更新 version.json，由 release.ps1 自动更新版本号
+- **所有确认提示必须使用自定义模态框**，禁止使用浏览器原生的 `confirm()`、`alert()`、`prompt()`
+  - 模态框风格统一：红色警告图标 + 确认/取消按钮
+  - 删除操作使用红色危险按钮（btn-danger）
+  - 参考实现：`deleteCacheModal`、`clearCacheModal`、`deleteSourceFileModal`
 
 ## 更新日志处理
 - 当前版本号从 PROJECT_MEMORY.md 读取

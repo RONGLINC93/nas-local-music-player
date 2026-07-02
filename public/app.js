@@ -756,7 +756,7 @@ async function refreshCacheList() {
                             <span>${formatCacheDate(item.cachedAt)}</span>
                         </div>
                     </div>
-                    <button class="cache-item-delete" onclick="deleteCacheItem('${item.cacheKey}')" title="删除此缓存">
+                    <button class="cache-item-delete" onclick="deleteCacheItem('${item.cacheKey}', '${escapeHtml(item.title || '未知歌曲')}')" title="删除此缓存">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
@@ -768,11 +768,28 @@ async function refreshCacheList() {
 }
 
 // 删除单个缓存
-async function deleteCacheItem(cacheKey) {
-    if (!confirm('确定要删除这个缓存吗？')) return;
+let pendingDeleteCacheKey = '';
+
+function deleteCacheItem(cacheKey, title) {
+    pendingDeleteCacheKey = cacheKey;
+    document.getElementById('deleteCacheTitle').textContent = title || '未知歌曲';
+    const modal = document.getElementById('deleteCacheModal');
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeDeleteCacheModal() {
+    const modal = document.getElementById('deleteCacheModal');
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+    pendingDeleteCacheKey = '';
+}
+
+async function confirmDeleteCache() {
+    if (!pendingDeleteCacheKey) return;
     
     try {
-        const result = await apiRequest(`/api/cache/${encodeURIComponent(cacheKey)}`, 'DELETE');
+        const result = await apiRequest(`/api/cache/${encodeURIComponent(pendingDeleteCacheKey)}`, 'DELETE');
         if (result.success) {
             showNotification({
                 type: 'success',
@@ -780,6 +797,7 @@ async function deleteCacheItem(cacheKey) {
                 duration: 2000
             });
             refreshCacheList();
+            closeDeleteCacheModal();
         } else {
             showError('删除失败: ' + (result.error || '未知错误'));
         }

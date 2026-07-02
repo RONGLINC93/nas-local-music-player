@@ -3,8 +3,8 @@
 ## 项目信息
 - **项目名称**: NAS本地音乐播放器
 - **GitHub仓库**: https://github.com/RONGLINC93/nas-local-music-player
-- **当前版本**: 1.2.3
-- **已发布版本**: 1.2.2
+- **当前版本**: 1.2.4
+- **已发布版本**: 1.2.3
 
 ## 硬约束 (Hard Constraints)
 - release.ps1 必须使用 UTF-8 编码处理中文

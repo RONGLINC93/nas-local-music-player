@@ -167,10 +167,10 @@ async function updateDownloadButton(track) {
         return;
     }
 
-    // 在线音乐：缓存完毕后才显示下载按钮
-    if (onlineCacheComplete) {
+    // 在线音乐：服务端播放直接显示，客户端播放需等待缓存完毕
+    if (playOutput === 'server' || onlineCacheComplete) {
         downloadBtn.style.display = 'flex';
-        downloadBtn.title = '下载当前歌曲（已缓存）';
+        downloadBtn.title = '下载当前歌曲';
     } else {
         downloadBtn.style.display = 'none';
     }

@@ -96,29 +96,31 @@ function updateProgressUI(currentTime, duration) {
     if (durationEl) durationEl.textContent = formatDuration(duration);
 }
 
-let hasCheckedDownloadButton = false;
+let onlineCacheComplete = false;
 
 // 更新缓冲进度
 function updateBufferProgress() {
     if (playOutput !== 'client') return;
     if (!clientAudio || !clientAudio.duration) return;
-    
+
     const bufferEl = document.getElementById('bufferProgress');
     if (!bufferEl) return;
-    
+
     try {
         if (clientAudio.buffered && clientAudio.buffered.length > 0) {
             const bufferedEnd = clientAudio.buffered.end(clientAudio.buffered.length - 1);
             const percent = (bufferedEnd / clientAudio.duration) * 100;
             bufferEl.style.width = `${Math.min(100, Math.max(0, percent))}%`;
-            
-            if (percent >= 99 && !hasCheckedDownloadButton) {
-                hasCheckedDownloadButton = true;
+
+            if (percent >= 99 && !onlineCacheComplete) {
+                onlineCacheComplete = true;
                 const track = currentIndex >= 0 ? currentPlaylist[currentIndex] : null;
                 if (track && track.isOnline) {
-                    setTimeout(() => {
-                        updateDownloadButton(track);
-                    }, 2000);
+                    const downloadBtn = document.getElementById('downloadBtn');
+                    if (downloadBtn) {
+                        downloadBtn.style.display = 'flex';
+                        downloadBtn.title = '下载当前歌曲（已缓存）';
+                    }
                 }
             }
         }
@@ -133,7 +135,7 @@ function clearBufferProgress() {
     if (bufferEl) {
         bufferEl.style.width = '0%';
     }
-    hasCheckedDownloadButton = false;
+    onlineCacheComplete = false;
 }
 
 // 获取歌曲的 songId
@@ -152,38 +154,25 @@ function getSongId(track) {
 async function updateDownloadButton(track) {
     const downloadBtn = document.getElementById('downloadBtn');
     if (!downloadBtn) return;
-    
+
     if (!track) {
         downloadBtn.style.display = 'none';
         return;
     }
-    
-    // 只要有歌曲在播放就显示下载按钮
-    downloadBtn.style.display = 'flex';
-    
-    // 本地文件
+
+    // 本地文件：直接显示下载按钮
     if (!track.isOnline) {
+        downloadBtn.style.display = 'flex';
         downloadBtn.title = '下载当前歌曲';
         return;
     }
-    
-    // 在线音乐：检查是否已缓存，更新标题提示
-    const songId = getSongId(track);
-    if (track.source && songId) {
-        try {
-            const result = await apiRequest('/api/cache', 'GET');
-            if (result.success && result.cacheList) {
-                const cacheKey = `${track.source}_${songId}`;
-                const cached = result.cacheList.some(item => item.cacheKey === cacheKey);
-                if (cached) {
-                    downloadBtn.title = '下载当前歌曲（已缓存）';
-                } else {
-                    downloadBtn.title = '下载当前歌曲（缓存中）';
-                }
-            }
-        } catch (e) {
-            downloadBtn.title = '下载当前歌曲';
-        }
+
+    // 在线音乐：缓存完毕后才显示下载按钮
+    if (onlineCacheComplete) {
+        downloadBtn.style.display = 'flex';
+        downloadBtn.title = '下载当前歌曲（已缓存）';
+    } else {
+        downloadBtn.style.display = 'none';
     }
 }
 

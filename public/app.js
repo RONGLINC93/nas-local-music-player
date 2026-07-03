@@ -703,6 +703,7 @@ function stopClient() {
     }
     currentIndex = -1;
     isPlaying = false;
+    clearBufferProgress();
     updateNowPlaying(null);
     updatePlayPauseButton();
     renderPlaylist();
@@ -1158,6 +1159,7 @@ async function stop() {
             await apiRequest('/api/stop');
             currentIndex = -1;
             isPlaying = false;
+            clearBufferProgress();
             updateNowPlaying(null);
             updatePlayPauseButton();
             renderPlaylist();
@@ -8770,7 +8772,16 @@ async function playAllSonglistSongs() {
         }
         
         // 播放第一首
-        await apiRequest('/api/play/0');
+        if (playOutput === 'client') {
+            // 客户端模式：先刷新播放列表，再用客户端播放
+            const playlistResult = await apiRequest('/api/playlist');
+            if (playlistResult.playlist) {
+                currentPlaylist = playlistResult.playlist;
+            }
+            playTrack(0);
+        } else {
+            await apiRequest('/api/play/0');
+        }
         
         loadPlaylistData();
         showNotification({ type: 'success', message: `已添加 ${currentSonglistSongs.length} 首歌曲到播放列表` });

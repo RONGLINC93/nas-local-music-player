@@ -2714,6 +2714,30 @@ app.post('/api/batch-delete-playlist', async (req, res) => {
     }
 });
 
+// 清空播放列表
+app.post('/api/clear-playlist', (req, res) => {
+    try {
+        stopMusic();
+        currentPlaylist = [];
+        currentIndex = -1;
+        isPlaying = false;
+        currentDuration = 0;
+        playbackStartTime = null;
+
+        try {
+            fs.writeFileSync(PLAYLIST_CACHE_FILE, JSON.stringify([], null, 2));
+            console.log('📝 播放列表已清空，缓存已更新');
+        } catch (error) {
+            console.error('更新播放列表缓存失败:', error.message);
+        }
+
+        res.json({ success: true, message: '播放列表已清空' });
+    } catch (error) {
+        console.error('清空播放列表失败:', error.message);
+        res.status(500).json({ success: false, error: '清空失败' });
+    }
+});
+
 // 按文件路径播放（单曲播放，播放完自动停止）
 app.post('/api/play', async (req, res) => {
     try {

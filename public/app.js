@@ -420,6 +420,7 @@ async function doLogout() {
     currentUser = null;
     updateUserCardUI();
     showNotification({ type: 'success', message: '已退出登录' });
+    closeLogoutModal();
     closeLoginModal();
 }
 
@@ -3555,6 +3556,11 @@ function ensureUploadEventBound() {
     }
     
     btnUploadUpdate.addEventListener('click', async () => {
+        try {
+            await requireLogin();
+        } catch (e) {
+            return;
+        }
         const file = updateFileInput.files[0];
         if (!file) return;
         
@@ -3656,6 +3662,9 @@ async function performUpdate(file, progressFill, progressText, updateStatus, upl
         formData.append('file', file);
 
         xhr.open('POST', '/api/system-update');
+        if (authToken) {
+            xhr.setRequestHeader('Authorization', 'Bearer ' + authToken);
+        }
         xhr.timeout = 120000; // 2分钟超时
         xhr.send(formData);
     });
@@ -3857,6 +3866,11 @@ async function autoUpdate() {
 
 // 执行自动更新
 async function doAutoUpdate() {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const btnAuto = document.getElementById('btnAutoUpdate');
     const statusMsg = document.getElementById('updateStatusMsg');
     const confirmBtn = document.getElementById('btnConfirmAutoUpdate');

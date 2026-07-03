@@ -6536,7 +6536,7 @@ function compareVersions(v1, v2) {
 }
 
 // 下载并自动更新
-app.post('/api/auto-update', async (req, res) => {
+app.post('/api/auto-update', requireAuth, async (req, res) => {
     let upgradeFilePath = null;
     let tempExtractDir = null;
     

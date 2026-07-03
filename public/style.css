@@ -6368,6 +6368,23 @@ font-size: 72px;
         padding: 15px;
     }
 
+    .user-card {
+        margin: 10px 8px;
+        padding: 12px 10px;
+        justify-content: center;
+    }
+
+    .user-card .user-info,
+    .user-card .user-card-arrow {
+        display: none;
+    }
+
+    .user-avatar {
+        width: 36px;
+        height: 36px;
+        font-size: 16px;
+    }
+
     .search-box input {
         width: 100%;
     }

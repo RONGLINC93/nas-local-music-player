@@ -6351,6 +6351,10 @@ font-size: 72px;
         font-size: 12px;
     }
 
+    #outputSwitchText {
+        display: none;
+    }
+
     .device-section {
         padding: 0px;
         max-height: calc(100vh - 90px);

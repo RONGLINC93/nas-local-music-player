@@ -2010,7 +2010,7 @@ document.getElementById('btnConfirmScrape').addEventListener('click', async func
             document.getElementById('scrapeProgressBar').style.width = '50%';
             document.getElementById('scrapeProgressText').textContent = '正在查询 MusicBrainz...';
             
-            const response = await fetchWithAuth('/api/scrape-metadata', {
+            const response = await fetch('/api/scrape-metadata', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ path: scrapeTargetPath })
@@ -2632,7 +2632,7 @@ async function uploadMusic() {
     formData.append('folderPath', currentFolderPath || '');
     
     try {
-        const response = await fetchWithAuth('/api/upload-music-async', {
+        const response = await fetch('/api/upload-music-async', {
             method: 'POST',
             body: formData
         });
@@ -8419,7 +8419,7 @@ async function uploadSourceFiles() {
             
             const content = await file.text();
             
-            const response = await fetchWithAuth('/api/upload-source', {
+            const response = await fetch('/api/upload-source', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ filename: file.name, content })
@@ -8540,6 +8540,11 @@ function toggleSourceFile(filename) {
 
 // 应用选中的音源
 async function applySelectedSources() {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     if (!window.selectedSourceFiles || window.selectedSourceFiles.length === 0) {
         showNotification({ type: 'warning', message: '请至少选择一个音源文件' });
         return;

@@ -22,9 +22,23 @@ try {
 console.log('');
 console.log('======================================');
 
-// 等待用户按任意键
+let countdown = 10;
+console.log(`${countdown}秒后自动退出，按任意键立即退出...`);
+
+const timer = setInterval(() => {
+    countdown--;
+    if (countdown <= 0) {
+        clearInterval(timer);
+        console.log('');
+        process.exit(0);
+    }
+    process.stdout.write(`\r${countdown}秒后自动退出，按任意键立即退出...`);
+}, 1000);
+
 process.stdin.setRawMode(true);
 process.stdin.resume();
 process.stdin.on('data', () => {
+    clearInterval(timer);
+    console.log('');
     process.exit(0);
 });

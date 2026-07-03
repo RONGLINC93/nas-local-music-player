@@ -1455,9 +1455,12 @@ function showCustomCacheLimit() {
 }
 
 async function saveCacheLimit(customValue) {
+    const originalLimit = currentCacheLimit;
+    
     try {
         await requireLogin();
     } catch (e) {
+        updateCacheLimitUI();
         return;
     }
     let limit;
@@ -1468,6 +1471,7 @@ async function saveCacheLimit(customValue) {
         limit = parseInt(inputEl.value, 10);
         if (isNaN(limit) || limit < 0) {
             showError('请输入有效的缓存大小');
+            updateCacheLimitUI();
             return;
         }
     }
@@ -1492,9 +1496,11 @@ async function saveCacheLimit(customValue) {
             refreshCacheList();
         } else {
             showError('设置失败: ' + (result.error || '未知错误'));
+            updateCacheLimitUI();
         }
     } catch (error) {
         showError('设置失败: ' + error.message);
+        updateCacheLimitUI();
     }
 }
 
@@ -7553,17 +7559,33 @@ function switchOnlineTab(tab) {
 
 // 音源切换时刷新数据
 async function onSourceChange() {
-    const source = document.getElementById('onlineSourceSelect').value;
+    const selectEl = document.getElementById('onlineSourceSelect');
+    const originalSource = selectEl.value;
+    const newSource = selectEl.value;
+    
+    try {
+        await requireLogin();
+    } catch (e) {
+        selectEl.value = originalSource;
+        return;
+    }
     
     // 保存到后端
     try {
-        await fetch('/api/online-source', {
+        const response = await fetch('/api/online-source', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ source })
+            body: JSON.stringify({ source: newSource })
         });
+        
+        if (!response.ok) {
+            selectEl.value = originalSource;
+            return;
+        }
     } catch (error) {
         console.error('保存音源失败:', error);
+        selectEl.value = originalSource;
+        return;
     }
     
     // 刷新当前视图数据
@@ -8464,15 +8486,22 @@ async function uploadSourceFiles() {
 
 // 刷新音源文件列表
 async function refreshSourceFiles() {
+    const refreshBtn = document.querySelector('.source-refresh-btn');
+    if (refreshBtn) refreshBtn.classList.add('loading');
+    
     try {
         const response = await fetch('/api/source-files');
         const result = await response.json();
         
         if (result.success) {
+            window.selectedSourceFiles = (window.activeSources || []).map(id => id.endsWith('.js') ? id : id + '.js');
             renderSourceFileList(result.files);
         }
     } catch (error) {
         console.error('获取音源文件列表失败:', error);
+        showNotification({ type: 'error', message: '刷新失败' });
+    } finally {
+        if (refreshBtn) refreshBtn.classList.remove('loading');
     }
 }
 
@@ -8668,12 +8697,16 @@ async function loadOnlineSettings() {
 
 // 保存在线设置
 async function saveOnlineSettings() {
+    const selectEl = document.getElementById('pageSizeSelect');
+    const originalPageSize = ONLINE_PAGE_SIZE;
+    
     try {
         await requireLogin();
     } catch (e) {
+        selectEl.value = originalPageSize;
         return;
     }
-    const pageSize = document.getElementById('pageSizeSelect').value;
+    const pageSize = selectEl.value;
     const newPageSize = parseInt(pageSize) || 20;
     
     // 如果 pageSize 发生变化，清除排行榜缓存，下次加载时会使用新的 pageSize
@@ -8696,9 +8729,21 @@ async function saveOnlineSettings() {
         
         if (result.success) {
             showNotification({ type: 'success', message: '设置已保存' });
+        } else {
+            showNotification({ type: 'error', message: '保存失败' });
+            selectEl.value = originalPageSize;
+            FOLDER_PAGE_SIZE = originalPageSize;
+            ONLINE_PAGE_SIZE = originalPageSize;
+            rankCache = {};
+            rankCurrentPage = 1;
         }
     } catch (error) {
         showNotification({ type: 'error', message: '保存失败' });
+        selectEl.value = originalPageSize;
+        FOLDER_PAGE_SIZE = originalPageSize;
+        ONLINE_PAGE_SIZE = originalPageSize;
+        rankCache = {};
+        rankCurrentPage = 1;
     }
 }
 

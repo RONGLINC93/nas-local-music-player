@@ -8907,6 +8907,15 @@ font-size: 72px;
     background: #e5e7eb;
 }
 
+.source-refresh-btn.loading i {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 .source-apply-btn {
     background: #10b981;
     color: white;

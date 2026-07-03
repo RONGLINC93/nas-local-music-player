@@ -1924,6 +1924,20 @@ app.post('/api/folder-play', async (req, res) => {
 
         // 立即开始播放第一首
         const firstTrack = tracks[0];
+
+        if (playOutput === 'client') {
+            console.log(`📱 客户端模式播放文件夹：${folderPath} (${tracks.length} 首)`);
+            currentDuration = firstTrack.duration;
+            playbackStartTime = Date.now();
+            return res.json({
+                success: true,
+                message: `开始播放文件夹，共 ${tracks.length} 首音乐`,
+                count: tracks.length,
+                currentTrack: firstTrack,
+                clientMode: true
+            });
+        }
+
         playMusicFromPosition(firstTrack.path, 0, true);
 
         // 立即返回响应，不等待元数据加载
@@ -2739,6 +2753,16 @@ app.post('/api/play', async (req, res) => {
         isPlaying = true;
         
         console.log(`🎵 单曲播放：${metadata.title}`);
+        
+        if (playOutput === 'client') {
+            console.log(`📱 客户端模式，不启动服务端播放`);
+            return res.json({
+                success: true,
+                current: metadata,
+                index: currentIndex,
+                clientMode: true
+            });
+        }
         
         // 开始播放（正常模式，播放完自动播放下一首）
         playMusic(fullPath);
@@ -4108,6 +4132,18 @@ app.get('/api/play/:index', async (req, res) => {
     // 设置新的播放索引
     currentIndex = index;
 
+    if (playOutput === 'client') {
+        isPlaying = true;
+        currentDuration = track.duration;
+        playbackStartTime = Date.now();
+        console.log(`📱 客户端模式播放：${track.title}`);
+        return res.json({
+            success: true,
+            current: track,
+            index: currentIndex
+        });
+    }
+
     console.log(`🎵 切换歌曲：${track.title}`);
 
     // 判断是否是在线音乐
@@ -4488,6 +4524,14 @@ app.get('/api/next', async (req, res) => {
     const track = currentPlaylist[nextIndex];
     currentIndex = nextIndex;
 
+    if (playOutput === 'client') {
+        isPlaying = true;
+        currentDuration = track.duration;
+        playbackStartTime = Date.now();
+        console.log(`📱 客户端模式下一首：${track.title}`);
+        return res.json({ success: true, current: track, index: currentIndex, isPlaying: isPlaying });
+    }
+
     // 先停止当前播放
     stopMusic();
 
@@ -4582,6 +4626,14 @@ app.get('/api/previous', async (req, res) => {
 
     const track = currentPlaylist[prevIndex];
     currentIndex = prevIndex;
+
+    if (playOutput === 'client') {
+        isPlaying = true;
+        currentDuration = track.duration;
+        playbackStartTime = Date.now();
+        console.log(`📱 客户端模式上一首：${track.title}`);
+        return res.json({ success: true, current: track, index: currentIndex, isPlaying: isPlaying });
+    }
 
     // 先停止当前播放
     stopMusic();
@@ -5179,6 +5231,11 @@ app.post('/api/client-playback-state', (req, res) => {
         playbackStartTime = null;
         console.log(`📱 客户端播放状态：播放结束`);
         
+        if (playOutput === 'client') {
+            console.log(`📱 客户端模式下，切歌逻辑由客户端处理`);
+            return res.json({ success: true });
+        }
+        
         // 处理自动播放下一首
         if (playMode === 'loop') {
             playMusic(currentPlaylist[currentIndex].path);
@@ -5304,6 +5361,11 @@ function playMusic(filePath) {
                     isPlaying = false;
                     playbackStartTime = null;
                     console.log('⏹️ 播放结束');
+
+                    if (playOutput === 'client') {
+                        console.log('📱 客户端模式，不执行服务端自动切歌');
+                        return;
+                    }
 
                     if (playMode === 'loop') {
                         console.log('🔁 单曲循环');
@@ -9047,6 +9109,11 @@ function playOnlineMusic(url, retryCount = 0) {
             }
             
             // 自动播放下一首（只有正常退出或重试失败后才继续）
+            if (playOutput === 'client') {
+                console.log('📱 客户端模式，不执行服务端自动切歌');
+                return;
+            }
+
             if (playMode === 'sequence' && currentIndex < currentPlaylist.length - 1) {
                 const nextIndex = currentIndex + 1;
                 const nextTrack = currentPlaylist[nextIndex];

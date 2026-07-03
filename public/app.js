@@ -1170,6 +1170,29 @@ async function stop() {
 }
 
 async function playNext() {
+    if (playOutput === 'client') {
+        if (currentPlaylist.length === 0 || currentIndex === -1) {
+            showError('没有可播放的歌曲');
+            return;
+        }
+        if (currentPlayMode === 'random') {
+            if (currentPlaylist.length > 1) {
+                let randomIndex;
+                do {
+                    randomIndex = Math.floor(Math.random() * currentPlaylist.length);
+                } while (randomIndex === currentIndex && currentPlaylist.length > 1);
+                playTrack(randomIndex);
+            }
+        } else {
+            if (currentIndex < currentPlaylist.length - 1) {
+                playTrack(currentIndex + 1);
+            } else {
+                showError('已经是最后一首');
+            }
+        }
+        return;
+    }
+
     try {
         const result = await apiRequest('/api/next');
         if (result.success) {
@@ -1189,6 +1212,29 @@ async function playNext() {
 }
 
 async function playPrevious() {
+    if (playOutput === 'client') {
+        if (currentPlaylist.length === 0 || currentIndex === -1) {
+            showError('没有可播放的歌曲');
+            return;
+        }
+        if (currentPlayMode === 'random') {
+            if (currentPlaylist.length > 1) {
+                let randomIndex;
+                do {
+                    randomIndex = Math.floor(Math.random() * currentPlaylist.length);
+                } while (randomIndex === currentIndex && currentPlaylist.length > 1);
+                playTrack(randomIndex);
+            }
+        } else {
+            if (currentIndex > 0) {
+                playTrack(currentIndex - 1);
+            } else {
+                showError('已经是第一首');
+            }
+        }
+        return;
+    }
+
     try {
         const result = await apiRequest('/api/previous');
         if (result.success) {
@@ -5305,18 +5351,23 @@ async function playFolder(folderPath) {
             currentPlaylist = playlistResult.playlist;
         }
         
-        // 更新播放状态
-        const statusResult = await apiRequest('/api/status');
-        if (statusResult.current) {
-            currentIndex = statusResult.currentIndex;
-            isPlaying = statusResult.isPlaying;
-            updateNowPlaying(statusResult.current);
-            updatePlayPauseButton();
-            
-            if (statusResult.isPlaying) {
-                startProgressUpdate();
-            } else {
-                stopProgressUpdate();
+        if (playOutput === 'client' && result.clientMode) {
+            // 客户端模式：用客户端播放第一首
+            playTrack(0);
+        } else {
+            // 服务端模式：更新播放状态
+            const statusResult = await apiRequest('/api/status');
+            if (statusResult.current) {
+                currentIndex = statusResult.currentIndex;
+                isPlaying = statusResult.isPlaying;
+                updateNowPlaying(statusResult.current);
+                updatePlayPauseButton();
+                
+                if (statusResult.isPlaying) {
+                    startProgressUpdate();
+                } else {
+                    stopProgressUpdate();
+                }
             }
         }
         
@@ -5343,22 +5394,30 @@ async function playTrackFromFolder(filePath) {
             return;
         }
         
-        // 更新播放状态
-        isPlaying = true;
-        
-        // 更新界面显示
-        if (result.current) {
-            updateNowPlaying(result.current);
-        }
-        updatePlayPauseButton();
-        startProgressUpdate();
-        
         // 刷新播放列表视图
         const playlistResult = await apiRequest('/api/playlist');
         if (playlistResult.playlist) {
             currentPlaylist = playlistResult.playlist;
-            renderPlaylist();
         }
+        
+        if (playOutput === 'client' && result.clientMode) {
+            // 客户端模式：找到歌曲索引并用客户端播放
+            const index = result.index !== undefined ? result.index :
+                currentPlaylist.findIndex(t => t.path === filePath || t.path.endsWith(filePath));
+            if (index >= 0) {
+                playTrack(index);
+            }
+        } else {
+            // 服务端模式：更新播放状态
+            isPlaying = true;
+            if (result.current) {
+                updateNowPlaying(result.current);
+            }
+            updatePlayPauseButton();
+            startProgressUpdate();
+        }
+        
+        renderPlaylist();
         
     } catch (error) {
         console.error('播放失败:', error);

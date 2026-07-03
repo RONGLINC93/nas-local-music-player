@@ -22,6 +22,7 @@
 - **下载按钮点击无反应**：修复 `songId` 读取路径错误（从 `track.songId` 改为兼容 `track.songInfo.songId` 及从路径解析）和缓存列表字段名错误（`result.caches` → `result.cacheList`）
 - **缓存下载提示文件不存在**：修复服务端缓存下载接口中 `getCacheFilePath` 参数传递错误，导致无法正确找到缓存文件的问题
 - **客户端模式切歌变服务端播放**：修复客户端播放模式下，点击上一首/下一首或播放结束自动切歌后，服务端也会同时播放音乐的问题。前后端双重修复：前端 `playNext()`/`playPrevious()` 客户端模式下直接调用 `playTrack()` 走客户端播放；服务端 `/api/next`、`/api/previous`、`/api/play/:index`、`POST /api/play`、`POST /api/folder-play` 及 `client-playback-state` ended 分支在客户端模式下只更新状态不同时启动服务端播放；`playMusic` 和 `playOnlineMusic` 内部的自动切歌逻辑在客户端模式下也不再执行；前端 `playFolder()` 和 `playTrackFromFolder()` 客户端模式下改为走客户端播放
+- **在线音乐播放链接失效重试**：修复 `/api/stream/:index` 接口中，在线音乐缓存的 `playUrl` 过期失效时请求失败返回 500 的问题。现在如果使用缓存链接请求失败，会自动重新获取播放链接并重试一次，切换播放模式或长时间暂停后继续播放更稳定
 
 ## [1.2.3]
 

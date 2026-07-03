@@ -4991,27 +4991,31 @@ app.get('/api/stream/:index', async (req, res) => {
             
             // 优先使用已存储的 playUrl（来自 /api/play-online）
             let playUrl = track.playUrl;
+            let urlFromCache = !!playUrl;
             console.log(`[Stream] 已有 playUrl: ${playUrl ? '是' : '否'}`);
             
-            if (!playUrl) {
+            const songInfo = track.songInfo || { 
+                songId: track.path.split('/')[2], 
+                name: track.title, 
+                singer: track.artist, 
+                albumName: track.album 
+            };
+            
+            async function fetchPlayUrl(useCache) {
+                if (useCache && track.playUrl) {
+                    return track.playUrl;
+                }
                 console.log(`[Stream] 重新获取播放链接...`);
-                const songInfo = track.songInfo || { 
-                    songId: track.path.split('/')[2], 
-                    name: track.title, 
-                    singer: track.artist, 
-                    albumName: track.album 
-                };
+                let url = await getMusicPlayUrl(track.source, songInfo, '128');
+                console.log(`[Stream] 获取 playUrl 结果: ${url ? url.substring(0, 100) : '失败'}`);
                 
-                playUrl = await getMusicPlayUrl(track.source, songInfo, '128');
-                console.log(`[Stream] 获取 playUrl 结果: ${playUrl ? playUrl.substring(0, 100) : '失败'}`);
-                
-                if (!playUrl) {
+                if (!url) {
                     const platforms = ['kw', 'kg', 'tx', 'wy', 'mg'];
                     for (const platform of platforms) {
                         if (platform === track.source) continue;
                         try {
-                            playUrl = await getMusicPlayUrl(platform, songInfo, '128');
-                            if (playUrl) {
+                            url = await getMusicPlayUrl(platform, songInfo, '128');
+                            if (url) {
                                 track.source = platform;
                                 source = platform;
                                 console.log(`[Stream] 从备用平台 ${platform} 获取到链接`);
@@ -5022,7 +5026,14 @@ app.get('/api/stream/:index', async (req, res) => {
                         }
                     }
                 }
+                
+                if (url) {
+                    track.playUrl = url;
+                }
+                return url;
             }
+            
+            playUrl = await fetchPlayUrl(urlFromCache);
             
             if (!playUrl) {
                 console.error(`[Stream] 无法获取播放链接`);
@@ -5032,8 +5043,18 @@ app.get('/api/stream/:index', async (req, res) => {
             console.log(`[Stream] 开始代理音频流: ${playUrl.substring(0, 100)}...`);
             
             // 代理在线音频流
-            const response = await fetch(playUrl);
+            let response = await fetch(playUrl);
             console.log(`[Stream] fetch 响应状态: ${response.status}`);
+            
+            // 如果使用缓存的 playUrl 且请求失败，重新获取链接后重试一次
+            if (!response.ok && urlFromCache) {
+                console.log(`[Stream] 缓存的 playUrl 失效，重新获取链接...`);
+                playUrl = await fetchPlayUrl(false);
+                if (playUrl) {
+                    response = await fetch(playUrl);
+                    console.log(`[Stream] 重新获取后 fetch 响应状态: ${response.status}`);
+                }
+            }
             
             if (!response.ok) {
                 throw new Error(`获取在线音乐失败: ${response.status}`);

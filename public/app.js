@@ -14,6 +14,72 @@ let playOutput = 'server'; // 播放输出方式：server(服务器声卡), clie
 let clientAudio = null; // 客户端 Audio 元素
 let isStoppingClient = false; // 是否正在主动停止客户端播放
 
+// 用户认证
+let authToken = localStorage.getItem('authToken') || null;
+let currentUser = null;
+let needPassword = false;
+let pendingAuthRequests = [];
+let isLoginModalShowing = false;
+
+const originalFetch = window.fetch.bind(window);
+const NO_AUTH_URLS = [
+    '/api/user/login',
+    '/api/user/info',
+    '/api/user/set-password'
+];
+
+window.fetch = function(url, options = {}) {
+    if (!options.headers) {
+        options.headers = {};
+    }
+    
+    if (authToken) {
+        if (options.headers instanceof Headers) {
+            options.headers.set('Authorization', 'Bearer ' + authToken);
+        } else if (typeof options.headers === 'object') {
+            options.headers['Authorization'] = 'Bearer ' + authToken;
+        }
+    }
+    
+    return originalFetch(url, options).then(response => {
+        if (response.status === 401) {
+            const urlPath = url.startsWith('http') ? new URL(url).pathname : url;
+            if (NO_AUTH_URLS.some(u => urlPath === u || urlPath.startsWith(u + '/'))) {
+                return response;
+            }
+            
+            authToken = null;
+            localStorage.removeItem('authToken');
+            currentUser = null;
+            if (typeof updateUserCardUI === 'function') {
+                updateUserCardUI();
+            }
+            
+            const pending = {
+                url,
+                options: { ...options, headers: { ...options.headers } }
+            };
+            
+            const promise = new Promise((resolve, reject) => {
+                pending.resolve = resolve;
+                pending.reject = reject;
+            });
+            
+            pendingAuthRequests.push(pending);
+            
+            if (!isLoginModalShowing) {
+                isLoginModalShowing = true;
+                if (typeof showLoginModal === 'function') {
+                    showLoginModal();
+                }
+            }
+            
+            return promise;
+        }
+        return response;
+    });
+};
+
 const playModeIcons = {
     'sequence': 'fas fa-list',
     'random': 'fas fa-random',
@@ -43,6 +109,332 @@ async function apiRequest(endpoint, method = 'GET', data = null) {
     const response = await fetch(endpoint, options);
     return await response.json();
 }
+
+// ========== 用户认证相关 ==========
+
+function requireLogin() {
+    if (currentUser) {
+        return Promise.resolve();
+    }
+    
+    return new Promise((resolve, reject) => {
+        const pending = {
+            url: '',
+            options: {},
+            resolve: () => resolve(),
+            reject: (err) => reject(err || new Error('用户取消登录'))
+        };
+        pendingAuthRequests.push(pending);
+        
+        if (!isLoginModalShowing) {
+            isLoginModalShowing = true;
+            if (typeof showLoginModal === 'function') {
+                showLoginModal();
+            }
+        }
+    });
+}
+
+async function checkAuthStatus() {
+    try {
+        const result = await apiRequest('/api/user/info');
+        if (result.success) {
+            needPassword = result.needPassword;
+            if (result.isLoggedIn) {
+                currentUser = {
+                    username: result.username,
+                    nickname: result.nickname
+                };
+            } else {
+                currentUser = null;
+            }
+            updateUserCardUI();
+        }
+    } catch (error) {
+        console.error('检查登录状态失败:', error);
+    }
+}
+
+function updateUserCardUI() {
+    const userCard = document.getElementById('userCard');
+    const nicknameEl = document.getElementById('userNickname');
+    const statusEl = document.getElementById('userStatus');
+    
+    if (!userCard || !nicknameEl || !statusEl) return;
+    
+    if (currentUser) {
+        userCard.classList.add('logged-in');
+        nicknameEl.textContent = currentUser.nickname || currentUser.username || '用户';
+        statusEl.textContent = '已登录';
+    } else if (needPassword) {
+        userCard.classList.remove('logged-in');
+        nicknameEl.textContent = '未登录';
+        statusEl.textContent = '点击登录';
+    } else {
+        userCard.classList.remove('logged-in');
+        nicknameEl.textContent = '访客模式';
+        statusEl.textContent = '点击设置密码';
+    }
+}
+
+function handleUserCardClick() {
+    if (currentUser) {
+        showLoggedInModal();
+    } else {
+        showLoginModal();
+    }
+}
+
+function showLoggedInModal() {
+    const modal = document.getElementById('loginModal');
+    if (!modal) return;
+    
+    document.getElementById('loginModalTitle').textContent = '个人中心';
+    document.getElementById('loggedInForm').style.display = 'block';
+    document.getElementById('loginForm').style.display = 'none';
+    document.getElementById('setPasswordForm').style.display = 'none';
+    document.getElementById('changePasswordForm').style.display = 'none';
+    
+    document.getElementById('infoUsername').textContent = currentUser.username || '-';
+    document.getElementById('infoNickname').textContent = currentUser.nickname || '-';
+    
+    modal.classList.add('show');
+}
+
+function showLoginModal() {
+    const modal = document.getElementById('loginModal');
+    if (!modal) return;
+    
+    document.getElementById('loginModalTitle').textContent = '登录';
+    document.getElementById('loggedInForm').style.display = 'none';
+    document.getElementById('loginForm').style.display = 'block';
+    document.getElementById('setPasswordForm').style.display = 'none';
+    document.getElementById('changePasswordForm').style.display = 'none';
+    
+    if (!needPassword) {
+        showSetPasswordForm();
+    } else {
+        document.getElementById('loginUsername').value = '';
+        document.getElementById('loginPassword').value = '';
+        document.getElementById('loginPassword').focus();
+    }
+    
+    modal.classList.add('show');
+}
+
+function closeLoginModal() {
+    const modal = document.getElementById('loginModal');
+    if (modal) modal.classList.remove('show');
+    if (pendingAuthRequests.length > 0) {
+        const pendings = [...pendingAuthRequests];
+        pendingAuthRequests = [];
+        isLoginModalShowing = false;
+        for (const pending of pendings) {
+            if (pending.reject) {
+                pending.reject(new Error('用户取消登录'));
+            }
+        }
+    }
+}
+
+function showSetPasswordForm() {
+    document.getElementById('loginModalTitle').textContent = '设置密码';
+    document.getElementById('loggedInForm').style.display = 'none';
+    document.getElementById('loginForm').style.display = 'none';
+    document.getElementById('setPasswordForm').style.display = 'block';
+    document.getElementById('changePasswordForm').style.display = 'none';
+    document.getElementById('setUsername').value = 'admin';
+    document.getElementById('setNickname').value = '';
+    document.getElementById('newPassword').value = '';
+    document.getElementById('confirmPassword').value = '';
+    document.getElementById('newPassword').focus();
+}
+
+function showLoginForm() {
+    document.getElementById('loginModalTitle').textContent = '登录';
+    document.getElementById('loggedInForm').style.display = 'none';
+    document.getElementById('loginForm').style.display = 'block';
+    document.getElementById('setPasswordForm').style.display = 'none';
+    document.getElementById('changePasswordForm').style.display = 'none';
+    document.getElementById('loginUsername').focus();
+}
+
+function showLoggedInForm() {
+    showLoggedInModal();
+}
+
+function showChangePasswordForm() {
+    document.getElementById('loginModalTitle').textContent = '修改密码';
+    document.getElementById('loggedInForm').style.display = 'none';
+    document.getElementById('loginForm').style.display = 'none';
+    document.getElementById('setPasswordForm').style.display = 'none';
+    document.getElementById('changePasswordForm').style.display = 'block';
+    document.getElementById('oldPasswordChange').value = '';
+    document.getElementById('newPasswordChange').value = '';
+    document.getElementById('confirmPasswordChange').value = '';
+    document.getElementById('oldPasswordChange').focus();
+}
+
+async function doChangePassword() {
+    const oldPassword = document.getElementById('oldPasswordChange').value;
+    const newPassword = document.getElementById('newPasswordChange').value;
+    const confirmPassword = document.getElementById('confirmPasswordChange').value;
+    
+    if (!oldPassword) {
+        showNotification({ type: 'warning', message: '请输入原密码' });
+        return;
+    }
+    
+    if (!newPassword || newPassword.length < 4) {
+        showNotification({ type: 'warning', message: '新密码长度不能少于4位' });
+        return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+        showNotification({ type: 'warning', message: '两次输入的新密码不一致' });
+        return;
+    }
+    
+    try {
+        const result = await apiRequest('/api/user/set-password', 'POST', {
+            oldPassword,
+            newPassword
+        });
+        if (result.success) {
+            showNotification({ type: 'success', message: '密码修改成功' });
+            showLoggedInForm();
+        } else {
+            showNotification({ type: 'error', message: result.error || '修改失败' });
+        }
+    } catch (error) {
+        if (error.message !== '未登录或登录已过期') {
+            showNotification({ type: 'error', message: '修改失败' });
+        }
+    }
+}
+
+async function doLogin() {
+    const username = document.getElementById('loginUsername').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    
+    if (!username || !password) {
+        showNotification({ type: 'warning', message: '请输入用户名和密码' });
+        return;
+    }
+    
+    try {
+        const result = await apiRequest('/api/user/login', 'POST', { username, password });
+        if (result.success) {
+            authToken = result.token;
+            localStorage.setItem('authToken', authToken);
+            currentUser = {
+                username: result.username,
+                nickname: result.nickname
+            };
+            updateUserCardUI();
+            showNotification({ type: 'success', message: '登录成功' });
+            
+            const pendings = [...pendingAuthRequests];
+            pendingAuthRequests = [];
+            isLoginModalShowing = false;
+            
+            if (pendings.length > 0) {
+                closeLoginModal();
+                for (const pending of pendings) {
+                    (async () => {
+                        try {
+                            if (!pending.url) {
+                                pending.resolve();
+                            } else {
+                                const newOptions = {
+                                    ...pending.options,
+                                    headers: {
+                                        ...pending.options.headers,
+                                        'Authorization': 'Bearer ' + authToken
+                                    }
+                                };
+                                const resp = await originalFetch(pending.url, newOptions);
+                                pending.resolve(resp);
+                            }
+                        } catch (err) {
+                            pending.reject(err);
+                        }
+                    })();
+                }
+            } else {
+                closeLoginModal();
+            }
+        } else {
+            showNotification({ type: 'error', message: result.error || '登录失败' });
+        }
+    } catch (error) {
+        if (error.message !== '未登录或登录已过期') {
+            showNotification({ type: 'error', message: '登录失败' });
+        }
+    }
+}
+
+async function doSetPassword() {
+    const username = document.getElementById('setUsername').value.trim() || 'admin';
+    const nickname = document.getElementById('setNickname').value.trim();
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    
+    if (!newPassword || newPassword.length < 4) {
+        showNotification({ type: 'warning', message: '密码长度不能少于4位' });
+        return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+        showNotification({ type: 'warning', message: '两次输入的密码不一致' });
+        return;
+    }
+    
+    try {
+        const result = await apiRequest('/api/user/set-password', 'POST', {
+            username,
+            nickname,
+            newPassword
+        });
+        if (result.success) {
+            showNotification({ type: 'success', message: '密码设置成功，请登录' });
+            showLoginForm();
+            document.getElementById('loginUsername').value = username;
+            needPassword = true;
+        } else {
+            showNotification({ type: 'error', message: result.error || '设置失败' });
+        }
+    } catch (error) {
+        showNotification({ type: 'error', message: '设置失败' });
+    }
+}
+
+async function doLogout() {
+    try {
+        await apiRequest('/api/user/logout', 'POST');
+    } catch (error) {
+        // 忽略错误
+    }
+    authToken = null;
+    localStorage.removeItem('authToken');
+    currentUser = null;
+    updateUserCardUI();
+    showNotification({ type: 'success', message: '已退出登录' });
+    closeLoginModal();
+}
+
+function confirmLogout() {
+    closeLoginModal();
+    const modal = document.getElementById('logoutModal');
+    if (modal) modal.classList.add('show');
+}
+
+function closeLogoutModal() {
+    const modal = document.getElementById('logoutModal');
+    if (modal) modal.classList.remove('show');
+}
+
+// ========== 工具函数 ==========
 
 function formatDuration(seconds) {
     if (!seconds || seconds === 0) return '--:--';
@@ -517,6 +909,11 @@ function updateStatus(message) {
 }
 
 async function setMusicDir() {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const dir = document.getElementById('musicDirInput').value.trim();
     if (!dir) {
         updateStatus('❌ 请输入音乐文件夹路径');
@@ -766,6 +1163,17 @@ function updateOutputSwitchButton() {
 }
 
 async function changePlayOutput(output) {
+    const originalOutput = playOutput;
+    const radioButtons = document.querySelectorAll('input[name="playOutput"]');
+    
+    try {
+        await requireLogin();
+    } catch (e) {
+        radioButtons.forEach(radio => {
+            radio.checked = (radio.value === originalOutput);
+        });
+        return;
+    }
     try {
         const result = await apiRequest('/api/play-output', 'POST', { output });
         if (result.success) {
@@ -774,7 +1182,6 @@ async function changePlayOutput(output) {
             console.log(`📱 播放输出已切换为：${output === 'server' ? '服务器声卡' : '客户端浏览器'}`);
             
             // 更新播放管理页面的单选按钮
-            const radioButtons = document.querySelectorAll('input[name="playOutput"]');
             radioButtons.forEach(radio => {
                 radio.checked = (radio.value === output);
             });
@@ -818,6 +1225,9 @@ async function changePlayOutput(output) {
     } catch (error) {
         console.error('切换播放输出失败:', error);
         showError('切换失败');
+        radioButtons.forEach(radio => {
+            radio.checked = (radio.value === originalOutput);
+        });
     }
 }
 
@@ -899,7 +1309,12 @@ async function refreshCacheList() {
 // 删除单个缓存
 let pendingDeleteCacheKey = '';
 
-function deleteCacheItem(cacheKey, title) {
+async function deleteCacheItem(cacheKey, title) {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     pendingDeleteCacheKey = cacheKey;
     document.getElementById('deleteCacheTitle').textContent = title || '未知歌曲';
     const modal = document.getElementById('deleteCacheModal');
@@ -937,6 +1352,11 @@ async function confirmDeleteCache() {
 
 // 清空所有缓存
 async function clearAllCache() {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const modal = document.getElementById('clearCacheModal');
     modal.classList.add('show');
     document.body.style.overflow = 'hidden';
@@ -1034,6 +1454,11 @@ function showCustomCacheLimit() {
 }
 
 async function saveCacheLimit(customValue) {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     let limit;
     if (customValue !== undefined) {
         limit = customValue;
@@ -1374,6 +1799,11 @@ let selectedFiles = []; // 存储选中的文件
 
 // ==================== 通知系统 ====================
 function showNotification(options) {
+    if (options.type === 'error' && options.message && 
+        typeof options.message === 'string' && options.message.includes('用户取消登录')) {
+        return;
+    }
+    
     const container = document.getElementById('notificationContainer');
     
     const notification = document.createElement('div');
@@ -1450,6 +1880,9 @@ function showSuccess(message, duration) {
 }
 
 function showError(message, duration) {
+    if (typeof message === 'string' && message.includes('用户取消登录')) {
+        return;
+    }
     return showNotification({ type: 'error', message, duration });
 }
 
@@ -1462,7 +1895,12 @@ function showWarning(message, duration) {
 }
 
 // 模态框相关函数
-function openUploadModal() {
+async function openUploadModal() {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     // 清空之前选择的文件
     selectedFiles = [];
     updateFileList();
@@ -1493,7 +1931,12 @@ function closeUploadModal() {
 // 一键整理功能
 let isOrganizing = false;
 
-function openOrganizeModal() {
+async function openOrganizeModal() {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const modal = document.getElementById('organizeModal');
     modal.classList.add('show');
     document.body.style.overflow = 'hidden';
@@ -1508,7 +1951,12 @@ function closeOrganizeModal() {
 // 刮削功能
 let scrapeTargetPath = '';
 
-function openScrapeModal(filePath) {
+async function openScrapeModal(filePath) {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const modal = document.getElementById('scrapeModal');
     modal.classList.add('show');
     document.body.style.overflow = 'hidden';
@@ -1562,7 +2010,7 @@ document.getElementById('btnConfirmScrape').addEventListener('click', async func
             document.getElementById('scrapeProgressBar').style.width = '50%';
             document.getElementById('scrapeProgressText').textContent = '正在查询 MusicBrainz...';
             
-            const response = await fetch('/api/scrape-metadata', {
+            const response = await fetchWithAuth('/api/scrape-metadata', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ path: scrapeTargetPath })
@@ -1681,6 +2129,11 @@ document.getElementById('btnConfirmScrape').addEventListener('click', async func
 let isSavingMetadata = false;
 
 async function openEditMetadataModal(filePath) {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const modal = document.getElementById('editMetadataModal');
     modal.classList.add('show');
     document.body.style.overflow = 'hidden';
@@ -1870,7 +2323,12 @@ async function scrapeCurrentFile() {
 // 转MP3功能
 let isConverting = false;
 
-function openConvertToMp3Modal(filePath) {
+async function openConvertToMp3Modal(filePath) {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const modal = document.getElementById('convertToMp3Modal');
     modal.classList.add('show');
     document.body.style.overflow = 'hidden';
@@ -2174,7 +2632,7 @@ async function uploadMusic() {
     formData.append('folderPath', currentFolderPath || '');
     
     try {
-        const response = await fetch('/api/upload-music-async', {
+        const response = await fetchWithAuth('/api/upload-music-async', {
             method: 'POST',
             body: formData
         });
@@ -2472,7 +2930,12 @@ let pendingDeletePaths = [];
 let pendingPlaylistBatchIndices = [];
 
 // 打开删除弹窗
-function openDeleteModal(indexOrPath, isPath = false) {
+async function openDeleteModal(indexOrPath, isPath = false) {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const modal = document.getElementById('deleteModal');
     
     if (Array.isArray(indexOrPath)) {
@@ -2559,6 +3022,11 @@ function closeWorkerConfigModal() {
 
 // 保存线程设置
 async function saveWorkerConfig() {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const maxConvert = parseInt(document.getElementById('maxConvertWorkers').value, 10);
     const maxUpload = parseInt(document.getElementById('maxUploadWorkers').value, 10);
     
@@ -2662,6 +3130,7 @@ document.getElementById('btnConfirmDelete').addEventListener('click', async func
                 showError(result.error || '删除失败');
             }
         } catch (error) {
+            if (error.isAuthCancelled) return;
             console.error('批量删除失败:', error);
             showError('删除失败');
         }
@@ -2685,6 +3154,7 @@ document.getElementById('btnConfirmDelete').addEventListener('click', async func
                 showError(result.error || '删除失败');
             }
         } catch (error) {
+            if (error.isAuthCancelled) return;
             console.error('删除失败:', error);
             showError('删除失败');
         }
@@ -2715,6 +3185,7 @@ document.getElementById('btnConfirmDelete').addEventListener('click', async func
                 showError(result.error || '删除失败');
             }
         } catch (error) {
+            if (error.isAuthCancelled) return;
             console.error('删除失败:', error);
             showError('删除失败');
         }
@@ -2871,7 +3342,12 @@ async function loadAudioDevices() {
 
 // 选择声卡设备
 async function selectAudioDevice(deviceId) {
-    // 获取所有设备项
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
+    // 更新UI选中状态
     const deviceItems = document.querySelectorAll('.device-item');
     
     // 更新每个设备的状态
@@ -3001,7 +3477,12 @@ function closeAboutModal() {
 }
 
 // 打开更新模态框
-function openUpdateModal() {
+async function openUpdateModal() {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     // 检查是否为本地访问（127.0.0.1），如果是则禁用更新功能
     const currentHost = window.location.hostname;
     if (currentHost === '127.0.0.1' || currentHost === 'localhost') {
@@ -3344,7 +3825,12 @@ async function checkUpdate() {
 }
 
 // 打开自动更新确认模态框
-function openAutoUpdateConfirmModal() {
+async function openAutoUpdateConfirmModal() {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const modal = document.getElementById('autoUpdateConfirmModal');
     if (modal) {
         modal.classList.add('show');
@@ -3565,6 +4051,11 @@ async function toggleMute() {
 }
 
 async function testAudioDevice() {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     // 获取当前选中的设备（从服务端）
     try {
         const devicesResult = await apiRequest('/api/audio-devices');
@@ -3678,6 +4169,9 @@ async function endDrag(e) {
 }
 
 window.onload = async () => {
+    // 检查登录状态
+    checkAuthStatus();
+    
     // 加载核心界面（播放状态、声卡、音量、播放输出方式、在线设置、缓存）
     await Promise.all([
         loadStatus(),
@@ -3903,6 +4397,11 @@ async function loadFolders() {
 
 // 扫描文件夹并生成缓存
 async function scanFolders() {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const btnScan = document.querySelector('.folder-scan-btn');
     const cacheStatus = document.getElementById('cacheStatus');
     
@@ -4192,7 +4691,12 @@ async function refreshFolderTreeOnly() {
 }
 
 // 删除文件夹相关函数
-function openDeleteFolderModal(folderPath, folderName) {
+async function openDeleteFolderModal(folderPath, folderName) {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const modal = document.getElementById('deleteFolderModal');
     const pathInput = document.getElementById('deleteFolderPath');
     const nameDisplay = document.getElementById('deleteFolderNameDisplay');
@@ -4249,7 +4753,12 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // 重命名文件夹相关函数
-function openRenameFolderModal(folderPath, folderName) {
+async function openRenameFolderModal(folderPath, folderName) {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const modal = document.getElementById('renameFolderModal');
     const pathInput = document.getElementById('renameFolderPath');
     const nameInput = document.getElementById('renameFolderInput');
@@ -4274,7 +4783,12 @@ function closeRenameFolderModal() {
 }
 
 // 解散文件夹相关函数
-function openDissolveFolderModal(folderPath, folderName) {
+async function openDissolveFolderModal(folderPath, folderName) {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const modal = document.getElementById('dissolveFolderModal');
     const pathInput = document.getElementById('dissolveFolderPath');
     const nameDisplay = document.getElementById('dissolveFolderNameDisplay');
@@ -4331,7 +4845,12 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // 打开重命名音乐文件对话框
-function openRenameFileModal(filePath, fileName) {
+async function openRenameFileModal(filePath, fileName) {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const modal = document.getElementById('renameFileModal');
     const pathInput = document.getElementById('renameFilePath');
     const nameInput = document.getElementById('renameFileInput');
@@ -5497,7 +6016,12 @@ function downloadFolder(folderPath) {
 }
 
 // 移动文件夹
-function moveFolder(folderPath, folderName) {
+async function moveFolder(folderPath, folderName) {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const modal = document.getElementById('moveFolderModal');
     const pathInput = document.getElementById('moveFolderPath');
     const nameDisplay = document.getElementById('moveFolderNameDisplay');
@@ -5565,7 +6089,12 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // 转换文件夹为MP3
-function openConvertFolderToMp3Modal(folderPath, folderName) {
+async function openConvertFolderToMp3Modal(folderPath, folderName) {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const modal = document.getElementById('convertFolderToMp3Modal');
     const pathInput = document.getElementById('convertFolderPath');
     const nameDisplay = document.getElementById('convertFolderName');
@@ -5729,7 +6258,12 @@ function batchDeleteFiles() {
 }
 
 // 新建文件夹
-function createNewFolder() {
+async function createNewFolder() {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const modal = document.getElementById('newFolderModal');
     const input = document.getElementById('newFolderName');
     input.value = '';
@@ -5924,7 +6458,12 @@ function batchMoveFiles() {
     openMoveModal();
 }
 
-function openMoveModal() {
+async function openMoveModal() {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const modal = document.getElementById('moveModal');
     const btnConfirm = document.getElementById('btnConfirmMove');
     btnConfirm.disabled = true;
@@ -6235,6 +6774,12 @@ async function batchDownloadFiles() {
     if (isDownloading) return;
     if (selectedMusicFiles.size === 0) return;
     
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
+    
     isDownloading = true;
     const btn = document.querySelector('.batch-download-btn');
     if (btn) {
@@ -6287,7 +6832,12 @@ async function batchDownloadFiles() {
 // 批量转MP3功能
 let isBatchConverting = false;
 
-function batchConvertToMp3() {
+async function batchConvertToMp3() {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     if (selectedMusicFiles.size === 0) return;
     
     const modal = document.getElementById('batchConvertModal');
@@ -6650,7 +7200,12 @@ function renderTaskList(tasks) {
 }
 
 // 删除任务
-function deleteTask(taskId, taskType = 'convert') {
+async function deleteTask(taskId, taskType = 'convert') {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const apiUrl = taskType === 'upload' ? `/api/upload-tasks/${taskId}` : `/api/tasks/${taskId}`;
     fetch(apiUrl, {
         method: 'DELETE'
@@ -6665,7 +7220,12 @@ function deleteTask(taskId, taskType = 'convert') {
 }
 
 // 清除已完成任务
-function clearCompletedTasks() {
+async function clearCompletedTasks() {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const modal = document.getElementById('clearTasksModal');
     if (modal) {
         modal.classList.add('show');
@@ -6681,19 +7241,20 @@ function closeClearTasksModal() {
 }
 
 // 确认清除任务
-function confirmClearTasks() {
-    Promise.all([
-        fetch('/api/tasks', { method: 'DELETE' }),
-        fetch('/api/upload-tasks', { method: 'DELETE' })
-    ]).then(() => {
+async function confirmClearTasks() {
+    try {
+        await Promise.all([
+            fetch('/api/tasks', { method: 'DELETE' }),
+            fetch('/api/upload-tasks', { method: 'DELETE' })
+        ]);
         showNotification({ type: 'success', message: '已完成任务已清除' });
         loadTaskList(getCurrentTaskFilter());
         closeClearTasksModal();
-    }).catch(error => {
+    } catch (error) {
         console.error('清除任务失败:', error);
         showNotification({ type: 'error', message: '清除任务失败' });
         closeClearTasksModal();
-    });
+    }
 }
 
 // 获取当前任务过滤器
@@ -6843,7 +7404,12 @@ function playlistBatchDelete() {
     openPlaylistDeleteModal(selectedIndices);
 }
 
-function openPlaylistDeleteModal(indices) {
+async function openPlaylistDeleteModal(indices) {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const modal = document.getElementById('deleteModal');
     
     document.getElementById('deleteTrackName').textContent = `批量删除 ${indices.length} 首歌曲`;
@@ -7429,6 +7995,12 @@ async function downloadOnlineSong(cacheKey) {
         return;
     }
     
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
+    
     showNotification({ type: 'info', message: `正在获取下载链接...` });
     
     try {
@@ -7757,7 +8329,12 @@ function escapeHtml(str) {
 let selectedSourceFiles = [];
 
 // 打开上传音源文件模态框
-function openUploadSourceModal() {
+async function openUploadSourceModal() {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const modal = document.getElementById('uploadSourceModal');
     modal.classList.add('show');
     document.body.style.overflow = 'hidden';
@@ -7842,7 +8419,7 @@ async function uploadSourceFiles() {
             
             const content = await file.text();
             
-            const response = await fetch('/api/upload-source', {
+            const response = await fetchWithAuth('/api/upload-source', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ filename: file.name, content })
@@ -7993,7 +8570,12 @@ async function applySelectedSources() {
 // 删除音源文件
 let pendingSourceFileToDelete = null;
 
-function deleteSourceFile(filename) {
+async function deleteSourceFile(filename) {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     pendingSourceFileToDelete = filename;
     document.getElementById('deleteSourceFileName').textContent = `"${filename}"`;
     const modal = document.getElementById('deleteSourceFileModal');
@@ -8067,6 +8649,11 @@ async function loadOnlineSettings() {
 
 // 保存在线设置
 async function saveOnlineSettings() {
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
     const pageSize = document.getElementById('pageSizeSelect').value;
     const newPageSize = parseInt(pageSize) || 20;
     

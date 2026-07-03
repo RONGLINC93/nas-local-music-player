@@ -89,6 +89,68 @@ let playMode = 'sequence'; // 播放模式：sequence(顺序播放), random(随�
 let onlineSource = 'wy'; // 在线音乐默认音源平台
 let pausedElapsed = 0; // 暂停时的已播放秒数
 
+// 用户认证
+const USER_CONFIG_FILE = path.join(__dirname, 'data', 'user.json');
+let userConfig = {
+    username: 'admin',
+    passwordHash: null,
+    passwordSalt: null,
+    nickname: '管理员'
+};
+let authTokens = new Map();
+
+function loadUserConfig() {
+    try {
+        if (fs.existsSync(USER_CONFIG_FILE)) {
+            const data = fs.readFileSync(USER_CONFIG_FILE, 'utf8');
+            userConfig = JSON.parse(data);
+            console.log(`👤 已加载用户配置，用户名：${userConfig.username}`);
+        } else {
+            saveUserConfig();
+            console.log('👤 未找到用户配置，已创建默认配置');
+        }
+    } catch (err) {
+        console.error('加载用户配置失败:', err.message);
+    }
+}
+
+function saveUserConfig() {
+    try {
+        fs.writeFileSync(USER_CONFIG_FILE, JSON.stringify(userConfig, null, 4), 'utf8');
+    } catch (err) {
+        console.error('保存用户配置失败:', err.message);
+    }
+}
+
+function hashPassword(password, salt) {
+    if (!salt) {
+        salt = crypto.randomBytes(16).toString('hex');
+    }
+    const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
+    return { hash, salt };
+}
+
+function verifyPassword(password, hash, salt) {
+    const result = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
+    return result === hash;
+}
+
+function generateToken() {
+    return crypto.randomBytes(32).toString('hex');
+}
+
+function requireAuth(req, res, next) {
+    if (!userConfig.passwordHash) {
+        return next();
+    }
+    const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
+    if (!token || !authTokens.has(token)) {
+        return res.status(401).json({ success: false, error: '未登录或登录已过期' });
+    }
+    req.authToken = token;
+    next();
+}
+
 // 批量转换任务队列
 let convertQueue = [];
 let activeConvertWorkers = 0; // 当前活跃的转换工作线程数
@@ -509,6 +571,7 @@ async function scanMusicLibrary() {
 }
 
 loadConfig();
+loadUserConfig();
 ensureCacheDir();
 loadCacheMetadata();
 loadMusicLibrary();
@@ -517,7 +580,92 @@ app.get('/api/playlist', (req, res) => {
     res.json({ playlist: currentPlaylist, currentIndex, isPlaying });
 });
 
-app.post('/api/upload-music', (req, res, next) => {
+// 获取用户信息（是否需要登录等）
+app.get('/api/user/info', (req, res) => {
+    const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
+    const isLoggedIn = token && authTokens.has(token);
+    res.json({
+        success: true,
+        needPassword: !!userConfig.passwordHash,
+        isLoggedIn,
+        username: userConfig.username,
+        nickname: userConfig.nickname
+    });
+});
+
+// 登录
+app.post('/api/user/login', (req, res) => {
+    const { username, password } = req.body;
+    
+    if (!userConfig.passwordHash) {
+        return res.status(400).json({ success: false, error: '尚未设置密码，请先设置密码' });
+    }
+    
+    if (username !== userConfig.username) {
+        return res.status(401).json({ success: false, error: '用户名或密码错误' });
+    }
+    
+    if (!verifyPassword(password, userConfig.passwordHash, userConfig.passwordSalt)) {
+        return res.status(401).json({ success: false, error: '用户名或密码错误' });
+    }
+    
+    const token = generateToken();
+    authTokens.set(token, {
+        username: userConfig.username,
+        loginAt: Date.now()
+    });
+    
+    res.json({
+        success: true,
+        token,
+        username: userConfig.username,
+        nickname: userConfig.nickname,
+        message: '登录成功'
+    });
+});
+
+// 登出
+app.post('/api/user/logout', (req, res) => {
+    const token = req.headers['authorization']?.replace('Bearer ', '');
+    if (token && authTokens.has(token)) {
+        authTokens.delete(token);
+    }
+    res.json({ success: true, message: '已退出登录' });
+});
+
+// 设置密码（首次设置或修改密码，需要登录或首次设置）
+app.post('/api/user/set-password', (req, res) => {
+    const { oldPassword, newPassword, username, nickname } = req.body;
+    
+    if (!newPassword || newPassword.length < 4) {
+        return res.status(400).json({ success: false, error: '密码长度不能少于4位' });
+    }
+    
+    if (userConfig.passwordHash) {
+        const token = req.headers['authorization']?.replace('Bearer ', '');
+        if (!token || !authTokens.has(token)) {
+            if (!oldPassword || !verifyPassword(oldPassword, userConfig.passwordHash, userConfig.passwordSalt)) {
+                return res.status(401).json({ success: false, error: '原密码错误' });
+            }
+        }
+    }
+    
+    const { hash, salt } = hashPassword(newPassword);
+    userConfig.passwordHash = hash;
+    userConfig.passwordSalt = salt;
+    
+    if (username) {
+        userConfig.username = username;
+    }
+    if (nickname !== undefined) {
+        userConfig.nickname = nickname;
+    }
+    
+    saveUserConfig();
+    res.json({ success: true, message: '密码设置成功' });
+});
+
+app.post('/api/upload-music', requireAuth, (req, res, next) => {
     upload.array('musicFiles', 50)(req, res, (err) => {
         if (err) {
             console.error('上传错误:', err.message);
@@ -587,7 +735,7 @@ app.post('/api/upload-music', (req, res, next) => {
 });
 
 // 异步上传接口（后台模式）
-app.post('/api/upload-music-async', (req, res, next) => {
+app.post('/api/upload-music-async', requireAuth, (req, res, next) => {
     upload.array('musicFiles', 50)(req, res, (err) => {
         if (err) {
             console.error('上传错误:', err.message);
@@ -786,7 +934,7 @@ app.get('/api/refresh', async (req, res) => {
 });
 
 // 扫描文件夹并生成JSON缓存
-app.post('/api/scan-folders', async (req, res) => {
+app.post('/api/scan-folders', requireAuth, async (req, res) => {
     try {
         const musicDir = path.join(__dirname, 'music');
         
@@ -918,7 +1066,7 @@ app.get('/api/metadata', async (req, res) => {
 });
 
 // 更新音乐文件元数据
-app.post('/api/update-metadata', async (req, res) => {
+app.post('/api/update-metadata', requireAuth, async (req, res) => {
     try {
         const { path: filePath, title, artist, album, year, track, genre, comment, albumArtist } = req.body;
         
@@ -955,7 +1103,7 @@ app.post('/api/update-metadata', async (req, res) => {
 });
 
 // 转换音频为MP3格式
-app.post('/api/convert-to-mp3', async (req, res) => {
+app.post('/api/convert-to-mp3', requireAuth, async (req, res) => {
     try {
         const { path: filePath, bitrate, background = false } = req.body;
         
@@ -1252,7 +1400,7 @@ app.get('/api/tasks', (req, res) => {
 });
 
 // 删除任务记录
-app.delete('/api/tasks/:taskId', (req, res) => {
+app.delete('/api/tasks/:taskId', requireAuth, (req, res) => {
     const { taskId } = req.params;
     
     // 从队列中移除
@@ -1277,7 +1425,7 @@ app.delete('/api/tasks/:taskId', (req, res) => {
 });
 
 // 清除已完成的任务
-app.delete('/api/tasks', (req, res) => {
+app.delete('/api/tasks', requireAuth, (req, res) => {
     // 清空已完成任务列表
     completedTasks = [];
     // 队列中只保留等待中的任务（转换中的不能清空）
@@ -1287,7 +1435,7 @@ app.delete('/api/tasks', (req, res) => {
 });
 
 // 取消转换任务
-app.post('/api/cancel-convert', (req, res) => {
+app.post('/api/cancel-convert', requireAuth, (req, res) => {
     const { taskId } = req.body;
     
     if (taskId) {
@@ -1348,7 +1496,7 @@ app.get('/api/worker-config', (req, res) => {
 });
 
 // 更新线程数量配置
-app.post('/api/worker-config', (req, res) => {
+app.post('/api/worker-config', requireAuth, (req, res) => {
     const { maxConvertWorkers: newConvertWorkers, maxUploadWorkers: newUploadWorkers } = req.body;
     
     if (newConvertWorkers !== undefined) {
@@ -1472,7 +1620,7 @@ app.get('/api/upload-tasks', (req, res) => {
 });
 
 // 删除上传任务
-app.delete('/api/upload-tasks/:taskId', (req, res) => {
+app.delete('/api/upload-tasks/:taskId', requireAuth, (req, res) => {
     const { taskId } = req.params;
     
     const queueIndex = uploadQueue.findIndex(t => t.id === taskId);
@@ -1494,7 +1642,7 @@ app.delete('/api/upload-tasks/:taskId', (req, res) => {
 });
 
 // 清除已完成的上传任务
-app.delete('/api/upload-tasks', (req, res) => {
+app.delete('/api/upload-tasks', requireAuth, (req, res) => {
     completedUploads = completedUploads.filter(t => t.status !== 'completed' && t.status !== 'failed');
     uploadQueue = uploadQueue.filter(t => t.status === 'queued');
     saveTaskData(); // 持久化保存
@@ -1502,7 +1650,7 @@ app.delete('/api/upload-tasks', (req, res) => {
 });
 
 // 批量转换（后台模式）
-app.post('/api/batch-convert-mp3', async (req, res) => {
+app.post('/api/batch-convert-mp3', requireAuth, async (req, res) => {
     try {
         const { files, bitrate } = req.body;
         
@@ -2015,7 +2163,7 @@ async function loadMetadataInBackground(musicFiles, folderPath) {
     }
 }
 
-app.delete('/api/delete/:index', async (req, res) => {
+app.delete('/api/delete/:index', requireAuth, async (req, res) => {
     const index = parseInt(req.params.index);
 
     if (index < 0 || index >= currentPlaylist.length) {
@@ -2057,7 +2205,7 @@ app.delete('/api/delete/:index', async (req, res) => {
 });
 
 // 按文件路径删除文件
-app.delete('/api/delete-file', async (req, res) => {
+app.delete('/api/delete-file', requireAuth, async (req, res) => {
     try {
         const { filePath } = req.body;
         
@@ -2114,7 +2262,7 @@ app.delete('/api/delete-file', async (req, res) => {
 });
 
 // 删除文件夹
-app.delete('/api/delete-folder', async (req, res) => {
+app.delete('/api/delete-folder', requireAuth, async (req, res) => {
     try {
         const { folderPath } = req.body;
         
@@ -2183,7 +2331,7 @@ app.delete('/api/delete-folder', async (req, res) => {
 });
 
 // 解散文件夹（将文件移动到上级目录并删除空文件夹）
-app.post('/api/dissolve-folder', async (req, res) => {
+app.post('/api/dissolve-folder', requireAuth, async (req, res) => {
     try {
         const { folderPath } = req.body;
         
@@ -2287,7 +2435,7 @@ app.post('/api/dissolve-folder', async (req, res) => {
 });
 
 // 重命名文件夹
-app.post('/api/rename-folder', async (req, res) => {
+app.post('/api/rename-folder', requireAuth, async (req, res) => {
     try {
         const { folderPath, newName } = req.body;
         
@@ -2376,7 +2524,7 @@ app.post('/api/rename-folder', async (req, res) => {
 });
 
 // 移动文件夹
-app.post('/api/move-folder', async (req, res) => {
+app.post('/api/move-folder', requireAuth, async (req, res) => {
     try {
         const { folderPath, targetFolder } = req.body;
         
@@ -2469,7 +2617,7 @@ app.post('/api/move-folder', async (req, res) => {
 });
 
 // 批量转换文件夹为MP3
-app.post('/api/batch-convert-folder-mp3', async (req, res) => {
+app.post('/api/batch-convert-folder-mp3', requireAuth, async (req, res) => {
     try {
         const { folderPath, bitrate } = req.body;
         
@@ -2595,7 +2743,7 @@ app.post('/api/batch-convert-folder-mp3', async (req, res) => {
 });
 
 // 重命名音乐文件
-app.post('/api/rename-file', async (req, res) => {
+app.post('/api/rename-file', requireAuth, async (req, res) => {
     try {
         const { filePath, newName } = req.body;
         
@@ -2668,7 +2816,7 @@ app.post('/api/rename-file', async (req, res) => {
 });
 
 // 批量从播放列表删除（不删除物理文件）
-app.post('/api/batch-delete-playlist', async (req, res) => {
+app.post('/api/batch-delete-playlist', requireAuth, async (req, res) => {
     try {
         const { indices } = req.body;
         
@@ -2715,7 +2863,7 @@ app.post('/api/batch-delete-playlist', async (req, res) => {
 });
 
 // 清空播放列表
-app.post('/api/clear-playlist', (req, res) => {
+app.post('/api/clear-playlist', requireAuth, (req, res) => {
     try {
         stopMusic();
         currentPlaylist = [];
@@ -3133,7 +3281,7 @@ app.post('/api/batch-add-to-playlist', async (req, res) => {
 
 // 批量删除文件 API
 // 新建文件夹
-app.post('/api/create-folder', (req, res) => {
+app.post('/api/create-folder', requireAuth, (req, res) => {
     try {
         const { parentPath, folderName } = req.body;
         
@@ -3509,7 +3657,7 @@ async function scrapeFileMetadata(filePath) {
 // 自动刮削元数据
 let isScraping = false;
 
-app.post('/api/scrape-metadata', async (req, res) => {
+app.post('/api/scrape-metadata', requireAuth, async (req, res) => {
     try {
         const { path: filePath } = req.body;
         
@@ -3551,7 +3699,7 @@ app.post('/api/scrape-metadata', async (req, res) => {
 });
 
 // 批量刮削文件夹中的所有音乐文件
-app.post('/api/scrape-folder', async (req, res) => {
+app.post('/api/scrape-folder', requireAuth, async (req, res) => {
     if (isScraping) {
         return res.status(400).json({ success: false, error: '刮削任务正在进行中' });
     }
@@ -3634,7 +3782,7 @@ app.post('/api/scrape-folder', async (req, res) => {
 });
 
 // 一键整理音乐文件
-app.post('/api/organize', async (req, res) => {
+app.post('/api/organize', requireAuth, async (req, res) => {
     try {
         const { type } = req.body;
         
@@ -3887,7 +4035,7 @@ function updateFolderMusicCount(folders, dirPath, delta) {
 }
 
 // 批量移动文件
-app.post('/api/batch-move-files', (req, res) => {
+app.post('/api/batch-move-files', requireAuth, (req, res) => {
     try {
         const { files, targetFolder } = req.body;
         
@@ -3971,7 +4119,7 @@ app.post('/api/batch-move-files', (req, res) => {
     }
 });
 
-app.post('/api/batch-delete-files', (req, res) => {
+app.post('/api/batch-delete-files', requireAuth, (req, res) => {
     try {
         const { files } = req.body;
         
@@ -4041,7 +4189,7 @@ app.post('/api/batch-delete-files', (req, res) => {
 });
 
 // 批量下载文件 API（打包为 ZIP）
-app.post('/api/batch-download', async (req, res) => {
+app.post('/api/batch-download', requireAuth, async (req, res) => {
     try {
         const { files } = req.body;
         
@@ -4079,7 +4227,7 @@ app.post('/api/batch-download', async (req, res) => {
 });
 
 // 在线音乐下载 API
-app.post('/api/download-online', async (req, res) => {
+app.post('/api/download-online', requireAuth, async (req, res) => {
     try {
         const { source, songId, name, singer, albumName, songInfo } = req.body;
         
@@ -4799,7 +4947,7 @@ app.get('/api/play-output', (req, res) => {
 });
 
 // 设置播放输出方式
-app.post('/api/play-output', (req, res) => {
+app.post('/api/play-output', requireAuth, (req, res) => {
     const { output } = req.body;
     const validOutputs = ['server', 'client'];
 
@@ -4837,7 +4985,7 @@ app.get('/api/cache', (req, res) => {
 });
 
 // 删除单个缓存
-app.delete('/api/cache/:cacheKey', (req, res) => {
+app.delete('/api/cache/:cacheKey', requireAuth, (req, res) => {
     try {
         const { cacheKey } = req.params;
         const result = deleteCache(cacheKey);
@@ -4885,7 +5033,7 @@ app.get('/api/cache/:cacheKey/download', (req, res) => {
 });
 
 // 清空所有缓存
-app.delete('/api/cache', (req, res) => {
+app.delete('/api/cache', requireAuth, (req, res) => {
     try {
         const result = clearAllCache();
         if (result) {
@@ -4915,7 +5063,7 @@ app.get('/api/cache-limit', (req, res) => {
 });
 
 // 设置缓存大小限制
-app.post('/api/cache-limit', (req, res) => {
+app.post('/api/cache-limit', requireAuth, (req, res) => {
     try {
         const { cacheLimitSize: newLimit } = req.body;
         const limit = Math.max(0, parseInt(newLimit, 10) || 0);
@@ -5789,7 +5937,7 @@ app.get('/api/audio-devices', async (req, res) => {
     }
 });
 
-app.post('/api/audio-device', (req, res) => {
+app.post('/api/audio-device', requireAuth, (req, res) => {
     const { deviceId } = req.body;
 
     if (!deviceId) {
@@ -5873,7 +6021,7 @@ app.post('/api/mute', async (req, res) => {
     res.json({ success: true, muted: isMuted });
 });
 
-app.post('/api/test-audio', async (req, res) => {
+app.post('/api/test-audio', requireAuth, async (req, res) => {
     const { deviceId } = req.body;
     const device = deviceId || 'default';
 
@@ -5973,7 +6121,7 @@ const updateUpload = multer({
 });
 
 // 系统更新 API - 上传 ZIP 包并解压替换
-app.post('/api/system-update', updateUpload.single('file'), async (req, res) => {
+app.post('/api/system-update', requireAuth, updateUpload.single('file'), async (req, res) => {
     let upgradeFilePath = null;
     let tempExtractDir = null;
     
@@ -7308,15 +7456,15 @@ app.get('/api/source-files', (req, res) => {
 });
 
 // ========== 新自定义音源管理 API（lx-music-sync-server 风格）==========
-app.post('/api/custom-source/validate', (req, res) => {
+app.post('/api/custom-source/validate', requireAuth, (req, res) => {
     customSourceHandlers.handleValidate(req, res);
 });
 
-app.post('/api/custom-source/upload', (req, res) => {
+app.post('/api/custom-source/upload', requireAuth, (req, res) => {
     customSourceHandlers.handleUpload(req, res);
 });
 
-app.post('/api/custom-source/import', (req, res) => {
+app.post('/api/custom-source/import', requireAuth, (req, res) => {
     customSourceHandlers.handleImport(req, res);
 });
 
@@ -7325,15 +7473,15 @@ app.get('/api/custom-source/list', (req, res) => {
     customSourceHandlers.handleList(req, res, username);
 });
 
-app.post('/api/custom-source/toggle', (req, res) => {
+app.post('/api/custom-source/toggle', requireAuth, (req, res) => {
     customSourceHandlers.handleToggle(req, res);
 });
 
-app.post('/api/custom-source/reorder', (req, res) => {
+app.post('/api/custom-source/reorder', requireAuth, (req, res) => {
     customSourceHandlers.handleReorder(req, res);
 });
 
-app.post('/api/custom-source/delete', (req, res) => {
+app.post('/api/custom-source/delete', requireAuth, (req, res) => {
     customSourceHandlers.handleDelete(req, res);
 });
 
@@ -7348,7 +7496,7 @@ app.get('/api/custom-source/loaded', (req, res) => {
 });
 
 // 删除音源文件
-app.delete('/api/source-files/:filename', (req, res) => {
+app.delete('/api/source-files/:filename', requireAuth, (req, res) => {
     try {
         const filename = req.params.filename;
         if (!filename.endsWith('.js')) {
@@ -7372,7 +7520,7 @@ app.delete('/api/source-files/:filename', (req, res) => {
 });
 
 // 应用选中的音源
-app.post('/api/apply-sources', (req, res) => {
+app.post('/api/apply-sources', requireAuth, (req, res) => {
     try {
         const { sources } = req.body;
         
@@ -7411,7 +7559,7 @@ app.post('/api/apply-sources', (req, res) => {
 });
 
 // 上传音源文件
-app.post('/api/upload-source', (req, res) => {
+app.post('/api/upload-source', requireAuth, (req, res) => {
     try {
         const { filename, content } = req.body;
         
@@ -7452,7 +7600,7 @@ app.get('/api/online-settings', (req, res) => {
 });
 
 // 保存在线设置
-app.post('/api/online-settings', (req, res) => {
+app.post('/api/online-settings', requireAuth, (req, res) => {
     try {
         const { pageSize } = req.body;
         const settingsPath = path.join(__dirname, 'data', 'online-settings.json');
@@ -7934,7 +8082,7 @@ app.get('/api/online-sources', (req, res) => {
 });
 
 // 保存在线音乐音源选择
-app.post('/api/online-source', (req, res) => {
+app.post('/api/online-source', requireAuth, (req, res) => {
     try {
         const { source } = req.body;
         if (!source) {

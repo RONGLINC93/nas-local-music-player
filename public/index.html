@@ -20,6 +20,17 @@
                     NAS本地音乐播放器
                 </h1>
             </div>
+            <!-- 用户卡片 -->
+            <div class="user-card" id="userCard" onclick="handleUserCardClick()">
+                <div class="user-avatar" id="userAvatar">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div class="user-info">
+                    <div class="user-nickname" id="userNickname">未登录</div>
+                    <div class="user-status" id="userStatus">点击登录</div>
+                </div>
+                <i class="fas fa-chevron-right user-card-arrow"></i>
+            </div>
             <nav class="nav-menu">
                 <div class="nav-item active" data-view="music">
                     <i class="fas fa-music nav-icon"></i>
@@ -2078,6 +2089,126 @@
                 <button type="button" id="btnConfirmClearTasks" class="btn btn-danger" onclick="confirmClearTasks()">
                     <i class="fas fa-trash"></i> 确认清除
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 退出登录确认对话框 -->
+    <div id="logoutModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-exclamation-triangle"
+                        style="font-size: 24px; color: #ef4444; vertical-align: middle; margin-right: 8px;"></i>
+                    确认退出
+                </h3>
+                <button onclick="closeLogoutModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="delete-confirm-content">
+                    <p>确定要退出登录吗？</p>
+                    <p class="delete-warning">退出后将无法进行管理操作。</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeLogoutModal()">取消</button>
+                <button type="button" class="btn btn-danger" onclick="doLogout()">
+                    <i class="fas fa-sign-out-alt"></i> 确认退出
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 登录模态框 -->
+    <div id="loginModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeLoginModal()">&times;</span>
+            <div class="login-modal-header">
+                <div class="login-avatar">
+                    <i class="fas fa-user"></i>
+                </div>
+                <h3 id="loginModalTitle">登录</h3>
+            </div>
+            <!-- 已登录状态 -->
+            <div class="logged-in-form" id="loggedInForm" style="display: none;">
+                <div class="user-info-card">
+                    <div class="info-row">
+                        <span class="info-label">用户名</span>
+                        <span class="info-value" id="infoUsername">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">昵称</span>
+                        <span class="info-value" id="infoNickname">-</span>
+                    </div>
+                </div>
+                <div class="user-actions">
+                    <button class="btn btn-secondary btn-block" onclick="showChangePasswordForm()">修改密码</button>
+                    <button class="btn btn-danger btn-block" onclick="confirmLogout()">退出登录</button>
+                </div>
+            </div>
+            <!-- 登录表单 -->
+            <div class="login-form" id="loginForm">
+                <div class="form-group">
+                    <label for="loginUsername">用户名</label>
+                    <input type="text" id="loginUsername" placeholder="请输入用户名" autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword">密码</label>
+                    <input type="password" id="loginPassword" placeholder="请输入密码" autocomplete="current-password" onkeypress="if(event.key==='Enter')doLogin()">
+                </div>
+                <div class="login-btn-group">
+                    <button class="btn btn-primary btn-block" onclick="doLogin()">登录</button>
+                </div>
+                <div class="login-footer">
+                    <span class="login-tip">首次使用请先设置密码</span>
+                    <a href="javascript:void(0)" onclick="showSetPasswordForm()" id="showSetPasswordLink">设置密码</a>
+                </div>
+            </div>
+            <!-- 设置密码表单 -->
+            <div class="set-password-form" id="setPasswordForm" style="display: none;">
+                <div class="form-group">
+                    <label for="setUsername">用户名</label>
+                    <input type="text" id="setUsername" placeholder="请设置用户名（默认 admin）">
+                </div>
+                <div class="form-group">
+                    <label for="setNickname">昵称</label>
+                    <input type="text" id="setNickname" placeholder="请设置昵称（可选）">
+                </div>
+                <div class="form-group">
+                    <label for="newPassword">新密码</label>
+                    <input type="password" id="newPassword" placeholder="请输入新密码（至少4位）" autocomplete="new-password">
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword">确认密码</label>
+                    <input type="password" id="confirmPassword" placeholder="请再次输入新密码" autocomplete="new-password" onkeypress="if(event.key==='Enter')doSetPassword()">
+                </div>
+                <div class="login-btn-group">
+                    <button class="btn btn-primary btn-block" onclick="doSetPassword()">确认设置</button>
+                </div>
+                <div class="login-footer">
+                    <a href="javascript:void(0)" onclick="showLoginForm()">返回登录</a>
+                </div>
+            </div>
+            <!-- 修改密码表单 -->
+            <div class="change-password-form" id="changePasswordForm" style="display: none;">
+                <div class="form-group">
+                    <label for="oldPasswordChange">原密码</label>
+                    <input type="password" id="oldPasswordChange" placeholder="请输入原密码" autocomplete="current-password">
+                </div>
+                <div class="form-group">
+                    <label for="newPasswordChange">新密码</label>
+                    <input type="password" id="newPasswordChange" placeholder="请输入新密码（至少4位）" autocomplete="new-password">
+                </div>
+                <div class="form-group">
+                    <label for="confirmPasswordChange">确认新密码</label>
+                    <input type="password" id="confirmPasswordChange" placeholder="请再次输入新密码" autocomplete="new-password" onkeypress="if(event.key==='Enter')doChangePassword()">
+                </div>
+                <div class="login-btn-group">
+                    <button class="btn btn-primary btn-block" onclick="doChangePassword()">确认修改</button>
+                </div>
+                <div class="login-footer">
+                    <a href="javascript:void(0)" onclick="showLoggedInForm()">返回</a>
+                </div>
             </div>
         </div>
     </div>

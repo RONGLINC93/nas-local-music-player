@@ -1110,9 +1110,6 @@
             <!-- 播放控制 -->
             <div class="player-controls">
                 <div class="control-buttons">
-                    <button onclick="downloadCurrentTrack()" id="downloadBtn" class="control-btn download-btn" title="下载当前歌曲" style="display: none;">
-                        <i class="fas fa-download"></i>
-                    </button>
                     <button onclick="togglePlayMode()" id="playModeBtn" class="control-btn" title="播放模式">
                         <i class="fas fa-list"></i>
                     </button>
@@ -1127,6 +1124,9 @@
                     </button>
                     <button onclick="nextTrack()" class="control-btn" title="下一首">
                         <i class="fas fa-step-forward"></i>
+                    </button>
+                    <button onclick="downloadCurrentTrack()" id="downloadBtn" class="control-btn download-btn" title="下载当前歌曲" style="display: none;">
+                        <i class="fas fa-download"></i>
                     </button>
                 </div>
                 <div class="progress-container">

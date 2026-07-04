@@ -937,6 +937,54 @@ async function syncStatusWithServer() {
     }
 }
 
+// 切换浮动播放列表面板
+function togglePlaylistPanel() {
+    const panel = document.getElementById('playlistPanel');
+    const btn = document.getElementById('playlistPanelBtn');
+    if (!panel) return;
+    
+    if (panel.classList.contains('show')) {
+        panel.classList.remove('show');
+        if (btn) btn.classList.remove('active');
+    } else {
+        renderPlaylistPanel();
+        panel.classList.add('show');
+        if (btn) btn.classList.add('active');
+    }
+}
+
+// 渲染浮动播放列表面板
+function renderPlaylistPanel() {
+    const bodyEl = document.getElementById('playlistPanelBody');
+    const countEl = document.getElementById('playlistPanelCount');
+    if (!bodyEl) return;
+    
+    if (countEl) countEl.textContent = `(${currentPlaylist.length})`;
+    
+    if (currentPlaylist.length === 0) {
+        bodyEl.innerHTML = `
+            <div class="playlist-panel-empty">
+                <i class="fas fa-music"></i>
+                <p>暂无音乐</p>
+            </div>
+        `;
+        return;
+    }
+    
+    bodyEl.innerHTML = currentPlaylist.map((track, index) => `
+        <div class="playlist-panel-item ${index === currentIndex ? 'active' : ''}" onclick="playTrack(${index})">
+            <div class="playlist-panel-item-index">
+                ${index === currentIndex && isPlaying ? '<i class="fas fa-volume-up"></i>' : index + 1}
+            </div>
+            <div class="playlist-panel-item-info">
+                <div class="playlist-panel-item-title">${escapeHtml(track.title || '未知歌曲')}</div>
+                <div class="playlist-panel-item-artist">${escapeHtml(track.artist || '未知艺术家')}</div>
+            </div>
+            <div class="playlist-panel-item-duration">${formatTime(track.duration)}</div>
+        </div>
+    `).join('');
+}
+
 function renderPlaylist() {
     const playlistEl = document.getElementById('playlist');
     const countEl = document.getElementById('playlistCount');
@@ -1047,6 +1095,12 @@ function renderPlaylist() {
                 }
             });
         }
+    }
+    
+    // 同步更新浮动播放列表面板
+    const panel = document.getElementById('playlistPanel');
+    if (panel && panel.classList.contains('show')) {
+        renderPlaylistPanel();
     }
 }
 

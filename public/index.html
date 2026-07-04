@@ -1194,6 +1194,9 @@
                     <button onclick="downloadCurrentTrack()" id="downloadBtn" class="control-btn download-btn" title="下载当前歌曲" style="display: none;">
                         <i class="fas fa-download"></i>
                     </button>
+                    <button onclick="togglePlaylistPanel()" id="playlistPanelBtn" class="control-btn" title="播放列表">
+                        <i class="fas fa-list"></i>
+                    </button>
                 </div>
                 <div class="progress-container">
                     <span class="time" id="currentTime">0:00</span>
@@ -2419,6 +2422,21 @@
     </div>
 
     <script src="app.js?v=1.2.4"></script>
+
+    <!-- 浮动播放列表面板 -->
+    <div id="playlistPanel" class="playlist-panel">
+        <div class="playlist-panel-header">
+            <div class="playlist-panel-title">
+                <i class="fas fa-list"></i>
+                <span>播放列表</span>
+                <span class="playlist-panel-count" id="playlistPanelCount">(0)</span>
+            </div>
+            <button class="playlist-panel-close" onclick="togglePlaylistPanel()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="playlist-panel-body" id="playlistPanelBody"></div>
+    </div>
 </body>
 
 </html>

@@ -944,14 +944,33 @@ function togglePlaylistPanel() {
     if (!panel) return;
     
     if (panel.classList.contains('show')) {
-        panel.classList.remove('show');
-        if (btn) btn.classList.remove('active');
+        closePlaylistPanel();
     } else {
         renderPlaylistPanel();
         panel.classList.add('show');
         if (btn) btn.classList.add('active');
     }
 }
+
+// 关闭浮动播放列表面板
+function closePlaylistPanel() {
+    const panel = document.getElementById('playlistPanel');
+    const btn = document.getElementById('playlistPanelBtn');
+    if (panel) panel.classList.remove('show');
+    if (btn) btn.classList.remove('active');
+}
+
+// 点击外部关闭浮动播放列表面板
+document.addEventListener('click', (e) => {
+    const panel = document.getElementById('playlistPanel');
+    const btn = document.getElementById('playlistPanelBtn');
+    if (!panel || !panel.classList.contains('show')) return;
+    
+    // 如果点击的是面板内部或播放列表按钮，不关闭
+    if (panel.contains(e.target) || (btn && btn.contains(e.target))) return;
+    
+    closePlaylistPanel();
+});
 
 // 渲染浮动播放列表面板
 function renderPlaylistPanel() {

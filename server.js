@@ -245,9 +245,34 @@ const MUSIC_DIR = path.join(__dirname, 'music');
 const APP_CONFIG_FILE = path.join(__dirname, 'data', 'config.json'); // 应用配置文件
 const FOLDER_CACHE_FILE = path.join(__dirname, 'data', 'folder_cache.json'); // 文件夹缓存文件
 const PLAYLIST_CACHE_FILE = path.join(__dirname, 'data', 'playlist_cache.json');
+const USER_SONGLISTS_FILE = path.join(__dirname, 'data', 'user_songlists.json');
 const CACHE_DIR = path.join(__dirname, 'data', 'cache'); // 在线音乐缓存目录
 const CACHE_META_FILE = path.join(__dirname, 'data', 'cache_meta.json'); // 缓存元数据文件
 const MUSIC_EXTENSIONS = ['.mp3', '.flac', '.wav', '.m4a', '.ogg', '.wma'];
+
+// 用户歌单
+let userSonglists = [];
+
+function loadUserSonglists() {
+    try {
+        if (fs.existsSync(USER_SONGLISTS_FILE)) {
+            const data = fs.readFileSync(USER_SONGLISTS_FILE, 'utf8');
+            userSonglists = JSON.parse(data);
+            console.log(`📋 已加载用户歌单，共 ${userSonglists.length} 个`);
+        }
+    } catch (err) {
+        console.error('加载用户歌单失败:', err.message);
+        userSonglists = [];
+    }
+}
+
+function saveUserSonglists() {
+    try {
+        fs.writeFileSync(USER_SONGLISTS_FILE, JSON.stringify(userSonglists, null, 2), 'utf8');
+    } catch (err) {
+        console.error('保存用户歌单失败:', err.message);
+    }
+}
 
 // 缓存元数据（内存缓存）
 let cacheMetadata = {};
@@ -605,6 +630,7 @@ loadUserConfig();
 ensureCacheDir();
 loadCacheMetadata();
 loadMusicLibrary();
+loadUserSonglists();
 
 app.get('/api/playlist', (req, res) => {
     res.json({ playlist: currentPlaylist, currentIndex, isPlaying });
@@ -752,6 +778,149 @@ app.get('/api/user/avatar/:filename', (req, res) => {
     } else {
         res.status(404).json({ error: '头像不存在' });
     }
+});
+
+// 获取用户歌单列表
+app.get('/api/user/songlists', requireAuth, (req, res) => {
+    const lists = userSonglists.map(list => ({
+        id: list.id,
+        name: list.name,
+        cover: list.cover,
+        count: list.songs.length,
+        createdAt: list.createdAt,
+        updatedAt: list.updatedAt
+    }));
+    res.json({ success: true, songlists: lists });
+});
+
+// 获取歌单详情
+app.get('/api/user/songlists/:id', requireAuth, (req, res) => {
+    const songlist = userSonglists.find(l => l.id === req.params.id);
+    if (!songlist) {
+        return res.status(404).json({ success: false, error: '歌单不存在' });
+    }
+    res.json({ success: true, songlist });
+});
+
+// 创建歌单
+app.post('/api/user/songlists', requireAuth, (req, res) => {
+    const { name, cover } = req.body;
+    
+    if (!name || !name.trim()) {
+        return res.status(400).json({ success: false, error: '歌单名称不能为空' });
+    }
+    
+    const newSonglist = {
+        id: 'sl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+        name: name.trim(),
+        cover: cover || null,
+        songs: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+    };
+    
+    userSonglists.unshift(newSonglist);
+    saveUserSonglists();
+    
+    res.json({ success: true, songlist: newSonglist });
+});
+
+// 更新歌单信息
+app.put('/api/user/songlists/:id', requireAuth, (req, res) => {
+    const { name, cover } = req.body;
+    const songlist = userSonglists.find(l => l.id === req.params.id);
+    
+    if (!songlist) {
+        return res.status(404).json({ success: false, error: '歌单不存在' });
+    }
+    
+    if (name !== undefined) {
+        if (!name.trim()) {
+            return res.status(400).json({ success: false, error: '歌单名称不能为空' });
+        }
+        songlist.name = name.trim();
+    }
+    if (cover !== undefined) {
+        songlist.cover = cover;
+    }
+    
+    songlist.updatedAt = Date.now();
+    saveUserSonglists();
+    
+    res.json({ success: true, songlist });
+});
+
+// 删除歌单
+app.delete('/api/user/songlists/:id', requireAuth, (req, res) => {
+    const index = userSonglists.findIndex(l => l.id === req.params.id);
+    
+    if (index === -1) {
+        return res.status(404).json({ success: false, error: '歌单不存在' });
+    }
+    
+    userSonglists.splice(index, 1);
+    saveUserSonglists();
+    
+    res.json({ success: true });
+});
+
+// 添加歌曲到歌单
+app.post('/api/user/songlists/:id/songs', requireAuth, (req, res) => {
+    const { songs } = req.body;
+    const songlist = userSonglists.find(l => l.id === req.params.id);
+    
+    if (!songlist) {
+        return res.status(404).json({ success: false, error: '歌单不存在' });
+    }
+    
+    if (!Array.isArray(songs) || songs.length === 0) {
+        return res.status(400).json({ success: false, error: '歌曲列表不能为空' });
+    }
+    
+    let addedCount = 0;
+    for (const song of songs) {
+        const exists = songlist.songs.some(s => 
+            (s.id && song.id && s.id === song.id) || 
+            (s.path && song.path && s.path === song.path)
+        );
+        if (!exists) {
+            songlist.songs.push(song);
+            addedCount++;
+        }
+    }
+    
+    songlist.updatedAt = Date.now();
+    saveUserSonglists();
+    
+    res.json({ success: true, addedCount, totalCount: songlist.songs.length });
+});
+
+// 从歌单移除歌曲
+app.delete('/api/user/songlists/:id/songs', requireAuth, (req, res) => {
+    const { songIds } = req.body;
+    const songlist = userSonglists.find(l => l.id === req.params.id);
+    
+    if (!songlist) {
+        return res.status(404).json({ success: false, error: '歌单不存在' });
+    }
+    
+    if (!Array.isArray(songIds) || songIds.length === 0) {
+        return res.status(400).json({ success: false, error: '歌曲ID列表不能为空' });
+    }
+    
+    let removedCount = 0;
+    for (const songId of songIds) {
+        const index = songlist.songs.findIndex(s => s.id === songId || s.path === songId);
+        if (index !== -1) {
+            songlist.songs.splice(index, 1);
+            removedCount++;
+        }
+    }
+    
+    songlist.updatedAt = Date.now();
+    saveUserSonglists();
+    
+    res.json({ success: true, removedCount, totalCount: songlist.songs.length });
 });
 
 app.post('/api/upload-music', requireAuth, (req, res, next) => {
@@ -2952,7 +3121,7 @@ app.post('/api/batch-delete-playlist', requireAuth, async (req, res) => {
 });
 
 // 清空播放列表
-app.post('/api/clear-playlist', requireAuth, (req, res) => {
+app.post('/api/clear-playlist', (req, res) => {
     try {
         stopMusic();
         currentPlaylist = [];

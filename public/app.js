@@ -161,6 +161,7 @@ function updateUserCardUI() {
     const nicknameEl = document.getElementById('userNickname');
     const statusEl = document.getElementById('userStatus');
     const avatarEl = document.getElementById('userAvatar');
+    const navMySonglist = document.getElementById('navMySonglist');
     
     if (!userCard || !nicknameEl || !statusEl || !avatarEl) return;
     
@@ -174,14 +175,17 @@ function updateUserCardUI() {
         userCard.classList.add('logged-in');
         nicknameEl.textContent = currentUser.nickname || currentUser.username || '用户';
         statusEl.textContent = '已登录';
+        if (navMySonglist) navMySonglist.style.display = 'flex';
     } else if (needPassword) {
         userCard.classList.remove('logged-in');
         nicknameEl.textContent = '未登录';
         statusEl.textContent = '点击登录';
+        if (navMySonglist) navMySonglist.style.display = 'none';
     } else {
         userCard.classList.remove('logged-in');
         nicknameEl.textContent = '访客模式';
         statusEl.textContent = '点击设置密码';
+        if (navMySonglist) navMySonglist.style.display = 'none';
     }
 }
 
@@ -1000,6 +1004,11 @@ function renderPlaylist() {
                 <button class="playlist-action-btn playlist-delete-btn" onclick="event.stopPropagation(); deleteTrack(${index})" title="删除">
                     <i class="fas fa-trash"></i>
                 </button>
+                ${currentUser ? `
+                <button class="playlist-action-btn playlist-add-songlist-btn" onclick="event.stopPropagation(); addTrackToSonglist(${index})" title="添加到歌单">
+                    <i class="fas fa-plus-circle"></i>
+                </button>
+                ` : ''}
                 <button class="playlist-action-btn playlist-menu-btn" onclick="event.stopPropagation(); togglePlaylistMenu(${index}, event)" title="更多">
                     <i class="fas fa-ellipsis-v"></i>
                 </button>
@@ -1906,11 +1915,23 @@ function togglePlaylistMenu(index, event) {
     const menu = document.createElement('div');
     menu.className = 'playlist-context-menu';
     menu.dataset.menuIndex = index;
+    
+    let addToSonglistItem = '';
+    if (currentUser) {
+        addToSonglistItem = `
+            <div class="playlist-menu-item" onclick="event.stopPropagation(); addTrackToSonglist(${index}); closePlaylistMenu();">
+                <i class="fas fa-plus-circle"></i>
+                <span>添加到歌单</span>
+            </div>
+        `;
+    }
+    
     menu.innerHTML = `
         <div class="playlist-menu-item" onclick="event.stopPropagation(); playTrack(${index}); closePlaylistMenu();">
             <i class="fas fa-play"></i>
             <span>播放</span>
         </div>
+        ${addToSonglistItem}
         <div class="playlist-menu-item" onclick="event.stopPropagation(); downloadTrack(${index}); closePlaylistMenu();">
             <i class="fas fa-download"></i>
             <span>下载</span>
@@ -3560,6 +3581,710 @@ function switchView(viewName) {
         // 离开任务视图时停止轮询
         stopTaskListPoll();
     }
+    
+    // 如果切换到我的歌单视图，加载歌单列表
+    if (viewName === 'mysonglist') {
+        loadUserSonglists();
+    }
+}
+
+// ========== 我的歌单相关功能 ==========
+let currentSonglist = null;
+let addToSonglistSongs = [];
+
+// 加载我的歌单列表
+async function loadUserSonglists() {
+    if (!currentUser) {
+        const grid = document.getElementById('mysonglistGrid');
+        if (grid) {
+            grid.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-lock" style="font-size: 32px; color: #9ca3af; margin-bottom: 16px;"></i>
+                    <p>请先登录</p>
+                </div>
+            `;
+        }
+        return;
+    }
+    
+    const grid = document.getElementById('mysonglistGrid');
+    if (grid) {
+        grid.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-spinner fa-spin" style="font-size: 32px; color: #4f46e5; margin-bottom: 16px;"></i>
+                <p>加载中...</p>
+            </div>
+        `;
+    }
+    
+    try {
+        const response = await fetch('/api/user/songlists');
+        const result = await response.json();
+        
+        if (result.success) {
+            renderUserSonglistGrid(result.songlists);
+        } else {
+            if (grid) {
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 32px; color: #f59e0b; margin-bottom: 16px;"></i>
+                        <p>加载失败: ${result.error || '未知错误'}</p>
+                    </div>
+                `;
+            }
+        }
+    } catch (error) {
+        console.error('加载歌单列表失败:', error);
+        if (grid && grid.innerHTML.includes('加载中')) {
+            grid.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 32px; color: #ef4444; margin-bottom: 16px;"></i>
+                    <p>加载失败: ${error.message}</p>
+                    <p style="font-size: 12px; color: #9ca3af; margin-top: 8px;">请确认服务器已重启且已登录</p>
+                </div>
+            `;
+        }
+    }
+}
+
+// 渲染歌单网格
+function renderUserSonglistGrid(songlists) {
+    const grid = document.getElementById('mysonglistGrid');
+    if (!grid) return;
+    
+    if (!songlists || songlists.length === 0) {
+        grid.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-folder-open" style="font-size: 48px; color: #d1d5db; margin-bottom: 16px;"></i>
+                <p>暂无歌单，点击上方按钮创建</p>
+            </div>
+        `;
+        return;
+    }
+    
+    grid.innerHTML = songlists.map(list => `
+        <div class="songlist-card" onclick="openUserSonglistDetail('${list.id}')">
+            <div class="songlist-card-cover">
+                ${list.cover ? `<img src="${list.cover}" alt="">` : '<i class="fas fa-music"></i>'}
+            </div>
+            <div class="songlist-card-info">
+                <div class="songlist-card-name">${escapeHtml(list.name)}</div>
+                <div class="songlist-card-count">${list.count} 首</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 打开歌单详情
+async function openUserSonglistDetail(songlistId) {
+    try {
+        const response = await fetch(`/api/user/songlists/${songlistId}`);
+        const result = await response.json();
+        
+        if (result.success) {
+            currentSonglist = result.songlist;
+            showUserSonglistDetailView();
+            renderUserSonglistDetail(result.songlist);
+        }
+    } catch (error) {
+        console.error('加载歌单详情失败:', error);
+    }
+}
+
+// 显示歌单详情视图
+function showUserSonglistDetailView() {
+    document.getElementById('mysonglistListView').style.display = 'none';
+    document.getElementById('mysonglistDetailView').style.display = 'flex';
+}
+
+// 返回歌单列表
+function backToUserSonglistList() {
+    currentSonglist = null;
+    document.getElementById('mysonglistDetailView').style.display = 'none';
+    document.getElementById('mysonglistListView').style.display = 'flex';
+    loadUserSonglists();
+}
+
+// 渲染歌单详情
+function renderUserSonglistDetail(songlist) {
+    const nameEl = document.getElementById('userSonglistDetailName');
+    const countEl = document.getElementById('userSonglistDetailCount');
+    const songsEl = document.getElementById('mysonglistSongs');
+    const coverEl = document.getElementById('userSonglistDetailCover');
+    
+    if (nameEl) nameEl.textContent = songlist.name;
+    if (countEl) countEl.textContent = `${songlist.songs.length} 首歌曲`;
+    if (coverEl) {
+        if (songlist.cover) {
+            coverEl.innerHTML = `<img src="${songlist.cover}" alt="">`;
+        } else {
+            coverEl.innerHTML = '<i class="fas fa-music"></i>';
+        }
+    }
+    
+    if (!songsEl) return;
+    
+    if (!songlist.songs || songlist.songs.length === 0) {
+        songsEl.innerHTML = `
+            <div class="empty-state" style="padding: 60px 20px;">
+                <i class="fas fa-music" style="font-size: 48px; color: #d1d5db; margin-bottom: 16px;"></i>
+                <p>歌单里还没有歌曲</p>
+            </div>
+        `;
+        return;
+    }
+    
+    songsEl.innerHTML = songlist.songs.map((song, index) => `
+        <div class="mysonglist-song-item" ondblclick="playMySonglistSong(${index})">
+            <div class="mysonglist-song-index">${index + 1}</div>
+            <div class="mysonglist-song-title">${escapeHtml(song.title || song.name || '未知歌曲')}</div>
+            <div class="mysonglist-song-artist">${escapeHtml(song.artist || '未知歌手')}</div>
+            <div class="mysonglist-song-album">${escapeHtml(song.album || '')}</div>
+            <div class="mysonglist-song-duration">${formatTime(song.duration)}</div>
+            <div class="mysonglist-song-actions">
+                <button title="播放" onclick="event.stopPropagation();playMySonglistSong(${index})">
+                    <i class="fas fa-play"></i>
+                </button>
+                <button title="添加到播放列表" onclick="event.stopPropagation();addUserSonglistSongToPlaylist(${index})">
+                    <i class="fas fa-plus"></i>
+                </button>
+                <button title="移除" onclick="event.stopPropagation();removeSongFromSonglist(${index})">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 播放歌单中的歌曲
+async function playMySonglistSong(index) {
+    if (!currentSonglist || !currentSonglist.songs) return;
+    
+    const song = currentSonglist.songs[index];
+    if (!song) return;
+    
+    if (song.path) {
+        try {
+            await apiRequest('/api/add-to-playlist', 'POST', { path: song.path });
+            
+            const playlistResult = await apiRequest('/api/playlist');
+            if (playlistResult.playlist) {
+                currentPlaylist = playlistResult.playlist;
+                renderPlaylist();
+            }
+            
+            if (currentPlaylist.length > 0) {
+                const trackIndex = currentPlaylist.findIndex(t => 
+                    t.path === song.path || 
+                    t.path.endsWith(song.path) ||
+                    (t.title === song.title && t.artist === song.artist)
+                );
+                if (trackIndex >= 0) {
+                    playTrack(trackIndex);
+                }
+            }
+        } catch (error) {
+            console.error('播放失败:', error);
+            showNotification({ type: 'error', message: '播放失败: ' + error.message });
+        }
+    } else if (song.id || song.songId) {
+        addOnlineSongToPlaylist(song, true);
+    }
+}
+
+// 将歌单中的在线歌曲添加到播放列表
+function addOnlineSongToPlaylist(song, playNow) {
+    const cacheKey = `songlist_${song.source || 'unknown'}_${song.songId || song.id}`;
+    
+    if (!onlineSongCache[cacheKey]) {
+        onlineSongCache[cacheKey] = {
+            source: song.source || 'local',
+            songId: song.songId || song.id,
+            name: song.title || song.name || '未知歌曲',
+            singer: song.artist || '',
+            albumName: song.album || '',
+            picUrl: song.cover || song.picUrl || '',
+            interval: song.duration || ''
+        };
+    }
+    
+    if (playNow) {
+        playOnlineSong(cacheKey);
+    } else {
+        addToPlaylistFromOnline(cacheKey);
+    }
+}
+
+// 添加歌单歌曲到播放列表（我的歌单）
+async function addUserSonglistSongToPlaylist(index) {
+    if (!currentSonglist || !currentSonglist.songs) return;
+    
+    const song = currentSonglist.songs[index];
+    if (!song) return;
+    
+    if (song.path) {
+        await addToPlaylist(song.path);
+    } else if (song.id || song.songId) {
+        addOnlineSongToPlaylist(song, false);
+    }
+}
+
+// 从歌单移除歌曲
+let removeSongIndex = -1;
+
+function removeSongFromSonglist(index) {
+    if (!currentSonglist || !currentSonglist.songs) return;
+    
+    const song = currentSonglist.songs[index];
+    if (!song) return;
+    
+    removeSongIndex = index;
+    document.getElementById('removeSongName').textContent = song.title || song.name || '未知歌曲';
+    document.getElementById('removeFromSonglistModal').classList.add('show');
+}
+
+// 关闭移除歌曲确认框
+function closeRemoveFromSonglistModal() {
+    document.getElementById('removeFromSonglistModal').classList.remove('show');
+    removeSongIndex = -1;
+}
+
+// 确认移除歌曲
+async function confirmRemoveFromSonglist() {
+    if (removeSongIndex < 0 || !currentSonglist || !currentSonglist.songs) return;
+    
+    const song = currentSonglist.songs[removeSongIndex];
+    const songId = song.id || song.path;
+    if (!songId) {
+        closeRemoveFromSonglistModal();
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/user/songlists/${currentSonglist.id}/songs`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ songIds: [songId] })
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            currentSonglist.songs.splice(removeSongIndex, 1);
+            renderUserSonglistDetail(currentSonglist);
+            showNotification({ type: 'success', message: '已从歌单中移除' });
+        }
+    } catch (error) {
+        console.error('移除歌曲失败:', error);
+        showNotification({ type: 'error', message: '移除失败: ' + error.message });
+    }
+    
+    closeRemoveFromSonglistModal();
+}
+
+// 播放全部歌单歌曲
+async function playAllMySonglistSongs() {
+    if (!currentSonglist || !currentSonglist.songs || currentSonglist.songs.length === 0) {
+        showNotification({ type: 'warning', message: '歌单里没有歌曲' });
+        return;
+    }
+    
+    try {
+        showNotification({ type: 'info', message: '正在加载歌单...' });
+        
+        await apiRequest('/api/clear-playlist', 'POST');
+        
+        const songs = currentSonglist.songs;
+        let addedCount = 0;
+        
+        for (let i = 0; i < songs.length; i++) {
+            const song = songs[i];
+            if (song.path) {
+                await apiRequest('/api/add-to-playlist', 'POST', { path: song.path });
+                addedCount++;
+            } else if (song.isOnline || song.songId || song.id) {
+                const songId = song.songId || (song.id && song.source && song.id.startsWith(song.source + '_') 
+                    ? song.id.substring(song.source.length + 1) 
+                    : song.id);
+                if (!songId || !song.source) continue;
+                
+                await apiRequest('/api/add-online-to-playlist', 'POST', {
+                    source: song.source,
+                    songId: songId,
+                    name: song.title || song.name || '未知歌曲',
+                    singer: song.artist || song.singer || '',
+                    albumName: song.album || song.albumName || '',
+                    picUrl: song.cover || song.picUrl || '',
+                    interval: song.duration || song.interval || '',
+                    songInfo: song
+                });
+                addedCount++;
+            }
+        }
+        
+        const playlistResult = await apiRequest('/api/playlist');
+        if (playlistResult.playlist) {
+            currentPlaylist = playlistResult.playlist;
+            renderPlaylist();
+        }
+        
+        if (currentPlaylist.length > 0) {
+            if (playOutput === 'client') {
+                playTrack(0);
+            } else {
+                await apiRequest('/api/play/0');
+            }
+        }
+        
+        loadPlaylistData();
+        showNotification({ type: 'success', message: `已添加 ${addedCount} 首歌曲到播放列表` });
+    } catch (error) {
+        console.error('播放歌单失败:', error);
+        showNotification({ type: 'error', message: '播放失败: ' + error.message });
+    }
+}
+
+// 新建歌单模态框
+function showCreateSonglistModal() {
+    const modal = document.getElementById('createSonglistModal');
+    if (!modal) return;
+    
+    document.getElementById('newSonglistName').value = '';
+    modal.classList.add('show');
+    
+    setTimeout(() => {
+        document.getElementById('newSonglistName').focus();
+    }, 100);
+}
+
+function closeCreateSonglistModal() {
+    const modal = document.getElementById('createSonglistModal');
+    if (modal) modal.classList.remove('show');
+}
+
+// 创建歌单
+async function doCreateSonglist() {
+    const nameInput = document.getElementById('newSonglistName');
+    const name = nameInput?.value.trim();
+    
+    if (!name) {
+        showNotification({ type: 'warning', message: '请输入歌单名称' });
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/user/songlists', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            closeCreateSonglistModal();
+            loadUserSonglists();
+            showNotification({ type: 'success', message: '歌单创建成功' });
+        } else {
+            showNotification({ type: 'error', message: '创建失败: ' + (result.error || '未知错误') });
+        }
+    } catch (error) {
+        console.error('创建歌单失败:', error);
+        showNotification({ type: 'error', message: '创建失败: ' + error.message });
+    }
+}
+
+// 重命名歌单
+function renameCurrentSonglist() {
+    if (!currentSonglist) return;
+    
+    const input = document.getElementById('renameSonglistName');
+    input.value = currentSonglist.name;
+    
+    const modal = document.getElementById('renameSonglistModal');
+    modal.classList.add('show');
+    
+    setTimeout(() => {
+        input.focus();
+        input.select();
+    }, 100);
+}
+
+// 关闭重命名歌单模态框
+function closeRenameSonglistModal() {
+    document.getElementById('renameSonglistModal').classList.remove('show');
+}
+
+// 执行重命名歌单
+async function doRenameSonglist() {
+    if (!currentSonglist) return;
+    
+    const newName = document.getElementById('renameSonglistName').value;
+    if (!newName || !newName.trim() || newName === currentSonglist.name) {
+        closeRenameSonglistModal();
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/user/songlists/${currentSonglist.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: newName.trim() })
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            currentSonglist.name = result.songlist.name;
+            renderUserSonglistDetail(currentSonglist);
+            closeRenameSonglistModal();
+            showNotification({ type: 'success', message: '歌单重命名成功' });
+        } else {
+            showNotification({ type: 'error', message: '重命名失败: ' + (result.error || '未知错误') });
+        }
+    } catch (error) {
+        console.error('重命名歌单失败:', error);
+        showNotification({ type: 'error', message: '重命名失败: ' + error.message });
+    }
+}
+
+// 删除歌单
+function deleteCurrentSonglist() {
+    if (!currentSonglist) return;
+    
+    const nameEl = document.getElementById('deleteSonglistName');
+    if (nameEl) nameEl.textContent = currentSonglist.name;
+    
+    const modal = document.getElementById('deleteSonglistModal');
+    if (modal) modal.classList.add('show');
+}
+
+function closeDeleteSonglistModal() {
+    const modal = document.getElementById('deleteSonglistModal');
+    if (modal) modal.classList.remove('show');
+}
+
+async function confirmDeleteSonglist() {
+    if (!currentSonglist) return;
+    
+    try {
+        const response = await fetch(`/api/user/songlists/${currentSonglist.id}`, {
+            method: 'DELETE'
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            closeDeleteSonglistModal();
+            backToUserSonglistList();
+            showNotification({ type: 'success', message: '歌单已删除' });
+        } else {
+            showNotification({ type: 'error', message: '删除失败: ' + (result.error || '未知错误') });
+        }
+    } catch (error) {
+        console.error('删除歌单失败:', error);
+        showNotification({ type: 'error', message: '删除失败: ' + error.message });
+    }
+}
+
+// 将播放列表中的歌曲添加到歌单
+function addTrackToSonglist(index) {
+    const track = currentPlaylist[index];
+    if (!track) return;
+    
+    const songData = {
+        id: track.id || track.songId || track.path,
+        title: track.title || track.name,
+        artist: track.artist,
+        album: track.album,
+        duration: track.duration,
+        path: track.path,
+        source: track.source,
+        sourceName: track.sourceName
+    };
+    
+    showAddToSonglistModal(songData);
+}
+
+// 将文件管理中的歌曲添加到歌单
+function addFileToSonglist(filePath) {
+    const track = currentFiles.find(f => f.path === filePath);
+    if (!track) {
+        showNotification({ type: 'error', message: '歌曲信息丢失' });
+        return;
+    }
+    
+    const songData = {
+        id: track.path,
+        title: track.title,
+        artist: track.artist,
+        album: track.album,
+        duration: track.duration,
+        path: track.path,
+        source: 'local',
+        sourceName: '本地音乐',
+        isOnline: false
+    };
+    
+    showAddToSonglistModal(songData);
+}
+
+// 将文件夹中的歌曲添加到歌单
+async function addFolderToSonglist(folderPath) {
+    try {
+        const result = await apiRequest(`/api/folder/${encodeURIComponent(folderPath)}`);
+        
+        if (!result.success || !result.music || result.music.length === 0) {
+            showNotification({ type: 'warning', message: '文件夹中没有音乐文件' });
+            return;
+        }
+        
+        const songs = result.music.map(track => ({
+            id: track.path,
+            title: track.title,
+            artist: track.artist,
+            album: track.album,
+            duration: track.duration,
+            path: track.path,
+            source: 'local',
+            sourceName: '本地音乐',
+            isOnline: false
+        }));
+        
+        showAddToSonglistModal(songs);
+    } catch (error) {
+        console.error('获取文件夹音乐失败:', error);
+        showNotification({ type: 'error', message: '获取文件夹音乐失败' });
+    }
+}
+
+// 将在线音乐添加到歌单
+function addOnlineSongToSonglist(cacheKey) {
+    const song = onlineSongCache[cacheKey];
+    if (!song) {
+        showNotification({ type: 'error', message: '歌曲信息丢失，请重新搜索' });
+        return;
+    }
+    
+    const songData = {
+        id: `${song.source}_${song.songId}`,
+        title: song.name,
+        artist: song.singer,
+        album: song.albumName || '',
+        duration: song.interval,
+        source: song.source,
+        sourceName: getSourceName(song.source),
+        isOnline: true,
+        songId: song.songId,
+        picUrl: song.picUrl || ''
+    };
+    
+    showAddToSonglistModal(songData);
+}
+
+// 在线菜单 - 添加到歌单
+function onlineMenuAddToSonglist() {
+    closeOnlineContextMenu();
+    if (currentOnlineMenuKey && currentOnlineMenuKey.startsWith('songlist_')) {
+        const index = parseInt(currentOnlineMenuKey.replace('songlist_', ''));
+        addSonglistSongToSonglist(index);
+    } else if (currentOnlineMenuKey) {
+        addOnlineSongToSonglist(currentOnlineMenuKey);
+    }
+}
+
+// 显示添加到歌单模态框
+async function showAddToSonglistModal(songs) {
+    addToSonglistSongs = Array.isArray(songs) ? songs : [songs];
+    
+    const modal = document.getElementById('addToSonglistModal');
+    if (!modal) return;
+    
+    try {
+        const response = await fetch('/api/user/songlists');
+        const result = await response.json();
+        
+        if (result.success) {
+            renderAddToSonglistList(result.songlists);
+        }
+    } catch (error) {
+        console.error('加载歌单列表失败:', error);
+    }
+    
+    modal.classList.add('show');
+}
+
+function closeAddToSonglistModal() {
+    const modal = document.getElementById('addToSonglistModal');
+    if (modal) modal.classList.remove('show');
+    addToSonglistSongs = [];
+}
+
+// 渲染添加到歌单的歌单选择列表
+function renderAddToSonglistList(songlists) {
+    const listEl = document.getElementById('addToSonglistList');
+    if (!listEl) return;
+    
+    if (!songlists || songlists.length === 0) {
+        listEl.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-folder-open" style="font-size: 32px; color: #d1d5db; margin-bottom: 10px;"></i>
+                <p>暂无歌单</p>
+                <button class="btn btn-primary btn-sm" onclick="closeAddToSonglistModal();showCreateSonglistModal();" style="margin-top: 10px;">
+                    <i class="fas fa-plus"></i> 新建歌单
+                </button>
+            </div>
+        `;
+        return;
+    }
+    
+    listEl.innerHTML = songlists.map(list => `
+        <div class="songlist-select-item" onclick="addSongsToSonglist('${list.id}')">
+            <div class="songlist-select-item-cover">
+                ${list.cover ? `<img src="${list.cover}" style="width:100%;height:100%;object-fit:cover;border-radius:6px;">` : '<i class="fas fa-music"></i>'}
+            </div>
+            <div class="songlist-select-item-info">
+                <div class="songlist-select-item-name">${escapeHtml(list.name)}</div>
+                <div class="songlist-select-item-count">${list.count} 首歌曲</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 添加歌曲到指定歌单
+async function addSongsToSonglist(songlistId) {
+    if (!addToSonglistSongs || addToSonglistSongs.length === 0) return;
+    
+    try {
+        const response = await fetch(`/api/user/songlists/${songlistId}/songs`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ songs: addToSonglistSongs })
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            closeAddToSonglistModal();
+            showNotification({ type: 'success', message: `已添加 ${result.addedCount} 首歌曲到歌单` });
+        } else {
+            showNotification({ type: 'error', message: '添加失败: ' + (result.error || '未知错误') });
+        }
+    } catch (error) {
+        console.error('添加歌曲到歌单失败:', error);
+        showNotification({ type: 'error', message: '添加失败: ' + error.message });
+    }
+}
+
+// 工具函数：HTML转义
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// 工具函数：格式化时间
+function formatTime(seconds) {
+    if (!seconds || isNaN(seconds)) return '--:--';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
 // 页面加载时启动任务通知轮询
@@ -5543,6 +6268,11 @@ function createFolderCardHTML(folder) {
                 <button onclick="event.stopPropagation(); addFolderToPlaylist('${escapedPath}')" class="folder-icon-btn folder-add-btn" title="加入播放列表">
                     <i class="fas fa-plus"></i>
                 </button>
+                ${currentUser ? `
+                <button onclick="event.stopPropagation(); addFolderToSonglist('${escapedPath}')" class="folder-icon-btn folder-add-songlist-btn" title="添加到歌单">
+                    <i class="fas fa-plus-circle"></i>
+                </button>
+                ` : ''}
                 <button onclick="event.stopPropagation(); moveFolder('${escapedPath}', '${folderName}')" class="folder-icon-btn folder-move-btn" title="移动">
                     <i class="fas fa-arrows-alt"></i>
                 </button>
@@ -5595,6 +6325,11 @@ function createFileItemHTML(track, index, searchKeyword = '') {
                 <button onclick="addToPlaylist('${escapedPath}')" class="folder-music-action-btn folder-music-add-btn" title="加入播放列表">
                     <i class="fas fa-plus"></i>
                 </button>
+                ${currentUser ? `
+                <button onclick="addFileToSonglist('${escapedPath}')" class="folder-music-action-btn folder-music-add-songlist-btn" title="添加到歌单">
+                    <i class="fas fa-plus-circle"></i>
+                </button>
+                ` : ''}
                 <button onclick="openRenameFileModal('${escapedPath}', '${escapedFilename}')" class="folder-music-action-btn folder-music-rename-btn" title="重命名">
                     <i class="fas fa-font"></i>
                 </button>
@@ -5652,6 +6387,12 @@ function showFileContextMenu(event, filePath, anchorRect) {
             <i class="fas fa-plus"></i>
             <span>加入播放列表</span>
         </div>
+        ${currentUser ? `
+        <div class="context-menu-item" onclick="event.stopPropagation(); addFileToSonglist('${filePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'); closeFileContextMenu();">
+            <i class="fas fa-plus-circle"></i>
+            <span>添加到歌单</span>
+        </div>
+        ` : ''}
         <div class="context-menu-divider"></div>
         <div class="context-menu-item" onclick="event.stopPropagation(); downloadTrack('${filePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'); closeFileContextMenu();">
             <i class="fas fa-download"></i>
@@ -5727,6 +6468,12 @@ function showFolderContextMenu(event, folderPath, folderName) {
             <i class="fas fa-plus"></i>
             <span>加入播放列表</span>
         </div>
+        ${currentUser ? `
+        <div class="context-menu-item" onclick="event.stopPropagation(); addFolderToSonglist('${folderPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'); closeFolderContextMenu();">
+            <i class="fas fa-plus-circle"></i>
+            <span>添加到歌单</span>
+        </div>
+        ` : ''}
         <div class="context-menu-divider"></div>
         <div class="context-menu-item" onclick="event.stopPropagation(); downloadFolder('${folderPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'); closeFolderContextMenu();">
             <i class="fas fa-download"></i>
@@ -7952,6 +8699,11 @@ function renderRankResults() {
                     <button class="online-add-btn" onclick="addToPlaylistFromOnline('${cacheKey}')" title="添加到播放列表">
                         <i class="fas fa-plus"></i>
                     </button>
+                    ${currentUser ? `
+                    <button class="online-add-songlist-btn" onclick="addOnlineSongToSonglist('${cacheKey}')" title="添加到歌单">
+                        <i class="fas fa-plus-circle"></i>
+                    </button>
+                    ` : ''}
                 </div>
                 <!-- 移动端菜单按钮 - 使用全局菜单 -->
                 <button class="online-item-menu-btn" onclick="event.stopPropagation(); toggleOnlineItemMenu(event, '${cacheKey}')" title="更多">
@@ -8106,6 +8858,11 @@ function renderOnlineResults() {
                     <button class="online-add-btn" onclick="addToPlaylistFromOnline('${cacheKey}')" title="添加到播放列表">
                         <i class="fas fa-plus"></i>
                     </button>
+                    ${currentUser ? `
+                    <button class="online-add-songlist-btn" onclick="addOnlineSongToSonglist('${cacheKey}')" title="添加到歌单">
+                        <i class="fas fa-plus-circle"></i>
+                    </button>
+                    ` : ''}
                 </div>
                 <!-- 移动端菜单按钮 - 使用全局菜单 -->
                 <button class="online-item-menu-btn" onclick="event.stopPropagation(); toggleOnlineItemMenu(event, '${cacheKey}')" title="更多">
@@ -8230,6 +8987,12 @@ function toggleOnlineItemMenu(event, cacheKey) {
     }
     
     currentOnlineMenuKey = cacheKey;
+    
+    // 根据登录状态显示/隐藏添加到歌单选项
+    const addToSonglistItem = document.getElementById('onlineMenuAddToSonglistItem');
+    if (addToSonglistItem) {
+        addToSonglistItem.style.display = currentUser ? 'flex' : 'none';
+    }
     
     // 获取鼠标位置
     const mouseX = event.clientX;
@@ -9410,6 +10173,11 @@ function renderSonglistSongs(songs) {
                 <button onclick="event.stopPropagation(); addSonglistSongToPlaylist(${index})" class="online-music-add-btn" title="添加到播放列表">
                     <i class="fas fa-plus"></i>
                 </button>
+                ${currentUser ? `
+                <button onclick="event.stopPropagation(); addSonglistSongToSonglist(${index})" class="online-music-add-songlist-btn" title="添加到歌单">
+                    <i class="fas fa-plus-circle"></i>
+                </button>
+                ` : ''}
             </div>
             <!-- 移动端菜单按钮 - 使用全局菜单 -->
             <button class="online-item-menu-btn" onclick="event.stopPropagation(); toggleOnlineItemMenu(event, 'songlist_${index}')" title="更多">
@@ -9448,6 +10216,29 @@ async function addSonglistSongToPlaylist(index) {
         console.error('添加歌曲失败:', error);
         showNotification({ type: 'error', message: '添加失败' });
     }
+}
+
+// 添加歌单歌曲到我的歌单
+function addSonglistSongToSonglist(index) {
+    const song = currentSonglistSongs[index];
+    if (!song) return;
+    
+    const source = document.getElementById('onlineSourceSelect').value;
+    
+    const songData = {
+        id: `${source}_${song.songmid || song.id}`,
+        title: song.name || '未知歌曲',
+        artist: song.singer || '',
+        album: song.albumName || '',
+        duration: song.interval || 0,
+        source: source,
+        sourceName: getSourceName(source),
+        isOnline: true,
+        songId: song.songmid || song.id,
+        picUrl: song.img || ''
+    };
+    
+    showAddToSonglistModal(songData);
 }
 
 // 播放歌单歌曲

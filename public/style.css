@@ -248,7 +248,7 @@ body {
     flex-shrink: 0;
     justify-content: space-between;
     align-items: center;
-    padding: 10px;
+    padding: 20px 10px;
     border-bottom: 1px solid #e0e0e0;
 }
 
@@ -1031,6 +1031,14 @@ body {
     background: rgba(59, 130, 246, 0.1);
 }
 
+.folder-add-songlist-btn {
+    color: #3b82f6;
+}
+
+.folder-add-songlist-btn:hover {
+    background: rgba(59, 130, 246, 0.1);
+}
+
 .folder-move-btn {
     color: #3b82f6;
 }
@@ -1289,6 +1297,15 @@ body {
 }
 
 .folder-music-add-btn:hover {
+    background: rgba(59, 130, 246, 0.1);
+    transform: scale(1.1);
+}
+
+.folder-music-add-songlist-btn {
+    color: #3b82f6;
+}
+
+.folder-music-add-songlist-btn:hover {
     background: rgba(59, 130, 246, 0.1);
     transform: scale(1.1);
 }
@@ -1673,6 +1690,7 @@ body {
     /* 移动端隐藏文件夹卡片的单独操作按钮，只显示菜单按钮 */
     .folder-card-actions .folder-play-btn,
     .folder-card-actions .folder-add-btn,
+    .folder-card-actions .folder-add-songlist-btn,
     .folder-card-actions .folder-move-btn,
     .folder-card-actions .folder-download-btn,
     .folder-card-actions .folder-convert-btn,
@@ -2601,6 +2619,16 @@ font-size: 72px;
     transform: scale(1.1);
 }
 
+.playlist-add-songlist-btn {
+    background: transparent;
+    color: #3b82f6;
+}
+
+.playlist-add-songlist-btn:hover {
+    background: rgba(59, 130, 246, 0.1);
+    transform: scale(1.1);
+}
+
 .playlist-menu-btn {
     background: transparent;
     color: #666;
@@ -2748,6 +2776,7 @@ font-size: 72px;
 @media (max-width: 768px) {
     .folder-music-play-btn,
     .folder-music-add-btn,
+    .folder-music-add-songlist-btn,
     .folder-music-rename-btn,
     .folder-music-move-btn,
     .folder-music-download-btn,
@@ -3294,8 +3323,16 @@ font-size: 72px;
 .btn-secondary {
     display: flex;
     align-items: center;
+    gap: 8px;
     background: #f5f5f5;
     color: #333;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+    border: none;
+    cursor: pointer;
 }
 
 .btn-secondary i {
@@ -6807,7 +6844,8 @@ font-size: 72px;
 
     .playlist-play-btn,
     .playlist-download-btn,
-    .playlist-delete-btn {
+    .playlist-delete-btn,
+    .playlist-add-songlist-btn {
         display: none;
     }
 
@@ -7456,7 +7494,7 @@ font-size: 72px;
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 10px;
     padding: 10px;
-    max-height: calc(100vh - 225px);
+    max-height: calc(100vh - 245px);
     overflow-y: auto;
 }
 
@@ -8192,7 +8230,7 @@ font-size: 72px;
 .online-results {
     overflow-y: auto;
     padding: 10px;    
-    max-height: calc(100vh - 220px);
+    max-height: calc(100vh - 240px);
 }
 
 /* 在线搜索结果分页（右上角） */
@@ -8398,6 +8436,27 @@ font-size: 72px;
     transform: scale(1.1);
 }
 
+.online-add-songlist-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #3b82f6;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all 0.2s;
+    margin-right: 4px;
+}
+
+.online-add-songlist-btn:hover {
+    background: rgba(59, 130, 246, 0.1);
+    transform: scale(1.1);
+}
+
 /* 歌单详情歌曲列表样式 */
 .online-music-item {
     display: flex;
@@ -8538,6 +8597,26 @@ font-size: 72px;
 }
 
 .online-music-play-btn:hover {
+    background: rgba(59, 130, 246, 0.1);
+    transform: scale(1.1);
+}
+
+.online-music-add-songlist-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #3b82f6;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.online-music-add-songlist-btn:hover {
     background: rgba(59, 130, 246, 0.1);
     transform: scale(1.1);
 }
@@ -9439,5 +9518,379 @@ font-size: 72px;
     .setting-label {
         padding: 0 0 6px;
         font-size: 13px;
+    }
+}
+
+
+/* 我的歌单 */
+.mysonglist-view {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden !important;
+    padding-bottom: 100px;
+    box-sizing: border-box;
+}
+
+.mysonglist-container {
+    padding: 0px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.mysonglist-container .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mysonglist-container .section-header h2 {
+    margin: 0;
+    font-size: 18px;
+    color: #1f2937;
+}
+
+.mysonglist-container .section-header .btn {
+    padding: 8px 16px;
+    font-size: 13px;
+}
+
+#mysonglistListView {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+#mysonglistListView .section-header {
+    flex-shrink: 0;
+    padding: 16px 20px;
+    background: white;
+    border-bottom: 1px solid #f3f4f6;
+    margin: 0;
+}
+
+#mysonglistGrid {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    align-content: start;
+}
+
+#mysonglistGrid.songlist-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 20px;
+    padding: 20px;
+}
+
+.songlist-card {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.songlist-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.songlist-card-cover {
+    width: 100%;
+    aspect-ratio: 1;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 48px;
+    position: relative;
+}
+
+.songlist-card-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.songlist-card-info {
+    padding: 12px;
+}
+
+.songlist-card-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #1f2937;
+    margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.songlist-card-count {
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+.songlist-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 20px;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+}
+
+.songlist-detail-cover {
+    width: 120px;
+    height: 120px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 48px;
+    flex-shrink: 0;
+}
+
+.songlist-detail-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 12px;
+}
+
+.songlist-detail-info {
+    flex: 1;
+}
+
+.songlist-detail-info h2 {
+    margin: 0 0 8px;
+    font-size: 24px;
+    color: #1f2937;
+}
+
+.songlist-detail-info p {
+    margin: 0;
+    font-size: 14px;
+    color: #6b7280;
+}
+
+.mysonglist-songs {
+    background: white;
+    overflow-y: auto;
+    height: calc(100% - 220px);
+}
+
+#mysonglistDetailView {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    padding: 0;
+}
+
+#mysonglistDetailView .section-header {
+    flex-shrink: 0;
+    padding: 16px 20px;
+    background: white;
+    border-bottom: 1px solid #f3f4f6;
+    margin: 0;
+    border-radius: 0;
+}
+
+#mysonglistDetailView .songlist-detail-header {
+    flex-shrink: 0;
+}
+
+.mysonglist-song-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid #f3f4f6;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.mysonglist-song-item:last-child {
+    border-bottom: none;
+}
+
+.mysonglist-song-item:hover {
+    background: #f9fafb;
+}
+
+.mysonglist-song-index {
+    width: 30px;
+    text-align: center;
+    color: #9ca3af;
+    font-size: 13px;
+}
+
+.mysonglist-song-title {
+    flex: 1;
+    font-size: 14px;
+    color: #1f2937;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mysonglist-song-artist {
+    width: 150px;
+    font-size: 13px;
+    color: #6b7280;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mysonglist-song-album {
+    width: 200px;
+    font-size: 13px;
+    color: #6b7280;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mysonglist-song-duration {
+    width: 60px;
+    text-align: right;
+    font-size: 13px;
+    color: #9ca3af;
+}
+
+.mysonglist-song-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: 10px;
+}
+
+.mysonglist-song-actions button {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: #9ca3af;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.mysonglist-song-actions button:hover {
+    background: rgba(79, 70, 229, 0.1);
+    color: #4f46e5;
+}
+
+/* 添加到歌单选择列表 */
+.songlist-select-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.songlist-select-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.songlist-select-item:hover {
+    background: #f3f4f6;
+}
+
+.songlist-select-item-cover {
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.songlist-select-item-info {
+    flex: 1;
+    overflow: hidden;
+}
+
+.songlist-select-item-name {
+    font-size: 14px;
+    color: #1f2937;
+    font-weight: 500;
+}
+
+.songlist-select-item-count {
+    font-size: 12px;
+    color: #9ca3af;
+    margin-top: 2px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #9ca3af;
+    font-size: 14px;
+}
+
+.btn-sm {
+    padding: 5px 12px;
+    font-size: 12px;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+    .songlist-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 12px;
+    }
+
+    .songlist-detail-header {
+        flex-direction: column;
+        text-align: center;
+        padding: 16px;
+    }
+
+    .songlist-detail-cover {
+        width: 100px;
+        height: 100px;
+        font-size: 36px;
+    }
+
+    .songlist-detail-info h2 {
+        font-size: 20px;
+    }
+
+    .mysonglist-song-artist,
+    .mysonglist-song-album {
+        display: none;
+    }
+
+    #mysonglistDetailView .section-header {
+        padding: 12px 16px;
+    }
+
+    #mysonglistDetailView .section-header .btn {
+        font-size: 0;
+        padding: 8px 10px;
+        gap: 0px;
+    }
+
+    #mysonglistDetailView .section-header .btn i {
+        font-size: 14px;
+        margin: 0;
+        line-height: 1;
+        display: inline-block;
     }
 }

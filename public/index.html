@@ -40,6 +40,10 @@
                     <i class="fas fa-globe nav-icon"></i>
                     <span>在线音乐</span>
                 </div>
+                <div class="nav-item" data-view="mysonglist" id="navMySonglist" style="display: none;">
+                    <i class="fas fa-heart nav-icon"></i>
+                    <span>我的歌单</span>
+                </div>
                 <div class="nav-item" data-view="folder">
                     <i class="fas fa-folder nav-icon"></i>
                     <span>文件管理</span>
@@ -718,6 +722,57 @@
                         <div class="folder-view" id="folderView"></div>
                         <div class="folder-pagination" id="folderPagination"></div>
                     </section>
+                </div>
+            </div>
+
+                        <!-- 我的歌单视图 -->
+            <div id="view-mysonglist" class="view">
+                <div class="content-area mysonglist-view">
+                    <div class="mysonglist-container">
+                        <!-- 歌单列表视图 -->
+                        <div id="mysonglistListView">
+                            <div class="section-header">
+                                <h2><i class="fas fa-heart"></i> 我的歌单</h2>
+                                <button class="btn btn-primary" onclick="showCreateSonglistModal()">
+                                    <i class="fas fa-plus"></i> 新建歌单
+                                </button>
+                            </div>
+                            <div id="mysonglistGrid" class="songlist-grid">
+                                <div class="empty-state">
+                                    <i class="fas fa-folder-open" style="font-size: 48px; color: #d1d5db; margin-bottom: 16px;"></i>
+                                    <p>暂无歌单，点击上方按钮创建</p>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 歌单详情视图 -->
+                        <div id="mysonglistDetailView" style="display: none;">
+                            <div class="section-header">
+                                <button class="btn btn-secondary" onclick="backToUserSonglistList()">
+                                    <i class="fas fa-arrow-left"></i> 返回
+                                </button>
+                                <div style="flex: 1;"></div>
+                                <button class="btn btn-secondary" onclick="playAllMySonglistSongs()">
+                                    <i class="fas fa-play"></i> 播放全部
+                                </button>
+                                <button class="btn btn-secondary" onclick="renameCurrentSonglist()">
+                                    <i class="fas fa-edit"></i> 重命名
+                                </button>
+                                <button class="btn btn-danger" onclick="deleteCurrentSonglist()">
+                                    <i class="fas fa-trash"></i> 删除歌单
+                                </button>
+                            </div>
+                            <div class="songlist-detail-header">
+                                <div class="songlist-detail-cover" id="userSonglistDetailCover">
+                                    <i class="fas fa-music"></i>
+                                </div>
+                                <div class="songlist-detail-info">
+                                    <h2 id="userSonglistDetailName">歌单名称</h2>
+                                    <p id="userSonglistDetailCount">0 首歌曲</p>
+                                </div>
+                            </div>
+                            <div id="mysonglistSongs" class="mysonglist-songs"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -2119,6 +2174,123 @@
         </div>
     </div>
 
+    <!-- 删除歌单确认对话框 -->
+    <div id="deleteSonglistModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-exclamation-triangle"
+                        style="font-size: 24px; color: #ef4444; vertical-align: middle; margin-right: 8px;"></i>
+                    确认删除
+                </h3>
+                <button onclick="closeDeleteSonglistModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="delete-confirm-content">
+                    <p>确定要删除歌单 <span id="deleteSonglistName" style="font-weight: bold; color: #ef4444;"></span> 吗？</p>
+                    <p class="delete-warning">歌单内的所有歌曲将被移除，不可恢复。</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeDeleteSonglistModal()">取消</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteSonglist()">
+                    <i class="fas fa-trash"></i> 确认删除
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 从歌单移除歌曲确认对话框 -->
+    <div id="removeFromSonglistModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-exclamation-triangle"
+                        style="font-size: 24px; color: #ef4444; vertical-align: middle; margin-right: 8px;"></i>
+                    确认移除
+                </h3>
+                <button onclick="closeRemoveFromSonglistModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="delete-confirm-content">
+                    <p>确定要从歌单中移除 <span id="removeSongName" style="font-weight: bold; color: #ef4444;"></span> 吗？</p>
+                    <p class="delete-warning">只是从歌单中移除，不会删除源文件。</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeRemoveFromSonglistModal()">取消</button>
+                <button type="button" class="btn btn-danger" onclick="confirmRemoveFromSonglist()">
+                    <i class="fas fa-trash"></i> 确认移除
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新建歌单模态框 -->
+    <div id="createSonglistModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3><i class="fas fa-plus" style="color: #4f46e5; margin-right: 8px;"></i> 新建歌单</h3>
+                <button onclick="closeCreateSonglistModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">歌单名称</label>
+                    <input type="text" id="newSonglistName" class="form-input" placeholder="请输入歌单名称" onkeydown="if(event.key==='Enter')doCreateSonglist()">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeCreateSonglistModal()">取消</button>
+                <button type="button" class="btn btn-primary" onclick="doCreateSonglist()">
+                    <i class="fas fa-check"></i> 创建
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 重命名歌单模态框 -->
+    <div id="renameSonglistModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3><i class="fas fa-edit" style="color: #4f46e5; margin-right: 8px;"></i> 重命名歌单</h3>
+                <button onclick="closeRenameSonglistModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">歌单名称</label>
+                    <input type="text" id="renameSonglistName" class="form-input" placeholder="请输入新的歌单名称" onkeydown="if(event.key==='Enter')doRenameSonglist()">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeRenameSonglistModal()">取消</button>
+                <button type="button" class="btn btn-primary" onclick="doRenameSonglist()">
+                    <i class="fas fa-check"></i> 确定
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加到歌单模态框 -->
+    <div id="addToSonglistModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3><i class="fas fa-plus" style="color: #4f46e5; margin-right: 8px;"></i> 添加到歌单</h3>
+                <button onclick="closeAddToSonglistModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div id="addToSonglistList" class="songlist-select-list">
+                    <div class="empty-state">
+                        <i class="fas fa-folder-open" style="font-size: 32px; color: #d1d5db; margin-bottom: 10px;"></i>
+                        <p>暂无歌单</p>
+                        <button class="btn btn-primary btn-sm" onclick="closeAddToSonglistModal();showCreateSonglistModal();" style="margin-top: 10px;">
+                            <i class="fas fa-plus"></i> 新建歌单
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 登录模态框 -->
     <div id="loginModal" class="modal">
         <div class="modal-content">
@@ -2239,6 +2411,10 @@
         <div class="online-context-menu-item" onclick="onlineMenuAddToPlaylist()">
             <i class="fas fa-plus"></i>
             <span>添加到播放列表</span>
+        </div>
+        <div class="online-context-menu-item" onclick="onlineMenuAddToSonglist()" id="onlineMenuAddToSonglistItem">
+            <i class="fas fa-plus-circle"></i>
+            <span>添加到歌单</span>
         </div>
     </div>
 

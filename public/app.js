@@ -143,7 +143,8 @@ async function checkAuthStatus() {
             if (result.isLoggedIn) {
                 currentUser = {
                     username: result.username,
-                    nickname: result.nickname
+                    nickname: result.nickname,
+                    avatar: result.avatar
                 };
             } else {
                 currentUser = null;
@@ -159,8 +160,15 @@ function updateUserCardUI() {
     const userCard = document.getElementById('userCard');
     const nicknameEl = document.getElementById('userNickname');
     const statusEl = document.getElementById('userStatus');
+    const avatarEl = document.getElementById('userAvatar');
     
-    if (!userCard || !nicknameEl || !statusEl) return;
+    if (!userCard || !nicknameEl || !statusEl || !avatarEl) return;
+    
+    if (currentUser && currentUser.avatar) {
+        avatarEl.innerHTML = `<img src="${currentUser.avatar}" alt="头像" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+    } else {
+        avatarEl.innerHTML = '<i class="fas fa-user"></i>';
+    }
     
     if (currentUser) {
         userCard.classList.add('logged-in');
@@ -185,6 +193,34 @@ function handleUserCardClick() {
     }
 }
 
+function updateModalAvatar(clickable) {
+    const avatarEl = document.getElementById('loginModalAvatar');
+    const avatarImg = document.getElementById('loginModalAvatarImg');
+    const avatarIcon = document.getElementById('loginModalAvatarIcon');
+    const avatarOverlay = document.getElementById('loginModalAvatarOverlay');
+    
+    if (!avatarEl || !avatarImg || !avatarIcon || !avatarOverlay) return;
+    
+    if (currentUser?.avatar) {
+        avatarImg.src = currentUser.avatar;
+        avatarImg.style.display = 'block';
+        avatarIcon.style.display = 'none';
+    } else {
+        avatarImg.style.display = 'none';
+        avatarIcon.style.display = 'block';
+    }
+    
+    if (clickable) {
+        avatarEl.classList.add('clickable');
+        avatarOverlay.style.display = 'flex';
+        avatarEl.onclick = () => document.getElementById('avatarInput').click();
+    } else {
+        avatarEl.classList.remove('clickable');
+        avatarOverlay.style.display = 'none';
+        avatarEl.onclick = null;
+    }
+}
+
 function showLoggedInModal() {
     const modal = document.getElementById('loginModal');
     if (!modal) return;
@@ -194,6 +230,8 @@ function showLoggedInModal() {
     document.getElementById('loginForm').style.display = 'none';
     document.getElementById('setPasswordForm').style.display = 'none';
     document.getElementById('changePasswordForm').style.display = 'none';
+    
+    updateModalAvatar(true);
     
     document.getElementById('infoUsername').textContent = currentUser.username || '-';
     document.getElementById('infoNickname').textContent = currentUser.nickname || '-';
@@ -210,6 +248,11 @@ function showLoginModal() {
     document.getElementById('loginForm').style.display = 'block';
     document.getElementById('setPasswordForm').style.display = 'none';
     document.getElementById('changePasswordForm').style.display = 'none';
+    
+    const loginFooter = document.querySelector('#loginForm .login-footer');
+    if (loginFooter) {
+        loginFooter.style.display = needPassword ? 'none' : 'flex';
+    }
     
     if (!needPassword) {
         showSetPasswordForm();
@@ -256,6 +299,12 @@ function showLoginForm() {
     document.getElementById('loginForm').style.display = 'block';
     document.getElementById('setPasswordForm').style.display = 'none';
     document.getElementById('changePasswordForm').style.display = 'none';
+    
+    const loginFooter = document.querySelector('#loginForm .login-footer');
+    if (loginFooter) {
+        loginFooter.style.display = needPassword ? 'none' : 'flex';
+    }
+    
     document.getElementById('loginUsername').focus();
 }
 
@@ -313,6 +362,91 @@ async function doChangePassword() {
     }
 }
 
+function editNickname() {
+    document.getElementById('infoNickname').style.display = 'none';
+    document.getElementById('editNicknameBtn').style.display = 'none';
+    document.getElementById('nicknameEditInput').style.display = 'block';
+    document.getElementById('nicknameEditActions').style.display = 'flex';
+    document.getElementById('nicknameEditInput').value = currentUser?.nickname || '';
+    document.getElementById('nicknameEditInput').focus();
+}
+
+function cancelEditNickname() {
+    document.getElementById('infoNickname').style.display = 'block';
+    document.getElementById('editNicknameBtn').style.display = 'block';
+    document.getElementById('nicknameEditInput').style.display = 'none';
+    document.getElementById('nicknameEditActions').style.display = 'none';
+}
+
+async function saveNickname() {
+    const nickname = document.getElementById('nicknameEditInput').value.trim();
+    
+    try {
+        const result = await apiRequest('/api/user/profile', 'POST', { nickname });
+        if (result.success) {
+            currentUser.nickname = result.nickname;
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            updateUserCardUI();
+            document.getElementById('infoNickname').textContent = result.nickname || '-';
+            cancelEditNickname();
+            showNotification({ type: 'success', message: '昵称修改成功' });
+        } else {
+            showNotification({ type: 'error', message: result.error || '修改失败' });
+        }
+    } catch (error) {
+        if (error.message !== '用户取消登录') {
+            showNotification({ type: 'error', message: '修改失败' });
+        }
+        cancelEditNickname();
+    }
+}
+
+async function uploadAvatar(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    if (!file.type.startsWith('image/')) {
+        showNotification({ type: 'warning', message: '请选择图片文件' });
+        return;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) {
+        showNotification({ type: 'warning', message: '图片大小不能超过 5MB' });
+        return;
+    }
+    
+    try {
+        const formData = new FormData();
+        formData.append('avatar', file);
+        
+        const response = await fetch('/api/user/avatar', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + authToken
+            },
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            currentUser.avatar = result.avatar;
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            updateUserCardUI();
+            updateModalAvatar(true);
+            showNotification({ type: 'success', message: '头像上传成功' });
+        } else {
+            showNotification({ type: 'error', message: result.error || '上传失败' });
+        }
+    } catch (error) {
+        if (error.message !== '用户取消登录') {
+            showNotification({ type: 'error', message: '上传失败' });
+        }
+    }
+    
+    event.target.value = '';
+}
+
 async function doLogin() {
     const username = document.getElementById('loginUsername').value.trim();
     const password = document.getElementById('loginPassword').value;
@@ -329,8 +463,10 @@ async function doLogin() {
             localStorage.setItem('authToken', authToken);
             currentUser = {
                 username: result.username,
-                nickname: result.nickname
+                nickname: result.nickname,
+                avatar: result.avatar
             };
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
             updateUserCardUI();
             showNotification({ type: 'success', message: '登录成功' });
             
@@ -398,9 +534,10 @@ async function doSetPassword() {
         });
         if (result.success) {
             showNotification({ type: 'success', message: '密码设置成功，请登录' });
+            needPassword = true;
             showLoginForm();
             document.getElementById('loginUsername').value = username;
-            needPassword = true;
+            updateUserCardUI();
         } else {
             showNotification({ type: 'error', message: result.error || '设置失败' });
         }

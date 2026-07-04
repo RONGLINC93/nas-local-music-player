@@ -2124,9 +2124,14 @@
         <div class="modal-content">
             <span class="close-btn" onclick="closeLoginModal()">&times;</span>
             <div class="login-modal-header">
-                <div class="login-avatar">
-                    <i class="fas fa-user"></i>
+                <div class="login-avatar" id="loginModalAvatar">
+                    <img id="loginModalAvatarImg" src="" style="display: none;" alt="头像">
+                    <i class="fas fa-user" id="loginModalAvatarIcon"></i>
+                    <div class="login-avatar-overlay" id="loginModalAvatarOverlay" style="display: none;">
+                        <i class="fas fa-camera"></i>
+                    </div>
                 </div>
+                <input type="file" id="avatarInput" accept="image/*" style="display: none;" onchange="uploadAvatar(event)">
                 <h3 id="loginModalTitle">登录</h3>
             </div>
             <!-- 已登录状态 -->
@@ -2139,6 +2144,14 @@
                     <div class="info-row">
                         <span class="info-label">昵称</span>
                         <span class="info-value" id="infoNickname">-</span>
+                        <input type="text" class="info-edit-input" id="nicknameEditInput" style="display: none;" placeholder="请输入昵称" onkeypress="if(event.key==='Enter')saveNickname()">
+                        <button class="info-edit-btn" id="editNicknameBtn" onclick="editNickname()">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <div class="info-edit-actions" id="nicknameEditActions" style="display: none;">
+                            <button class="btn btn-primary btn-sm" onclick="saveNickname()">保存</button>
+                            <button class="btn btn-secondary btn-sm" onclick="cancelEditNickname()">取消</button>
+                        </div>
                     </div>
                 </div>
                 <div class="user-actions">

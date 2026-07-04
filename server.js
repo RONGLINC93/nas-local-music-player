@@ -76,6 +76,35 @@ const upload = multer({
     }
 });
 
+const avatarStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const avatarDir = path.join(__dirname, 'data', 'avatars');
+        if (!fs.existsSync(avatarDir)) {
+            fs.mkdirSync(avatarDir, { recursive: true });
+        }
+        cb(null, avatarDir);
+    },
+    filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname).toLowerCase();
+        cb(null, `avatar_${Date.now()}${ext}`);
+    }
+});
+
+const avatarUpload = multer({
+    storage: avatarStorage,
+    limits: {
+        fileSize: 5 * 1024 * 1024
+    },
+    fileFilter: (req, file, cb) => {
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'].includes(ext)) {
+            cb(null, true);
+        } else {
+            cb(new Error('只支持图片文件'));
+        }
+    }
+});
+
 let currentPlaylist = [];
 let currentIndex = -1;
 let isPlaying = false;
@@ -95,7 +124,8 @@ let userConfig = {
     username: 'admin',
     passwordHash: null,
     passwordSalt: null,
-    nickname: '管理员'
+    nickname: '管理员',
+    avatar: null
 };
 let authTokens = new Map();
 
@@ -589,7 +619,8 @@ app.get('/api/user/info', (req, res) => {
         needPassword: !!userConfig.passwordHash,
         isLoggedIn,
         username: userConfig.username,
-        nickname: userConfig.nickname
+        nickname: userConfig.nickname,
+        avatar: userConfig.avatar
     });
 });
 
@@ -620,6 +651,7 @@ app.post('/api/user/login', (req, res) => {
         token,
         username: userConfig.username,
         nickname: userConfig.nickname,
+        avatar: userConfig.avatar,
         message: '登录成功'
     });
 });
@@ -663,6 +695,63 @@ app.post('/api/user/set-password', (req, res) => {
     
     saveUserConfig();
     res.json({ success: true, message: '密码设置成功' });
+});
+
+// 修改用户资料
+app.post('/api/user/profile', requireAuth, (req, res) => {
+    const { nickname } = req.body;
+    
+    if (nickname !== undefined) {
+        userConfig.nickname = nickname;
+    }
+    
+    saveUserConfig();
+    res.json({ 
+        success: true, 
+        username: userConfig.username, 
+        nickname: userConfig.nickname,
+        avatar: userConfig.avatar
+    });
+});
+
+// 上传头像
+app.post('/api/user/avatar', requireAuth, (req, res) => {
+    avatarUpload.single('avatar')(req, res, (err) => {
+        if (err) {
+            console.error('头像上传错误:', err.message);
+            return res.status(400).json({ success: false, error: err.message });
+        }
+        
+        if (!req.file) {
+            return res.status(400).json({ success: false, error: '请选择图片文件' });
+        }
+        
+        if (userConfig.avatar) {
+            const oldAvatarPath = path.join(__dirname, 'data', 'avatars', path.basename(userConfig.avatar));
+            if (fs.existsSync(oldAvatarPath)) {
+                try { fs.unlinkSync(oldAvatarPath); } catch (e) {}
+            }
+        }
+        
+        const avatarUrl = `/api/user/avatar/${req.file.filename}`;
+        userConfig.avatar = avatarUrl;
+        saveUserConfig();
+        
+        res.json({
+            success: true,
+            avatar: avatarUrl
+        });
+    });
+});
+
+app.get('/api/user/avatar/:filename', (req, res) => {
+    const filename = req.params.filename;
+    const filePath = path.join(__dirname, 'data', 'avatars', filename);
+    if (fs.existsSync(filePath)) {
+        res.sendFile(filePath);
+    } else {
+        res.status(404).json({ error: '头像不存在' });
+    }
 });
 
 app.post('/api/upload-music', requireAuth, (req, res, next) => {

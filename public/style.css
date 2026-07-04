@@ -2858,6 +2858,45 @@ font-size: 72px;
     margin: 0 auto 15px;
     font-size: 32px;
     color: white;
+    position: relative;
+    overflow: hidden;
+    cursor: default;
+    transition: transform 0.2s;
+}
+
+.login-avatar.clickable {
+    cursor: pointer;
+}
+
+.login-avatar.clickable:hover {
+    transform: scale(1.05);
+}
+
+.login-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.login-avatar-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 0;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.login-avatar.clickable:hover .login-avatar-overlay {
+    opacity: 1;
 }
 
 .login-modal-header h3 {
@@ -2950,6 +2989,16 @@ font-size: 72px;
     align-items: center;
     padding: 10px 0;
     border-bottom: 1px solid #e5e7eb;
+    gap: 12px;
+}
+
+.info-row .info-label {
+    flex-shrink: 0;
+}
+
+.info-row .info-value {
+    flex: 1;
+    text-align: right;
 }
 
 .info-row:last-child {
@@ -2965,6 +3014,45 @@ font-size: 72px;
     color: #1f2937;
     font-size: 14px;
     font-weight: 500;
+}
+
+.info-edit-btn {
+    background: none;
+    border: none;
+    color: #8b5cf6;
+    cursor: pointer;
+    padding: 4px 8px;
+    font-size: 14px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.info-edit-btn:hover {
+    background: rgba(139, 92, 246, 0.1);
+}
+
+.info-edit-input {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.info-edit-input:focus {
+    border-color: #8b5cf6;
+}
+
+.info-edit-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.info-edit-actions .btn-sm {
+    padding: 4px 12px;
+    font-size: 12px;
 }
 
 .user-actions {

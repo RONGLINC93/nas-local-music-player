@@ -7631,6 +7631,24 @@ async function loadCustomSources(filterFiles = null) {
                                     console.error(`[CustomSource] 搜索失败:`, error.message);
                                     return null;
                                 }
+                            },
+                            getLyric: async (songInfo, type) => {
+                                try {
+                                    console.log(`[CustomSource] 调用 lyric action, platform=${platform}, song=${songInfo.name || songInfo.songId}`);
+                                    const result = await source.callRequest('lyric', platform, {
+                                        musicInfo: songInfo
+                                    });
+                                    console.log(`[CustomSource] lyric 返回结果:`, JSON.stringify(result).substring(0, 200));
+                                    if (result && (result.lrc || result.lyric || typeof result === 'string')) {
+                                        return {
+                                            lyric: result.lrc || result.lyric || result
+                                        };
+                                    }
+                                    return null;
+                                } catch (error) {
+                                    console.error(`[CustomSource] 获取歌词失败:`, error.message);
+                                    return null;
+                                }
                             }
                         };
                     }
@@ -8064,6 +8082,174 @@ app.post('/api/online-play-url', async (req, res) => {
         });
     } catch (error) {
         console.error('获取播放链接失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 获取在线音乐歌词
+app.post('/api/online-lyric', async (req, res) => {
+    try {
+        const { source, songInfo } = req.body;
+        
+        if (!source || !songInfo) {
+            return res.status(400).json({ success: false, error: '缺少参数' });
+        }
+        
+        console.log(`[在线歌词] source=${source}, song=${songInfo.name || songInfo.songId}`);
+        
+        let result = null;
+        
+        try {
+            result = await userApi.callUserApiGetLyric(source, songInfo);
+        } catch (error) {
+            console.error('自定义音源获取歌词失败:', error.message);
+        }
+        
+        if (!result) {
+            if (customSources[source] && typeof customSources[source].getLyric === 'function') {
+                try {
+                    console.log(`[在线歌词] 使用旧自定义音源获取歌词, source=${source}`);
+                    const lyricResult = await customSources[source].getLyric(songInfo, 'lyric');
+                    if (lyricResult && (lyricResult.lrc || lyricResult.lyric || typeof lyricResult === 'string')) {
+                        result = {
+                            lyric: lyricResult.lrc || lyricResult.lyric || lyricResult,
+                            sourceName: customSources[source].name || source
+                        };
+                    }
+                } catch (error) {
+                    console.error('旧自定义音源获取歌词失败:', error.message);
+                }
+            }
+        }
+        
+        if (result && result.lyric) {
+            res.json({
+                success: true,
+                lyric: result.lyric,
+                sourceName: result.sourceName
+            });
+        } else {
+            try {
+                console.log(`[在线歌词] 尝试内置歌词API, source=${source}`);
+                const builtinLyric = await getLyricOnline(source, songInfo);
+                if (builtinLyric) {
+                    res.json({
+                        success: true,
+                        lyric: builtinLyric,
+                        sourceName: '内置'
+                    });
+                    return;
+                }
+            } catch (e) {
+                console.error('内置歌词获取失败:', e.message);
+            }
+            res.json({ success: false, error: '未找到歌词' });
+        }
+    } catch (error) {
+        console.error('获取歌词失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 搜索匹配歌词（通过歌曲名+歌手搜索）
+app.post('/api/search-lyric', async (req, res) => {
+    try {
+        const { keyword, source } = req.body;
+        
+        if (!keyword) {
+            return res.status(400).json({ success: false, error: '缺少搜索关键词' });
+        }
+        
+        console.log(`[搜索歌词] keyword=${keyword}, source=${source || 'all'}`);
+        
+        const searchSource = source || 'kw';
+        
+        let searchResult = null;
+        try {
+            searchResult = await userApi.callUserApiSearch(searchSource, keyword, 1, 5);
+        } catch (error) {
+            console.error('搜索歌词失败:', error.message);
+        }
+        
+        if (!searchResult && customSources[searchSource] && typeof customSources[searchSource].search === 'function') {
+            try {
+                const result = await customSources[searchSource].search(keyword, 1, 5);
+                if (result && result.list) {
+                    searchResult = { list: result.list, sourceName: customSources[searchSource].name };
+                }
+            } catch (error) {
+                console.error('旧自定义音源搜索失败:', error.message);
+            }
+        }
+        
+        if (!searchResult || !searchResult.list || searchResult.list.length === 0) {
+            try {
+                console.log(`[搜索歌词] 尝试内置搜索, source=${searchSource}`);
+                const builtinSearch = await searchMusicOnline(searchSource, keyword, 1, 5);
+                if (builtinSearch && builtinSearch.list && builtinSearch.list.length > 0) {
+                    searchResult = { list: builtinSearch.list, sourceName: '内置' };
+                }
+            } catch (e) {
+                console.error('内置搜索失败:', e.message);
+            }
+        }
+        
+        if (!searchResult || !searchResult.list || searchResult.list.length === 0) {
+            return res.json({ success: false, error: '未找到匹配歌曲' });
+        }
+        
+        const firstSong = searchResult.list[0];
+        
+        let lyricResult = null;
+        try {
+            lyricResult = await userApi.callUserApiGetLyric(searchSource, firstSong);
+        } catch (error) {
+            console.error('获取搜索结果歌词失败:', error.message);
+        }
+        
+        if (!lyricResult && customSources[searchSource] && typeof customSources[searchSource].getLyric === 'function') {
+            try {
+                const lr = await customSources[searchSource].getLyric(firstSong, 'lyric');
+                if (lr && (lr.lrc || lr.lyric || typeof lr === 'string')) {
+                    lyricResult = {
+                        lyric: lr.lrc || lr.lyric || lr,
+                        sourceName: customSources[searchSource].name
+                    };
+                }
+            } catch (error) {
+                console.error('旧自定义音源获取歌词失败:', error.message);
+            }
+        }
+        
+        if (lyricResult && lyricResult.lyric) {
+            res.json({
+                success: true,
+                lyric: lyricResult.lyric,
+                sourceName: lyricResult.sourceName,
+                matchedSong: firstSong.name || firstSong.songName || firstSong.title,
+                matchedArtist: firstSong.singer || firstSong.artist || firstSong.author
+            });
+        } else {
+            try {
+                console.log(`[搜索歌词] 尝试内置歌词API, source=${searchSource}`);
+                const builtinLyric = await getLyricOnline(searchSource, firstSong);
+                if (builtinLyric) {
+                    res.json({
+                        success: true,
+                        lyric: builtinLyric,
+                        sourceName: '内置',
+                        matchedSong: firstSong.name || firstSong.songName || firstSong.title,
+                        matchedArtist: firstSong.singer || firstSong.artist || firstSong.author
+                    });
+                    return;
+                }
+            } catch (e) {
+                console.error('内置歌词获取失败:', e.message);
+            }
+            res.json({ success: false, error: '未找到歌词' });
+        }
+    } catch (error) {
+        console.error('搜索歌词失败:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });
@@ -8962,6 +9148,132 @@ async function searchMusicOnline(source, keyword, page = 1, limit = 20) {
     } catch (error) {
         console.error(`搜索 ${source} 音乐出错:`, error.message);
         return { list: [], total: 0 };
+    }
+}
+
+// 在线歌词获取函数
+async function getLyricOnline(source, songInfo) {
+    try {
+        const songId = songInfo.songId || songInfo.songmid || songInfo.id;
+        const keyword = songInfo.name ? (songInfo.singer ? `${songInfo.name} - ${songInfo.singer}` : songInfo.name) : '';
+        
+        switch (source) {
+            case 'kw': {
+                if (!songId && keyword) {
+                    const searchResult = await searchMusicOnline('kw', keyword, 1, 1);
+                    if (searchResult.list && searchResult.list.length > 0) {
+                        return getLyricOnline('kw', searchResult.list[0]);
+                    }
+                }
+                if (songId) {
+                    const url = `http://m.kuwo.cn/newh5/singles/songinfoandlrc?musicId=${songId}&httpsStatus=1`;
+                    const urlObj = new URL(url);
+                    const options = {
+                        protocol: urlObj.protocol,
+                        hostname: urlObj.hostname,
+                        path: urlObj.pathname + urlObj.search,
+                        method: 'GET',
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1',
+                            'Referer': 'http://m.kuwo.cn/'
+                        }
+                    };
+                    const { body } = await httpRequest(options);
+                    const json = JSON.parse(body);
+                    if (json.data?.lrclist) {
+                        const lrcText = json.data.lrclist.map(item => {
+                            const time = parseFloat(item.time || '0');
+                            const minutes = Math.floor(time / 60);
+                            const seconds = Math.floor(time % 60);
+                            const ms = Math.floor((time % 1) * 100);
+                            return `[${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(ms).padStart(2, '0')}]${item.lineLyric || item.text || ''}`;
+                        }).join('\n');
+                        return lrcText;
+                    }
+                }
+                return null;
+            }
+            
+            case 'wy': {
+                if (!songId && keyword) {
+                    const searchResult = await searchMusicOnline('wy', keyword, 1, 1);
+                    if (searchResult.list && searchResult.list.length > 0) {
+                        return getLyricOnline('wy', searchResult.list[0]);
+                    }
+                }
+                if (songId) {
+                    const url = `https://music.163.com/api/song/lyric?id=${songId}&lv=1&kv=1&tv=-1`;
+                    const urlObj = new URL(url);
+                    const options = {
+                        protocol: urlObj.protocol,
+                        hostname: urlObj.hostname,
+                        path: urlObj.pathname + urlObj.search,
+                        method: 'GET',
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                            'Referer': 'https://music.163.com/'
+                        }
+                    };
+                    const { body } = await httpRequest(options);
+                    const json = JSON.parse(body);
+                    if (json.lrc?.lyric) {
+                        return json.lrc.lyric;
+                    }
+                }
+                return null;
+            }
+            
+            case 'kg': {
+                if (!songId && !songInfo.hash && keyword) {
+                    const searchResult = await searchMusicOnline('kg', keyword, 1, 1);
+                    if (searchResult.list && searchResult.list.length > 0) {
+                        return getLyricOnline('kg', searchResult.list[0]);
+                    }
+                }
+                const hash = songInfo.hash || songId;
+                if (hash) {
+                    const url = `https://krcs.kugou.com/search?ver=1&man=yes&client=mobi&keyword=&duration=&hash=${hash}&album_audio_id=`;
+                    const urlObj = new URL(url);
+                    const options = {
+                        protocol: urlObj.protocol,
+                        hostname: urlObj.hostname,
+                        path: urlObj.pathname + urlObj.search,
+                        method: 'GET',
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                        }
+                    };
+                    const { body } = await httpRequest(options);
+                    const json = JSON.parse(body);
+                    if (json.candidates && json.candidates.length > 0 && json.candidates[0].id) {
+                        const krcId = json.candidates[0].id;
+                        const krcUrl = `https://lyrics.kugou.com/download?ver=1&client=pc&id=${krcId}&accesskey=${json.candidates[0].accesskey || ''}&fmt=lrc&charset=utf8`;
+                        const krcUrlObj = new URL(krcUrl);
+                        const krcOptions = {
+                            protocol: krcUrlObj.protocol,
+                            hostname: krcUrlObj.hostname,
+                            path: krcUrlObj.pathname + krcUrlObj.search,
+                            method: 'GET',
+                            headers: {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                            }
+                        };
+                        const { body: krcBody } = await httpRequest(krcOptions);
+                        const krcJson = JSON.parse(krcBody);
+                        if (krcJson.content) {
+                            return krcJson.content;
+                        }
+                    }
+                }
+                return null;
+            }
+            
+            default:
+                return null;
+        }
+    } catch (error) {
+        console.error(`获取 ${source} 歌词出错:`, error.message);
+        return null;
     }
 }
 

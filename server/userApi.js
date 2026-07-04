@@ -509,6 +509,119 @@ async function callUserApiGetMusicUrl(source, songInfo, quality, clientUsername,
     throw finalError;
 }
 
+async function callUserApiGetLyric(source, songInfo, clientUsername) {
+    const normalizedSongInfo = { ...songInfo };
+    if (songInfo.meta) {
+        Object.assign(normalizedSongInfo, songInfo.meta);
+        if (songInfo.meta.songId && !normalizedSongInfo.songmid) {
+            normalizedSongInfo.songmid = songInfo.meta.songId;
+        }
+        if (songInfo.meta.hash && !normalizedSongInfo.hash) {
+            normalizedSongInfo.hash = songInfo.meta.hash;
+        }
+        if (songInfo.meta.albumId && !normalizedSongInfo.albumId) {
+            normalizedSongInfo.albumId = songInfo.meta.albumId;
+        }
+        if (songInfo.meta.copyrightId && !normalizedSongInfo.copyrightId) {
+            normalizedSongInfo.copyrightId = songInfo.meta.copyrightId;
+        }
+        if (songInfo.meta.lrcUrl && !normalizedSongInfo.lrcUrl) {
+            normalizedSongInfo.lrcUrl = songInfo.meta.lrcUrl;
+        }
+        if (songInfo.meta.strMediaMid && !normalizedSongInfo.strMediaMid) {
+            normalizedSongInfo.strMediaMid = songInfo.meta.strMediaMid;
+        }
+        if (songInfo.meta.albumMid && !normalizedSongInfo.albumMid) {
+            normalizedSongInfo.albumMid = songInfo.meta.albumMid;
+        }
+    }
+    if (!normalizedSongInfo.hash && songInfo.hash) normalizedSongInfo.hash = songInfo.hash;
+    if (!normalizedSongInfo.copyrightId && songInfo.copyrightId) normalizedSongInfo.copyrightId = songInfo.copyrightId;
+    if (!normalizedSongInfo.strMediaMid && songInfo.strMediaMid) normalizedSongInfo.strMediaMid = songInfo.strMediaMid;
+    if (!normalizedSongInfo.albumMid && songInfo.albumMid) normalizedSongInfo.albumMid = songInfo.albumMid;
+    if (!normalizedSongInfo.albumId && songInfo.albumId) normalizedSongInfo.albumId = songInfo.albumId;
+    if (!normalizedSongInfo.lrcUrl && songInfo.lrcUrl) normalizedSongInfo.lrcUrl = songInfo.lrcUrl;
+
+    let supportedCount = 0;
+    let lastError = null;
+    const candidates = [];
+    const userApiIds = new Set();
+    let userStates = {};
+
+    if (clientUsername && clientUsername !== 'default') {
+        const dataPath = process.env.DATA_PATH || path.join(__dirname, '../data');
+        const userPath = path.join(dataPath, 'users', 'source', clientUsername);
+        const statesPath = path.join(userPath, 'states.json');
+        const metaPath = path.join(userPath, 'sources.json');
+        if (fs.existsSync(statesPath)) {
+            try {
+                userStates = JSON.parse(fs.readFileSync(statesPath, 'utf-8'));
+            } catch (e) { }
+        }
+        if (fs.existsSync(metaPath)) {
+            try {
+                const userSources = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+                for (const s of userSources) {
+                    userApiIds.add(s.id);
+                }
+            } catch (e) { }
+        }
+    }
+
+    for (const [apiId, api] of loadedApis) {
+        if (!api.info.enabled) continue;
+        if (!api.info.sources || !api.info.sources[source]) continue;
+        if (clientUsername && api.info.owner === clientUsername) {
+            candidates.push(api);
+            userApiIds.add(api.info.id);
+        }
+    }
+
+    for (const [apiId, api] of loadedApis) {
+        if (!api.info.sources || !api.info.sources[source]) continue;
+        if (api.info.owner === 'open') {
+            let isEnabled = api.info.enabled;
+            if (clientUsername && clientUsername !== 'default' && userStates[api.info.id]) {
+                if (typeof userStates[api.info.id].enabled === 'boolean') {
+                    isEnabled = userStates[api.info.id].enabled;
+                }
+            }
+            if (!isEnabled) continue;
+            if (!userApiIds.has(api.info.id)) {
+                candidates.push(api);
+            }
+        }
+    }
+
+    supportedCount = candidates.length;
+    if (supportedCount === 0) {
+        return null;
+    }
+
+    for (const api of candidates) {
+        try {
+            console.log(`[UserApi] 尝试 ${api.info.name} 获取 ${source} 歌词`);
+            const result = await api.callRequest('lyric', source, {
+                musicInfo: normalizedSongInfo
+            });
+            if (result && (result.lrc || result.lyric || typeof result === 'string')) {
+                console.log(`[UserApi] ✓ ${api.info.name} 成功返回歌词`);
+                return {
+                    lyric: result.lrc || result.lyric || result,
+                    sourceName: api.info.name
+                };
+            }
+        } catch (error) {
+            console.error(`[UserApi] ${api.info.name} 获取歌词失败:`, error.message);
+            lastError = error;
+            continue;
+        }
+    }
+
+    console.error(`[UserApi] 所有自定义源获取 ${source} 歌词失败:`, lastError?.message);
+    return null;
+}
+
 async function callUserApiSearch(source, keyword, page, limit, clientUsername) {
     let supportedCount = 0;
     let lastError = null;
@@ -825,6 +938,7 @@ module.exports = {
     extractMetadata,
     loadUserApi,
     callUserApiGetMusicUrl,
+    callUserApiGetLyric,
     callUserApiSearch,
     initUserApis,
     getLoadedApis,

@@ -611,11 +611,8 @@ function updateNowPlaying(track) {
         // 更新大播放界面信息
         updateFullPlayerInfo();
         
-        // 重新加载歌词
-        const fullPlayer = document.getElementById('fullPlayer');
-        if (fullPlayer && fullPlayer.classList.contains('show')) {
-            loadLyrics(track);
-        }
+        // 预加载歌词
+        loadLyrics(track);
     } else {
         if (titleEl) titleEl.textContent = '未播放';
         if (artistEl) artistEl.textContent = '-';
@@ -744,6 +741,49 @@ async function loadLyrics(track) {
             }
         } catch (e) {
             console.warn('加载歌词失败:', e);
+        }
+    }
+    
+    if (currentLyrics.length === 0 && track.source) {
+        try {
+            const songInfo = track.songInfo || {
+                songId: track.songId,
+                name: track.title,
+                singer: track.artist,
+                albumName: track.album,
+                picUrl: track.cover || track.picUrl
+            };
+            const response = await fetch('/api/online-lyric', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    source: track.source,
+                    songInfo: songInfo
+                })
+            });
+            const result = await response.json();
+            if (result.success && result.lyric) {
+                currentLyrics = parseLyrics(result.lyric);
+            }
+        } catch (e) {
+            console.warn('获取在线歌词失败:', e);
+        }
+    }
+    
+    if (currentLyrics.length === 0 && track.title) {
+        try {
+            const keyword = track.artist ? `${track.title} - ${track.artist}` : track.title;
+            const response = await fetch('/api/search-lyric', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ keyword })
+            });
+            const result = await response.json();
+            if (result.success && result.lyric) {
+                currentLyrics = parseLyrics(result.lyric);
+            }
+        } catch (e) {
+            console.warn('搜索歌词失败:', e);
         }
     }
     

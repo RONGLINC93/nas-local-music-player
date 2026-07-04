@@ -9636,6 +9636,41 @@ font-size: 72px;
     color: #9ca3af;
 }
 
+.songlist-card-play-btn {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #667eea;
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.3s ease;
+}
+
+.songlist-card:hover .songlist-card-play-btn {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.songlist-card-play-btn:hover {
+    background: #5a67d8;
+    transform: scale(1.1);
+}
+
+.songlist-card-play-btn i {
+    margin-left: 2px;
+}
+
 .songlist-detail-header {
     display: flex;
     align-items: center;
@@ -9892,5 +9927,15 @@ font-size: 72px;
         margin: 0;
         line-height: 1;
         display: inline-block;
+    }
+
+    .songlist-card-play-btn {
+        opacity: 1;
+        transform: translateY(0);
+        width: 36px;
+        height: 36px;
+        font-size: 12px;
+        bottom: 8px;
+        right: 8px;
     }
 }

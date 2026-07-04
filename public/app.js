@@ -3666,6 +3666,9 @@ function renderUserSonglistGrid(songlists) {
         <div class="songlist-card" onclick="openUserSonglistDetail('${list.id}')">
             <div class="songlist-card-cover">
                 ${list.cover ? `<img src="${list.cover}" alt="">` : '<i class="fas fa-music"></i>'}
+                <button class="songlist-card-play-btn" onclick="event.stopPropagation();playUserSonglist('${list.id}')" title="播放歌单">
+                    <i class="fas fa-play"></i>
+                </button>
             </div>
             <div class="songlist-card-info">
                 <div class="songlist-card-name">${escapeHtml(list.name)}</div>
@@ -3673,6 +3676,25 @@ function renderUserSonglistGrid(songlists) {
             </div>
         </div>
     `).join('');
+}
+
+// 播放歌单（从歌单列表卡片点击播放）
+async function playUserSonglist(songlistId) {
+    try {
+        const response = await fetch(`/api/user/songlists/${songlistId}`);
+        const result = await response.json();
+        
+        if (!result.success || !result.songlist) {
+            showNotification({ type: 'error', message: '加载歌单失败' });
+            return;
+        }
+        
+        currentSonglist = result.songlist;
+        await playAllMySonglistSongs();
+    } catch (error) {
+        console.error('播放歌单失败:', error);
+        showNotification({ type: 'error', message: '播放失败: ' + error.message });
+    }
 }
 
 // 打开歌单详情

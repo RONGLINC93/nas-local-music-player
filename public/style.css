@@ -10255,7 +10255,6 @@ font-size: 72px;
     position: relative;
     z-index: 1;
     width: 100%;
-    max-width: 1200px;
     height: 100%;
     display: flex;
     flex-direction: column;
@@ -10289,6 +10288,12 @@ font-size: 72px;
 .full-player-close:hover,
 .full-player-list-btn:hover {
     background: rgba(255, 255, 255, 0.2);
+}
+
+.full-player-header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .full-player-title {

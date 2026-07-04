@@ -808,9 +808,40 @@ function closeFullPlayer() {
     const fullPlayer = document.getElementById('fullPlayer');
     if (!fullPlayer) return;
     
+    if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+    }
+    
     fullPlayer.classList.remove('show');
     document.body.style.overflow = '';
 }
+
+function toggleFullscreen() {
+    const fullPlayer = document.getElementById('fullPlayer');
+    if (!fullPlayer) return;
+    
+    if (!document.fullscreenElement) {
+        fullPlayer.requestFullscreen().catch(() => {});
+    } else {
+        document.exitFullscreen().catch(() => {});
+    }
+}
+
+function updateFullscreenButton() {
+    const btn = document.getElementById('fullPlayerFullscreenBtn');
+    if (!btn) return;
+    
+    const icon = btn.querySelector('i');
+    if (document.fullscreenElement) {
+        icon.className = 'fas fa-compress';
+        btn.title = '退出全屏';
+    } else {
+        icon.className = 'fas fa-expand';
+        btn.title = '全屏';
+    }
+}
+
+document.addEventListener('fullscreenchange', updateFullscreenButton);
 
 function updateFullPlayerInfo() {
     const track = currentIndex >= 0 ? currentPlaylist[currentIndex] : null;

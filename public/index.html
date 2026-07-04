@@ -2453,9 +2453,14 @@
                     <div class="full-player-song-title" id="fullPlayerTitle">未播放</div>
                     <div class="full-player-song-artist" id="fullPlayerArtist">-</div>
                 </div>
-                <button class="full-player-list-btn" id="fullPlayerListBtn" onclick="togglePlaylistPanel()">
-                    <i class="fas fa-list"></i>
-                </button>
+                <div class="full-player-header-right">
+                    <button class="full-player-list-btn full-player-fullscreen-btn" id="fullPlayerFullscreenBtn" onclick="toggleFullscreen()" title="全屏">
+                        <i class="fas fa-expand"></i>
+                    </button>
+                    <button class="full-player-list-btn" id="fullPlayerListBtn" onclick="togglePlaylistPanel()">
+                        <i class="fas fa-list"></i>
+                    </button>
+                </div>
             </div>
             
             <div class="full-player-main">

@@ -10314,6 +10314,7 @@ font-size: 72px;
     justify-content: space-around;
     gap: 60px;
     padding: 20px 0;
+    min-height: 0;
 }
 
 .full-player-cover-wrap {
@@ -10321,22 +10322,25 @@ font-size: 72px;
     display: flex;
     align-items: center;
     justify-content: center;
+    min-height: 0;
 }
 
 .full-player-cover {
-    width: 380px;
-    height: 380px;
+    width: min(380px, 40vh);
+    height: min(380px, 40vh);
+    aspect-ratio: 1 / 1;
     border-radius: 50%;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     display: flex;
     align-items: center;
     justify-content: center;
     color: white;
-    font-size: 100px;
+    font-size: 80px;
     overflow: hidden;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
     animation: rotate 20s linear infinite;
     animation-play-state: paused;
+    flex-shrink: 0;
 }
 
 .full-player.playing .full-player-cover {
@@ -10360,9 +10364,11 @@ font-size: 72px;
 
 .full-player-lyrics-wrap {
     flex: 1;
-    height: 400px;
+    height: 100%;
+    max-height: 60vh;
     overflow: hidden;
     position: relative;
+    min-height: 0;
 }
 
 .full-player-lyrics {
@@ -10370,7 +10376,7 @@ font-size: 72px;
     overflow-y: auto;
     scrollbar-width: none;
     -ms-overflow-style: none;
-    padding: 180px 0;
+    padding: 50% 0;
     box-sizing: border-box;
     scroll-behavior: smooth;
 }
@@ -10437,7 +10443,7 @@ font-size: 72px;
     position: relative;
 }
 
-.full-player-progress {
+.full-player-progress-fill {
     height: 100%;
     background: white;
     border-radius: 2px;
@@ -10511,18 +10517,20 @@ font-size: 72px;
     }
 
     .full-player-cover {
-        width: 250px;
-        height: 250px;
+        width: min(250px, 35vh);
+        height: min(250px, 35vh);
         font-size: 60px;
     }
 
     .full-player-lyrics-wrap {
-        height: 200px;
+        flex: none;
+        height: 30vh;
         width: 100%;
+        max-height: none;
     }
 
     .full-player-lyrics {
-        padding: 80px 0;
+        padding: 50% 0;
     }
 
     .lyric-line {

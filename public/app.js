@@ -589,20 +589,43 @@ function updateNowPlaying(track) {
     const titleEl = document.getElementById('trackTitle');
     const artistEl = document.getElementById('trackArtist');
     const albumEl = document.getElementById('trackAlbum');
+    const coverEl = document.getElementById('nowPlayingCover');
     
     if (track) {
         if (titleEl) titleEl.textContent = track.title;
         if (artistEl) artistEl.textContent = track.artist || '-';
         if (albumEl) albumEl.textContent = track.album || '-';
+        
+        if (coverEl) {
+            const coverUrl = track.cover || track.picUrl || track.albumCover;
+            if (coverUrl) {
+                coverEl.innerHTML = `<img src="${coverUrl}" alt="封面">`;
+            } else {
+                coverEl.innerHTML = '<i class="fas fa-music"></i>';
+            }
+        }
+        
         // 更新下载按钮显示
         updateDownloadButton(track);
+        
+        // 更新大播放界面信息
+        updateFullPlayerInfo();
+        
+        // 重新加载歌词
+        const fullPlayer = document.getElementById('fullPlayer');
+        if (fullPlayer && fullPlayer.classList.contains('show')) {
+            loadLyrics(track);
+        }
     } else {
         if (titleEl) titleEl.textContent = '未播放';
         if (artistEl) artistEl.textContent = '-';
         if (albumEl) albumEl.textContent = '-';
+        if (coverEl) coverEl.innerHTML = '<i class="fas fa-music"></i>';
         // 隐藏下载按钮
         const downloadBtn = document.getElementById('downloadBtn');
         if (downloadBtn) downloadBtn.style.display = 'none';
+        
+        updateFullPlayerInfo();
     }
 }
 
@@ -612,6 +635,193 @@ function updatePlayPauseButton() {
     if (icon) {
         icon.className = isPlaying ? 'fas fa-pause' : 'fas fa-play';
     }
+    
+    const fullBtn = document.getElementById('fullPlayerPlayBtn');
+    const fullIcon = fullBtn?.querySelector('i');
+    if (fullIcon) {
+        fullIcon.className = isPlaying ? 'fas fa-pause' : 'fas fa-play';
+    }
+    
+    const fullPlayer = document.getElementById('fullPlayer');
+    if (fullPlayer) {
+        fullPlayer.classList.toggle('playing', isPlaying);
+    }
+}
+
+let currentLyrics = [];
+let currentLyricIndex = -1;
+
+function parseLyrics(lrcText) {
+    const lines = lrcText.split('\n');
+    const lyrics = [];
+    
+    const timeRegex = /\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\]/g;
+    
+    for (const line of lines) {
+        const text = line.replace(timeRegex, '').trim();
+        if (!text) continue;
+        
+        let match;
+        timeRegex.lastIndex = 0;
+        while ((match = timeRegex.exec(line)) !== null) {
+            const minutes = parseInt(match[1]);
+            const seconds = parseInt(match[2]);
+            const milliseconds = match[3] ? parseInt(match[3].padEnd(3, '0')) : 0;
+            const time = minutes * 60 + seconds + milliseconds / 1000;
+            lyrics.push({ time, text });
+        }
+    }
+    
+    lyrics.sort((a, b) => a.time - b.time);
+    return lyrics;
+}
+
+function renderLyrics() {
+    const lyricsEl = document.getElementById('fullPlayerLyrics');
+    if (!lyricsEl) return;
+    
+    if (currentLyrics.length === 0) {
+        lyricsEl.innerHTML = `
+            <div class="lyric-empty">
+                <i class="fas fa-music"></i>
+                <p>暂无歌词</p>
+            </div>
+        `;
+        return;
+    }
+    
+    lyricsEl.innerHTML = currentLyrics.map((line, index) => 
+        `<div class="lyric-line" data-index="${index}">${escapeHtml(line.text)}</div>`
+    ).join('');
+}
+
+function updateLyrics(currentTime) {
+    if (currentLyrics.length === 0) return;
+    
+    let newIndex = -1;
+    for (let i = currentLyrics.length - 1; i >= 0; i--) {
+        if (currentTime >= currentLyrics[i].time) {
+            newIndex = i;
+            break;
+        }
+    }
+    
+    if (newIndex !== currentLyricIndex) {
+        currentLyricIndex = newIndex;
+        
+        document.querySelectorAll('.lyric-line').forEach((el, i) => {
+            el.classList.toggle('active', i === newIndex);
+        });
+        
+        if (newIndex >= 0) {
+            const activeLine = document.querySelector('.lyric-line.active');
+            const lyricsEl = document.getElementById('fullPlayerLyrics');
+            if (activeLine && lyricsEl) {
+                const containerHeight = lyricsEl.clientHeight;
+                const lineTop = activeLine.offsetTop;
+                const lineHeight = activeLine.offsetHeight;
+                lyricsEl.scrollTop = lineTop - containerHeight / 2 + lineHeight / 2;
+            }
+        }
+    }
+}
+
+async function loadLyrics(track) {
+    currentLyrics = [];
+    currentLyricIndex = -1;
+    
+    if (!track) {
+        renderLyrics();
+        return;
+    }
+    
+    if (track.lrcUrl) {
+        try {
+            const response = await fetch(track.lrcUrl);
+            if (response.ok) {
+                const lrcText = await response.text();
+                currentLyrics = parseLyrics(lrcText);
+            }
+        } catch (e) {
+            console.warn('加载歌词失败:', e);
+        }
+    }
+    
+    renderLyrics();
+}
+
+function openFullPlayer() {
+    const fullPlayer = document.getElementById('fullPlayer');
+    if (!fullPlayer) return;
+    
+    updateFullPlayerInfo();
+    fullPlayer.classList.add('show');
+    document.body.style.overflow = 'hidden';
+    
+    const track = currentIndex >= 0 ? currentPlaylist[currentIndex] : null;
+    if (track) {
+        loadLyrics(track);
+    }
+}
+
+function closeFullPlayer() {
+    const fullPlayer = document.getElementById('fullPlayer');
+    if (!fullPlayer) return;
+    
+    fullPlayer.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+function updateFullPlayerInfo() {
+    const track = currentIndex >= 0 ? currentPlaylist[currentIndex] : null;
+    
+    const titleEl = document.getElementById('fullPlayerTitle');
+    const artistEl = document.getElementById('fullPlayerArtist');
+    const coverEl = document.getElementById('fullPlayerCover');
+    const bgEl = document.getElementById('fullPlayerBg');
+    
+    if (track) {
+        if (titleEl) titleEl.textContent = track.title;
+        if (artistEl) artistEl.textContent = track.artist || '-';
+        
+        const coverUrl = track.cover || track.picUrl || '';
+        if (coverEl) {
+            if (coverUrl) {
+                coverEl.innerHTML = `<img src="${coverUrl}" alt="封面">`;
+            } else {
+                coverEl.innerHTML = '<i class="fas fa-music"></i>';
+            }
+        }
+        
+        if (bgEl) {
+            if (coverUrl) {
+                bgEl.style.backgroundImage = `url(${coverUrl})`;
+            } else {
+                bgEl.style.backgroundImage = '';
+            }
+        }
+    } else {
+        if (titleEl) titleEl.textContent = '未播放';
+        if (artistEl) artistEl.textContent = '-';
+        if (coverEl) coverEl.innerHTML = '<i class="fas fa-music"></i>';
+        if (bgEl) bgEl.style.backgroundImage = '';
+    }
+}
+
+function updateFullPlayerProgress(currentTime, duration) {
+    const progressBar = document.getElementById('fullPlayerProgressBar');
+    const currentTimeEl = document.getElementById('fullPlayerCurrentTime');
+    const durationEl = document.getElementById('fullPlayerDuration');
+    
+    if (!duration || duration <= 0) return;
+    
+    const percent = (currentTime / duration) * 100;
+    
+    if (progressBar) progressBar.style.width = `${percent}%`;
+    if (currentTimeEl) currentTimeEl.textContent = formatDuration(currentTime);
+    if (durationEl) durationEl.textContent = formatDuration(duration);
+    
+    updateLyrics(currentTime);
 }
 
 // 更新播放进度 UI（仅更新界面，不请求服务端）
@@ -628,6 +838,8 @@ function updateProgressUI(currentTime, duration) {
     if (progressBar) progressBar.style.width = `${percent}%`;
     if (currentTimeEl) currentTimeEl.textContent = formatDuration(currentTime);
     if (durationEl) durationEl.textContent = formatDuration(duration);
+    
+    updateFullPlayerProgress(currentTime, duration);
 }
 
 let onlineCacheComplete = false;
@@ -949,6 +1161,15 @@ function togglePlaylistPanel() {
         renderPlaylistPanel();
         panel.classList.add('show');
         if (btn) btn.classList.add('active');
+        
+        const fullPlayer = document.getElementById('fullPlayer');
+        if (fullPlayer && fullPlayer.classList.contains('show')) {
+            panel.style.zIndex = '1100';
+            panel.classList.add('dark');
+        } else {
+            panel.style.zIndex = '';
+            panel.classList.remove('dark');
+        }
     }
 }
 
@@ -956,7 +1177,11 @@ function togglePlaylistPanel() {
 function closePlaylistPanel() {
     const panel = document.getElementById('playlistPanel');
     const btn = document.getElementById('playlistPanelBtn');
-    if (panel) panel.classList.remove('show');
+    if (panel) {
+        panel.classList.remove('show');
+        panel.style.zIndex = '';
+        panel.classList.remove('dark');
+    }
     if (btn) btn.classList.remove('active');
 }
 
@@ -964,17 +1189,14 @@ function closePlaylistPanel() {
 document.addEventListener('click', (e) => {
     const panel = document.getElementById('playlistPanel');
     const btn = document.getElementById('playlistPanelBtn');
+    const fullListBtn = document.getElementById('fullPlayerListBtn');
     if (!panel || !panel.classList.contains('show')) return;
     
-    // 如果点击的是面板内部或播放列表按钮，不关闭
-    if (panel.contains(e.target) || (btn && btn.contains(e.target))) return;
+    if (e.target.closest('.playlist-panel')) return;
+    if (btn && btn.contains(e.target)) return;
+    if (fullListBtn && fullListBtn.contains(e.target)) return;
     
     closePlaylistPanel();
-});
-
-// 防止面板内的点击冒泡导致误判
-document.getElementById('playlistPanel')?.addEventListener('click', (e) => {
-    e.stopPropagation();
 });
 
 // 渲染浮动播放列表面板
@@ -996,7 +1218,7 @@ function renderPlaylistPanel() {
     }
     
     bodyEl.innerHTML = currentPlaylist.map((track, index) => `
-        <div class="playlist-panel-item ${index === currentIndex ? 'active' : ''}" onclick="playTrack(${index})">
+        <div class="playlist-panel-item ${index === currentIndex ? 'active' : ''}" onclick="event.stopPropagation(); playTrack(${index})">
             <div class="playlist-panel-item-index">
                 ${index === currentIndex && isPlaying ? '<i class="fas fa-volume-up"></i>' : index + 1}
             </div>
@@ -1061,7 +1283,7 @@ function renderPlaylist() {
                        data-index="${index}">
             </div>
             <div class="playlist-item-index">
-                ${index === currentIndex && isPlaying ? '<i class="fas fa-play playing-icon"></i>' : index + 1}
+                ${index === currentIndex && isPlaying ? '<i class="fas fa-volume-up playing-icon"></i>' : index + 1}
             </div>
             <div class="playlist-item-title">${track.title}${sourceBadge}</div>
             <div class="playlist-item-artist">${track.artist || '-'}</div>
@@ -1338,7 +1560,11 @@ function changeVolumeClient(value) {
     if (clientAudio) {
         clientAudio.volume = currentVolume / 100;
     }
-    updateVolumeDisplay();
+    updateVolumeIcon(currentVolume, currentMuted);
+    const volumeValueEl = document.getElementById('volumeValue');
+    if (volumeValueEl) {
+        volumeValueEl.textContent = `${value}%`;
+    }
 }
 
 // 客户端静音切换
@@ -1347,8 +1573,9 @@ function toggleMuteClient() {
     if (clientAudio) {
         clientAudio.muted = currentMuted;
     }
-    updateMuteButton();
-    updateVolumeDisplay();
+    const slider = document.getElementById('volumeSlider');
+    const volume = slider ? parseInt(slider.value) : 100;
+    updateVolumeIcon(volume, currentMuted);
 }
 
 // 客户端 seek
@@ -1944,6 +2171,15 @@ function updatePlayModeButton() {
             icon.className = playModeIcons[currentPlayMode];
         }
         btn.title = playModeTitles[currentPlayMode];
+    }
+    
+    const fullBtn = document.getElementById('fullPlayerModeBtn');
+    if (fullBtn) {
+        const icon = fullBtn.querySelector('i');
+        if (icon) {
+            icon.className = playModeIcons[currentPlayMode];
+        }
+        fullBtn.title = playModeTitles[currentPlayMode];
     }
 }
 
@@ -4996,21 +5232,24 @@ async function changeVolume(volume) {
 
 function updateVolumeIcon(volume, muted) {
     const iconEl = document.querySelector('.volume-icon');
-    if (!iconEl) return;
+    const fullMuteBtn = document.getElementById('fullPlayerMuteBtn');
+    const fullIconEl = fullMuteBtn?.querySelector('i');
     
-    // 移除所有音量相关的图标类
-    iconEl.classList.remove('fa-volume-up', 'fa-volume-down', 'fa-volume-off');
+    const icons = [iconEl, fullIconEl].filter(Boolean);
     
-    // 如果是静音状态，显示静音图标
-    if (muted) {
-        iconEl.classList.add('fa-volume-off');
-    } else if (volume === 0) {
-        iconEl.classList.add('fa-volume-off');
-    } else if (volume < 50) {
-        iconEl.classList.add('fa-volume-down');
-    } else {
-        iconEl.classList.add('fa-volume-up');
-    }
+    icons.forEach(icon => {
+        icon.classList.remove('fa-volume-up', 'fa-volume-down', 'fa-volume-off');
+        
+        if (muted) {
+            icon.classList.add('fa-volume-off');
+        } else if (volume === 0) {
+            icon.classList.add('fa-volume-off');
+        } else if (volume < 50) {
+            icon.classList.add('fa-volume-down');
+        } else {
+            icon.classList.add('fa-volume-up');
+        }
+    });
 }
 
 async function toggleMute() {
@@ -5071,18 +5310,19 @@ let isDragging = false;
 let currentDragTime = 0;
 
 function initProgressDrag() {
-    const container = document.getElementById('progressBarContainer');
-    if (!container) return;
+    const container1 = document.getElementById('progressBarContainer');
+    const container2 = document.getElementById('fullPlayerProgressBarContainer');
     
-    // 鼠标/触摸按下
-    container.addEventListener('mousedown', startDrag);
-    container.addEventListener('touchstart', startDrag, { passive: false });
+    [container1, container2].forEach(container => {
+        if (!container) return;
+        
+        container.addEventListener('mousedown', startDrag);
+        container.addEventListener('touchstart', startDrag, { passive: false });
+    });
     
-    // 拖动
     document.addEventListener('mousemove', onDrag);
     document.addEventListener('touchmove', onDrag, { passive: false });
     
-    // 释放
     document.addEventListener('mouseup', endDrag);
     document.addEventListener('touchend', endDrag);
 }
@@ -5104,10 +5344,25 @@ function onDrag(e) {
 }
 
 function updateDragPosition(e) {
-    const container = document.getElementById('progressBarContainer');
+    const container1 = document.getElementById('progressBarContainer');
+    const container2 = document.getElementById('fullPlayerProgressBarContainer');
+    
+    let container = null;
+    if (container1 && container1.contains(e.target)) {
+        container = container1;
+    } else if (container2 && container2.contains(e.target)) {
+        container = container2;
+    } else {
+        container = e.currentTarget && e.currentTarget.id === 'fullPlayerProgressBarContainer' ? container2 : container1;
+    }
+    
+    if (!container && e.clientX !== undefined) {
+        container = container1;
+    }
+    
     const duration = currentDuration || 0;
     
-    if (duration <= 0) return;
+    if (duration <= 0 || !container) return;
     
     const rect = container.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -5117,12 +5372,15 @@ function updateDragPosition(e) {
     const seekTime = percent * duration;
     currentDragTime = seekTime;
     
-    // 实时更新进度条显示
-    const progressBar = document.getElementById('progressBar');
-    const currentTimeEl = document.getElementById('currentTime');
+    const progressBar1 = document.getElementById('progressBar');
+    const progressBar2 = document.getElementById('fullPlayerProgressBar');
+    const currentTimeEl1 = document.getElementById('currentTime');
+    const currentTimeEl2 = document.getElementById('fullPlayerCurrentTime');
     
-    progressBar.style.width = `${percent * 100}%`;
-    currentTimeEl.textContent = formatDuration(seekTime);
+    if (progressBar1) progressBar1.style.width = `${percent * 100}%`;
+    if (progressBar2) progressBar2.style.width = `${percent * 100}%`;
+    if (currentTimeEl1) currentTimeEl1.textContent = formatDuration(seekTime);
+    if (currentTimeEl2) currentTimeEl2.textContent = formatDuration(seekTime);
 }
 
 async function endDrag(e) {

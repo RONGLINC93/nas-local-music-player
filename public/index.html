@@ -1167,6 +1167,9 @@
         <footer class="player-bar">
             <!-- 当前播放信息 -->
             <div class="player-info-bar">
+                <div class="now-playing-cover" id="nowPlayingCover" onclick="openFullPlayer()" style="cursor: pointer;">
+                    <i class="fas fa-music"></i>
+                </div>
                 <div class="now-playing-info">
                     <div class="track-title" id="trackTitle">未播放</div>
                     <div class="track-artist" id="trackArtist">-</div>
@@ -2436,6 +2439,68 @@
             </button>
         </div>
         <div class="playlist-panel-body" id="playlistPanelBody"></div>
+    </div>
+
+    <!-- 大播放界面 -->
+    <div id="fullPlayer" class="full-player">
+        <div class="full-player-bg" id="fullPlayerBg"></div>
+        <div class="full-player-content">
+            <div class="full-player-header">
+                <button class="full-player-close" onclick="closeFullPlayer()">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+                <div class="full-player-title">
+                    <div class="full-player-song-title" id="fullPlayerTitle">未播放</div>
+                    <div class="full-player-song-artist" id="fullPlayerArtist">-</div>
+                </div>
+                <button class="full-player-list-btn" id="fullPlayerListBtn" onclick="togglePlaylistPanel()">
+                    <i class="fas fa-list"></i>
+                </button>
+            </div>
+            
+            <div class="full-player-main">
+                <div class="full-player-cover-wrap">
+                    <div class="full-player-cover" id="fullPlayerCover">
+                        <i class="fas fa-music"></i>
+                    </div>
+                </div>
+                
+                <div class="full-player-lyrics-wrap">
+                    <div class="full-player-lyrics" id="fullPlayerLyrics">
+                        <div class="lyric-empty">
+                            <i class="fas fa-music"></i>
+                            <p>暂无歌词</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="full-player-progress">
+                <span class="full-player-time" id="fullPlayerCurrentTime">0:00</span>
+                <div class="full-player-progress-bar" id="fullPlayerProgressBarContainer">
+                    <div class="full-player-progress" id="fullPlayerProgressBar"></div>
+                </div>
+                <span class="full-player-time" id="fullPlayerDuration">0:00</span>
+            </div>
+            
+            <div class="full-player-controls">
+                <button class="full-player-btn" onclick="togglePlayMode()" id="fullPlayerModeBtn" title="播放模式">
+                    <i class="fas fa-stream"></i>
+                </button>
+                <button class="full-player-btn" onclick="prevTrack()" title="上一首">
+                    <i class="fas fa-step-backward"></i>
+                </button>
+                <button class="full-player-btn full-player-play-btn" onclick="togglePlay()" id="fullPlayerPlayBtn" title="播放/暂停">
+                    <i class="fas fa-play"></i>
+                </button>
+                <button class="full-player-btn" onclick="nextTrack()" title="下一首">
+                    <i class="fas fa-step-forward"></i>
+                </button>
+                <button class="full-player-btn" onclick="toggleMute()" id="fullPlayerMuteBtn" title="静音">
+                    <i class="fas fa-volume-up"></i>
+                </button>
+            </div>
+        </div>
     </div>
 </body>
 

@@ -81,7 +81,7 @@ window.fetch = function(url, options = {}) {
 };
 
 const playModeIcons = {
-    'sequence': 'fas fa-list',
+    'sequence': 'fas fa-stream',
     'random': 'fas fa-random',
     'single': 'fas fa-redo',
     'loop': 'fas fa-redo-alt'
@@ -970,6 +970,11 @@ document.addEventListener('click', (e) => {
     if (panel.contains(e.target) || (btn && btn.contains(e.target))) return;
     
     closePlaylistPanel();
+});
+
+// 防止面板内的点击冒泡导致误判
+document.getElementById('playlistPanel')?.addEventListener('click', (e) => {
+    e.stopPropagation();
 });
 
 // 渲染浮动播放列表面板

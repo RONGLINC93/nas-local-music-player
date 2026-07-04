@@ -6606,6 +6606,10 @@ font-size: 72px;
         flex-shrink: 0;
     }
 
+    #playlistPanelBtn {
+        display: none;
+    }
+
     .control-btn {
         width: 30px;
         height: 30px;
@@ -9947,7 +9951,9 @@ font-size: 72px;
     right: 30px;
     width: 380px;
     max-height: 500px;
-    background: white;
+    background: rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
     border-radius: 12px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
     z-index: 200;
@@ -9958,6 +9964,7 @@ font-size: 72px;
     visibility: hidden;
     transform: translateY(20px);
     transition: all 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .playlist-panel.show {
@@ -9971,9 +9978,11 @@ font-size: 72px;
     align-items: center;
     justify-content: space-between;
     padding: 14px 18px;
-    border-bottom: 1px solid #f0f0f0;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-bottom: 1px solid rgba(240, 240, 240, 0.5);
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.9) 0%, rgba(118, 75, 162, 1.9) 100%);
     color: white;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
 }
 
 .playlist-panel-title {
@@ -10039,11 +10048,12 @@ font-size: 72px;
     padding: 10px 16px;
     cursor: pointer;
     transition: background 0.2s;
-    border-bottom: 1px solid #f8f8f8;
+    border-bottom: 1px solid rgba(248, 248, 248, 0.5);
+    background: transparent;
 }
 
 .playlist-panel-item:hover {
-    background: #f8f9fa;
+    background: rgba(248, 249, 250, 0.6);
 }
 
 .playlist-panel-item.active {

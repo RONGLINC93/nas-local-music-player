@@ -8270,7 +8270,9 @@ async function batchDownloadFiles() {
     
     const files = Array.from(selectedMusicFiles);
     
-    showBatchDownloadModal();
+    batchDownloadFinished = false;
+    batchDownloadSource = 'file';
+    showBatchDownloadFloatCard();
     updateBatchDownloadProgress(0, files.length, 0, '准备中...');
     
     try {
@@ -8287,12 +8289,12 @@ async function batchDownloadFiles() {
             startBatchDownloadPolling();
         } else {
             showError(result.error || '下载失败');
-            closeBatchDownloadModal();
+            closeBatchDownloadFloatCard();
         }
     } catch (error) {
         console.error('批量下载失败:', error);
         showError('下载失败');
-        closeBatchDownloadModal();
+        closeBatchDownloadFloatCard();
     }
 }
 
@@ -8866,6 +8868,8 @@ async function playlistBatchDownload() {
 
 let currentBatchId = null;
 let batchDownloadPollTimer = null;
+let batchDownloadFinished = false;
+let batchDownloadSource = 'playlist'; // 'playlist' or 'file'
 
 async function executeBatchDownloadLocal() {
     if (selectedPlaylistTracks.size === 0) return;
@@ -8887,7 +8891,9 @@ async function executeBatchDownloadLocal() {
         }
     });
     
-    showBatchDownloadModal();
+    batchDownloadFinished = false;
+    batchDownloadSource = 'playlist';
+    showBatchDownloadFloatCard();
     updateBatchDownloadProgress(0, selectedPlaylistTracks.size, 0, '准备中...');
     
     try {
@@ -8904,58 +8910,62 @@ async function executeBatchDownloadLocal() {
             startBatchDownloadPolling();
         } else {
             showError(result.error || '下载失败');
-            closeBatchDownloadModal();
+            closeBatchDownloadFloatCard();
         }
     } catch (error) {
         console.error('批量下载失败:', error);
         showError('下载失败');
-        closeBatchDownloadModal();
+        closeBatchDownloadFloatCard();
     }
 }
 
-function showBatchDownloadModal() {
-    const modal = document.getElementById('batchDownloadModal');
-    if (modal) {
-        modal.classList.add('show');
+function showBatchDownloadFloatCard() {
+    const card = document.getElementById('batchDownloadFloatCard');
+    if (card) {
+        card.style.display = 'block';
+        card.style.animation = 'none';
+        card.offsetHeight;
+        card.style.animation = 'slideInUp 0.3s ease-out';
     }
-    document.body.style.overflow = 'hidden';
+    const footer = document.getElementById('batchDownloadFloatFooter');
+    if (footer) footer.style.display = 'none';
 }
 
-function closeBatchDownloadModal() {
-    const modal = document.getElementById('batchDownloadModal');
-    if (modal) {
-        modal.classList.remove('show');
+function closeBatchDownloadFloatCard() {
+    const card = document.getElementById('batchDownloadFloatCard');
+    if (card) {
+        card.style.display = 'none';
     }
-    document.body.style.overflow = '';
     
     if (batchDownloadPollTimer) {
-        clearInterval(batchDownloadPollTimer);
+        clearTimeout(batchDownloadPollTimer);
         batchDownloadPollTimer = null;
     }
     currentBatchId = null;
+    batchDownloadFinished = false;
 }
 
 function updateBatchDownloadProgress(progress, total, processed, currentFile) {
-    const progressText = document.getElementById('batchDownloadProgressText');
-    const processedEl = document.getElementById('batchDownloadProcessed');
-    const totalEl = document.getElementById('batchDownloadTotal');
-    const progressBar = document.getElementById('batchDownloadProgressBar');
-    const currentFileEl = document.getElementById('batchDownloadCurrentFile');
+    const percentText = document.getElementById('batchDownloadPercentText');
+    const processedEl = document.getElementById('batchDownloadProcessedNum');
+    const totalEl = document.getElementById('batchDownloadTotalNum');
+    const progressInner = document.getElementById('batchDownloadProgressInner');
+    const currentFileEl = document.getElementById('batchDownloadCurrentFileName');
     
-    if (progressText) progressText.textContent = `${progress}%`;
+    if (percentText) percentText.textContent = `${progress}%`;
     if (processedEl) processedEl.textContent = processed;
     if (totalEl) totalEl.textContent = total;
-    if (progressBar) progressBar.style.width = `${progress}%`;
+    if (progressInner) progressInner.style.width = `${progress}%`;
     if (currentFileEl) currentFileEl.textContent = currentFile || '准备中...';
 }
 
 function startBatchDownloadPolling() {
     if (batchDownloadPollTimer) {
-        clearInterval(batchDownloadPollTimer);
+        clearTimeout(batchDownloadPollTimer);
     }
     
-    batchDownloadPollTimer = setInterval(async () => {
-        if (!currentBatchId) return;
+    const poll = async () => {
+        if (!currentBatchId || batchDownloadFinished) return;
         
         try {
             const response = await fetch(`/api/batch-download/${currentBatchId}/progress`);
@@ -8970,32 +8980,46 @@ function startBatchDownloadPolling() {
                 );
                 
                 if (result.status === 'completed') {
-                    clearInterval(batchDownloadPollTimer);
+                    if (batchDownloadFinished) return;
+                    batchDownloadFinished = true;
+                    
                     batchDownloadPollTimer = null;
                     
-                    const closeBtn = document.getElementById('btnBatchDownloadClose');
-                    const saveBtn = document.getElementById('btnBatchDownloadSave');
-                    if (closeBtn) closeBtn.disabled = false;
-                    if (saveBtn) saveBtn.style.display = 'inline-flex';
+                    const footer = document.getElementById('batchDownloadFloatFooter');
+                    if (footer) footer.style.display = 'flex';
                     
                     showSuccess('打包完成，正在下载...');
-                    clearPlaylistSelection();
+                    
+                    if (batchDownloadSource === 'playlist') {
+                        clearPlaylistSelection();
+                    } else if (batchDownloadSource === 'file') {
+                        clearSelection();
+                    }
                     
                     downloadBatchZip();
+                    return;
                 } else if (result.status === 'failed') {
-                    clearInterval(batchDownloadPollTimer);
+                    if (batchDownloadFinished) return;
+                    batchDownloadFinished = true;
+                    
                     batchDownloadPollTimer = null;
                     
-                    const closeBtn = document.getElementById('btnBatchDownloadClose');
-                    if (closeBtn) closeBtn.disabled = false;
-                    
                     showError(result.error || '打包失败');
+                    
+                    setTimeout(() => {
+                        closeBatchDownloadFloatCard();
+                    }, 3000);
+                    return;
                 }
             }
         } catch (error) {
             console.error('查询批量下载进度失败:', error);
         }
-    }, 500);
+        
+        batchDownloadPollTimer = setTimeout(poll, 100);
+    };
+    
+    poll();
 }
 
 function downloadBatchZip() {

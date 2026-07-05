@@ -4613,7 +4613,9 @@ app.post('/api/batch-download', async (req, res) => {
             message: '已开始打包'
         });
         
-        processBatchDownload(batchId, files);
+        setTimeout(() => {
+            processBatchDownload(batchId, files);
+        }, 50);
         
     } catch (error) {
         console.error('批量下载失败:', error.message);
@@ -4700,6 +4702,8 @@ async function processBatchDownload(batchId, files) {
             }
             
             task.processed = i + 1;
+            
+            await new Promise(resolve => setTimeout(resolve, 20));
         }
         
         if (addedCount === 0) {

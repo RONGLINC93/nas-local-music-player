@@ -585,6 +585,11 @@ function formatDuration(seconds) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
+function sanitizeFileName(name) {
+    if (!name) return '';
+    return String(name).replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, ' ').trim();
+}
+
 function updateNowPlaying(track) {
     const titleEl = document.getElementById('trackTitle');
     const artistEl = document.getElementById('trackArtist');
@@ -978,7 +983,7 @@ async function updateDownloadButton(track) {
     }
 
     // 本地文件：直接显示下载按钮
-    if (!track.isOnline) {
+    if (!track.isOnline && !track.path.startsWith('online://')) {
         downloadBtn.style.display = 'flex';
         downloadBtn.title = '下载当前歌曲';
         return;
@@ -987,7 +992,7 @@ async function updateDownloadButton(track) {
     // 在线音乐：服务端播放直接显示，客户端播放需等待缓存完毕
     if (playOutput === 'server' || onlineCacheComplete) {
         downloadBtn.style.display = 'flex';
-        downloadBtn.title = '下载当前歌曲';
+        downloadBtn.title = onlineCacheComplete ? '下载当前歌曲（已缓存）' : '下载当前歌曲';
     } else {
         downloadBtn.style.display = 'none';
     }
@@ -1000,29 +1005,46 @@ async function downloadCurrentTrack() {
     const track = currentPlaylist[currentIndex];
     if (!track) return;
     
-    // 本地文件：使用 /api/download 接口
-    if (!track.isOnline) {
+    if (!track.isOnline && !track.path.startsWith('online://')) {
         const filePath = encodeURIComponent(track.path);
         window.open(`/api/download?path=${filePath}`, '_blank');
         return;
     }
     
-    // 在线音乐
     const songId = getSongId(track);
     if (track.source && songId) {
         const cacheKey = `${track.source}_${songId}`;
         try {
-            // 先检查缓存是否存在
             const result = await apiRequest('/api/cache', 'GET');
             const cached = result.success && result.cacheList 
                 ? result.cacheList.some(item => item.cacheKey === cacheKey) 
                 : false;
             
             if (cached) {
-                // 已缓存，从缓存下载
-                window.open(`/api/cache/${encodeURIComponent(cacheKey)}/download`, '_blank');
+                if (!currentUser) {
+                    window.open(`/api/cache/${encodeURIComponent(cacheKey)}/download`, '_blank');
+                    return;
+                }
+                
+                pendingDownloadSong = {
+                    source: track.source,
+                    songId: songId,
+                    name: track.title,
+                    singer: track.artist,
+                    albumName: track.album || '',
+                    songInfo: track.songInfo || {
+                        songId: songId,
+                        name: track.title,
+                        singer: track.artist,
+                        albumName: track.album,
+                        source: track.source
+                    },
+                    displayName: track.artist ? `${track.artist} - ${track.title}` : track.title,
+                    fromCache: true,
+                    cacheKey: cacheKey
+                };
+                showDownloadChoiceModal(pendingDownloadSong.displayName);
             } else {
-                // 未缓存，提示用户
                 showInfo('歌曲正在缓存中，请稍候再试...');
             }
         } catch (e) {
@@ -2263,6 +2285,38 @@ function downloadTrack(indexOrPath) {
         if (indexOrPath < 0 || indexOrPath >= currentPlaylist.length) return;
         
         const track = currentPlaylist[indexOrPath];
+        
+        if (track.isOnline || track.path.startsWith('online://')) {
+            const songId = getSongId(track);
+            const downloadData = {
+                source: track.source,
+                songId: songId,
+                name: track.title,
+                singer: track.artist,
+                albumName: track.album || '',
+                songInfo: track.songInfo || {
+                    songId: songId,
+                    name: track.title,
+                    singer: track.artist,
+                    albumName: track.album,
+                    source: track.source
+                },
+                displayName: track.artist ? `${track.artist} - ${track.title}` : track.title
+            };
+            
+            if (!currentUser) {
+                downloadPlaylistOnlineSongDirect(indexOrPath);
+                return;
+            }
+            
+            pendingDownloadSong = {
+                ...downloadData,
+                playlistIndex: indexOrPath
+            };
+            showDownloadChoiceModal(pendingDownloadSong.displayName);
+            return;
+        }
+        
         filename = track.filename || track.title;
         downloadUrl = `/api/download/${indexOrPath}`;
     } else {
@@ -2270,6 +2324,27 @@ function downloadTrack(indexOrPath) {
         filename = indexOrPath.split('\\').pop() || indexOrPath.split('/').pop();
         downloadUrl = `/api/download?path=${encodeURIComponent(indexOrPath)}`;
     }
+    
+    showNotification({
+        type: 'info',
+        message: `正在下载：${filename}`,
+        duration: 2000
+    });
+    
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function downloadPlaylistOnlineSongDirect(index) {
+    const track = currentPlaylist[index];
+    if (!track) return;
+    
+    const filename = track.title;
+    const downloadUrl = `/api/download/${index}`;
     
     showNotification({
         type: 'info',
@@ -4155,6 +4230,9 @@ function renderUserSonglistDetail(songlist) {
                 <button title="添加到播放列表" onclick="event.stopPropagation();addUserSonglistSongToPlaylist(${index})">
                     <i class="fas fa-plus"></i>
                 </button>
+                <button title="下载" onclick="event.stopPropagation();downloadUserSonglistSong(${index})">
+                    <i class="fas fa-download"></i>
+                </button>
                 <button title="移除" onclick="event.stopPropagation();removeSongFromSonglist(${index})">
                     <i class="fas fa-trash"></i>
                 </button>
@@ -4197,6 +4275,49 @@ async function playMySonglistSong(index) {
     } else if (song.id || song.songId) {
         addOnlineSongToPlaylist(song, true);
     }
+}
+
+function downloadUserSonglistSong(index) {
+    if (!currentSonglist || !currentSonglist.songs) return;
+    
+    const song = currentSonglist.songs[index];
+    if (!song) return;
+    
+    if (song.path) {
+        const filePath = encodeURIComponent(song.path);
+        window.open(`/api/download?path=${filePath}`, '_blank');
+        return;
+    }
+    
+    const songId = song.songId || song.id;
+    const source = song.source || 'qq';
+    const name = song.title || song.name || '未知歌曲';
+    const singer = song.artist || '';
+    const albumName = song.album || '';
+    
+    const downloadData = {
+        source: source,
+        songId: songId,
+        name: name,
+        singer: singer,
+        albumName: albumName,
+        songInfo: {
+            songId: songId,
+            name: name,
+            singer: singer,
+            albumName: albumName,
+            source: source
+        },
+        displayName: singer ? `${singer} - ${name}` : name
+    };
+    
+    if (!currentUser) {
+        downloadOnlineSongDirect(downloadData);
+        return;
+    }
+    
+    pendingDownloadSong = downloadData;
+    showDownloadChoiceModal(downloadData.displayName);
 }
 
 // 将歌单中的在线歌曲添加到播放列表
@@ -8391,59 +8512,38 @@ async function refreshTaskList() {
 // 加载任务列表
 async function loadTaskList(filter = 'all') {
     try {
-        // 先获取全部任务的统计数据（不受过滤器影响）
-        const [convertRes, uploadRes] = await Promise.all([
-            fetch('/api/tasks?status=all'),
-            fetch('/api/upload-tasks?status=all')
-        ]);
+        let apiFilter = filter;
+        if (filter === 'processing') {
+            apiFilter = 'all';
+        }
         
-        const convertResult = await convertRes.json();
-        const uploadResult = await uploadRes.json();
+        const response = await fetch(`/api/tasks?status=${apiFilter}`);
+        const result = await response.json();
         
-        if (convertResult.success && uploadResult.success) {
-            // 合并统计（始终显示全部任务的统计）
-            const mergedStats = {
-                pending: convertResult.stats.pending + uploadResult.stats.pending,
-                converting: convertResult.stats.converting + uploadResult.stats.uploading,
-                completed: convertResult.stats.completed + uploadResult.stats.completed,
-                failed: convertResult.stats.failed + uploadResult.stats.failed
+        if (result.success) {
+            const stats = {
+                pending: result.stats.pending,
+                processing: result.stats.converting + result.stats.uploading + result.stats.downloading,
+                completed: result.stats.completed,
+                failed: result.stats.failed
             };
             
-            // 更新统计卡片（始终显示全部任务）
-            updateTaskStats(mergedStats);
-            updateTaskBadge(mergedStats);
+            updateTaskStats(stats);
+            updateTaskBadge(stats);
             
-            // 如果需要过滤，则重新获取过滤后的任务列表
-            if (filter !== 'all') {
-                const [filteredConvertRes, filteredUploadRes] = await Promise.all([
-                    fetch(`/api/tasks?status=${filter}`),
-                    fetch(`/api/upload-tasks?status=${filter}`)
-                ]);
-                
-                const filteredConvertResult = await filteredConvertRes.json();
-                const filteredUploadResult = await filteredUploadRes.json();
-                
-                if (filteredConvertResult.success && filteredUploadResult.success) {
-                    const filteredConvertTasks = filteredConvertResult.tasks.map(t => ({ ...t, type: 'convert' }));
-                    const filteredUploadTasks = filteredUploadResult.tasks.map(t => ({ ...t, type: 'upload' }));
-                    const filteredTasks = [...filteredConvertTasks, ...filteredUploadTasks];
-                    
-                    // 按任务序号排序（保持添加顺序）
-                    filteredTasks.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
-                    
-                    renderTaskList(filteredTasks);
-                }
-            } else {
-                // 显示全部任务
-                const convertTasks = convertResult.tasks.map(t => ({ ...t, type: 'convert' }));
-                const uploadTasks = uploadResult.tasks.map(t => ({ ...t, type: 'upload' }));
-                const allTasks = [...convertTasks, ...uploadTasks];
-                
-                // 按任务序号排序（保持添加顺序）
-                allTasks.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
-                
-                renderTaskList(allTasks);
+            let tasks = result.tasks;
+            
+            if (filter === 'processing') {
+                tasks = tasks.filter(t => 
+                    t.status === 'converting' || 
+                    t.status === 'uploading' || 
+                    t.status === 'downloading'
+                );
             }
+            
+            tasks.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+            
+            renderTaskList(tasks);
         }
     } catch (error) {
         console.error('加载任务列表失败:', error);
@@ -8453,7 +8553,7 @@ async function loadTaskList(filter = 'all') {
 // 更新任务统计
 function updateTaskStats(stats) {
     document.getElementById('taskStatPending').textContent = stats.pending;
-    document.getElementById('taskStatConverting').textContent = stats.converting;
+    document.getElementById('taskStatProcessing').textContent = stats.processing;
     document.getElementById('taskStatCompleted').textContent = stats.completed;
     document.getElementById('taskStatFailed').textContent = stats.failed;
 }
@@ -8461,7 +8561,7 @@ function updateTaskStats(stats) {
 // 更新任务徽章
 function updateTaskBadge(stats) {
     const badge = document.getElementById('taskBadge');
-    const total = stats.pending + stats.converting;
+    const total = stats.pending + stats.processing;
     
     if (total > 0) {
         badge.textContent = total;
@@ -8480,7 +8580,7 @@ function renderTaskList(tasks) {
             <div class="empty-state">
                 <i class="fas fa-tasks"></i>
                 <p>暂无任务</p>
-                <p class="empty-hint">上传文件或转换MP3时，任务会显示在这里</p>
+                <p class="empty-hint">上传文件、下载音乐或转换MP3时，任务会显示在这里</p>
             </div>
         `;
         return;
@@ -8489,8 +8589,9 @@ function renderTaskList(tasks) {
     taskList.innerHTML = tasks.map(task => {
         const statusText = {
             'queued': '等待中',
-            'converting': '执行中',
+            'converting': '转换中',
             'uploading': '上传中',
+            'downloading': '下载中',
             'completed': '已完成',
             'failed': '失败',
             'canceling': '取消中'
@@ -8498,10 +8599,14 @@ function renderTaskList(tasks) {
         
         const statusClass = task.status === 'queued' ? 'pending' : task.status;
         
-        // 区分上传和转换任务
-        const isUpload = task.type === 'upload';
-        const icon = isUpload ? '<i class="fas fa-upload"></i>' : '<i class="fas fa-exchange-alt"></i>';
-        const taskName = isUpload ? (task.fileName || '上传文件') : (task.fileName || '未知文件');
+        let icon = '<i class="fas fa-exchange-alt"></i>';
+        if (task.type === 'upload') {
+            icon = '<i class="fas fa-upload"></i>';
+        } else if (task.type === 'download') {
+            icon = '<i class="fas fa-download"></i>';
+        }
+        
+        const taskName = task.fileName || '未知文件';
         const progress = task.progress;
         
         return `
@@ -8539,7 +8644,12 @@ async function deleteTask(taskId, taskType = 'convert') {
     } catch (e) {
         return;
     }
-    const apiUrl = taskType === 'upload' ? `/api/upload-tasks/${taskId}` : `/api/tasks/${taskId}`;
+    let apiUrl;
+    if (taskType === 'upload') {
+        apiUrl = `/api/upload-tasks/${taskId}`;
+    } else {
+        apiUrl = `/api/tasks/${taskId}`;
+    }
     fetch(apiUrl, {
         method: 'DELETE'
     }).then(response => response.json()).then(result => {
@@ -9347,6 +9457,8 @@ async function addToPlaylistFromOnline(cacheKey) {
 }
 
 // 下载在线音乐
+let pendingDownloadSong = null;
+
 async function downloadOnlineSong(cacheKey) {
     const song = onlineSongCache[cacheKey];
     if (!song) {
@@ -9354,11 +9466,27 @@ async function downloadOnlineSong(cacheKey) {
         return;
     }
     
-    try {
-        await requireLogin();
-    } catch (e) {
+    const downloadData = {
+        source: song.source,
+        songId: song.songId,
+        name: song.name,
+        singer: song.singer,
+        albumName: song.albumName || '',
+        songInfo: song,
+        displayName: song.singer ? `${song.singer} - ${song.name}` : song.name
+    };
+    
+    if (!currentUser) {
+        downloadOnlineSongDirect(downloadData);
         return;
     }
+    
+    pendingDownloadSong = downloadData;
+    showDownloadChoiceModal(pendingDownloadSong.displayName);
+}
+
+async function downloadOnlineSongDirect(downloadData) {
+    const { source, songId, name, singer, albumName, songInfo, displayName } = downloadData;
     
     showNotification({ type: 'info', message: `正在获取下载链接...` });
     
@@ -9367,13 +9495,12 @@ async function downloadOnlineSong(cacheKey) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                source: song.source,
-                songId: song.songId,
-                name: song.name,
-                singer: song.singer,
-                albumName: song.albumName || '',
-                // 传递完整的歌曲信息给自定义音源
-                songInfo: song
+                source: source,
+                songId: songId,
+                name: name,
+                singer: singer,
+                albumName: albumName || '',
+                songInfo: songInfo
             })
         });
         
@@ -9382,14 +9509,16 @@ async function downloadOnlineSong(cacheKey) {
             const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            const artistName = song.singer ? `${song.singer} - ` : '';
-            link.download = `${artistName}${song.name}.mp3`;
+            const safeSinger = singer ? sanitizeFileName(singer) : '';
+            const safeName = sanitizeFileName(name);
+            const artistName = safeSinger ? `${safeSinger} - ` : '';
+            link.download = `${artistName}${safeName}.mp3`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
             window.URL.revokeObjectURL(url);
             
-            showNotification({ type: 'success', message: `下载完成：${song.name}` });
+            showNotification({ type: 'success', message: `下载完成：${name}` });
         } else {
             const result = await response.json();
             showNotification({ type: 'error', message: result.error || '下载失败' });
@@ -9398,6 +9527,223 @@ async function downloadOnlineSong(cacheKey) {
         console.error('下载失败:', error);
         showNotification({ type: 'error', message: '下载失败，请重试' });
     }
+}
+
+function showDownloadChoiceModal(songName) {
+    document.getElementById('downloadChoiceSongName').textContent = songName;
+    const modal = document.getElementById('downloadChoiceModal');
+    if (modal) {
+        modal.classList.add('show');
+    }
+}
+
+function closeDownloadChoiceModal() {
+    pendingDownloadSong = null;
+    const modal = document.getElementById('downloadChoiceModal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
+}
+
+async function downloadToLocal() {
+    if (!pendingDownloadSong) {
+        closeDownloadChoiceModal();
+        return;
+    }
+    
+    try {
+        if (pendingDownloadSong.fromCache && pendingDownloadSong.cacheKey) {
+            window.open(`/api/cache/${encodeURIComponent(pendingDownloadSong.cacheKey)}/download`, '_blank');
+        } else if (pendingDownloadSong.playlistIndex !== undefined) {
+            downloadPlaylistOnlineSongDirect(pendingDownloadSong.playlistIndex);
+        } else {
+            await downloadOnlineSongDirect(pendingDownloadSong);
+        }
+    } finally {
+        closeDownloadChoiceModal();
+    }
+}
+
+let selectedSaveFolder = null;
+
+function showSaveFolderModal() {
+    const modal = document.getElementById('saveFolderModal');
+    const btnConfirm = document.getElementById('btnConfirmSaveFolder');
+    if (btnConfirm) btnConfirm.disabled = true;
+    selectedSaveFolder = null;
+    
+    const newFolderInput = document.getElementById('newFolderInSaveInput');
+    if (newFolderInput) newFolderInput.value = '';
+    
+    renderSaveFolderTree();
+    
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeSaveFolderModal() {
+    const modal = document.getElementById('saveFolderModal');
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+    selectedSaveFolder = null;
+}
+
+function renderSaveFolderTree() {
+    const folderTreeEl = document.getElementById('saveFolderTree');
+    
+    if (!folderCacheData) {
+        loadFolders().then(() => {
+            buildSaveFolderTree(folderTreeEl);
+        });
+        return;
+    }
+    
+    buildSaveFolderTree(folderTreeEl);
+}
+function buildSaveFolderTree(container) {
+    container.innerHTML = '';
+    
+    const ul = document.createElement('ul');
+    
+    const rootLi = document.createElement('li');
+    const rootItem = createSaveFolderItem('music', '/music', true);
+    rootLi.appendChild(rootItem);
+    
+    if (folderCacheData && folderCacheData.folders && folderCacheData.folders.length > 0) {
+        const subUl = document.createElement('ul');
+        subUl.className = 'subfolder';
+        addSaveSubfolders(subUl, folderCacheData.folders, '/music');
+        rootLi.appendChild(subUl);
+    }
+    
+    ul.appendChild(rootLi);
+    container.appendChild(ul);
+    
+    const defaultItem = container.querySelector('.folder-item[data-path="/music/在线下载"]');
+    if (defaultItem) {
+        selectSaveFolder('/music/在线下载', defaultItem);
+    } else {
+        selectSaveFolder('/music', rootItem);
+    }
+}
+
+function createSaveFolderItem(name, path, isRoot = false) {
+    const li = document.createElement('li');
+    
+    const item = document.createElement('div');
+    item.className = 'folder-item';
+    item.dataset.path = path;
+    
+    item.innerHTML = `
+        <i class="fas fa-folder"></i>
+        <span>${isRoot ? '主目录' : name}</span>
+    `;
+    
+    item.addEventListener('click', () => {
+        selectSaveFolder(path, item);
+    });
+    
+    li.appendChild(item);
+    return li;
+}
+
+function addSaveSubfolders(parent, folders, parentPath) {
+    if (!folders || !Array.isArray(folders)) return;
+    
+    folders.forEach(folder => {
+        const childPath = parentPath === '/' ? `/${folder.name}` : `${parentPath}/${folder.name}`;
+        const li = createSaveFolderItem(folder.name, childPath);
+        parent.appendChild(li);
+        
+        if (folder.folders && folder.folders.length > 0) {
+            const subUl = document.createElement('ul');
+            subUl.className = 'subfolder';
+            addSaveSubfolders(subUl, folder.folders, childPath);
+            li.appendChild(subUl);
+        }
+    });
+}
+
+function selectSaveFolder(path, element) {
+    document.querySelectorAll('#saveFolderTree .folder-item.selected').forEach(el => {
+        el.classList.remove('selected');
+    });
+    
+    element.classList.add('selected');
+    selectedSaveFolder = path;
+    
+    const btnConfirm = document.getElementById('btnConfirmSaveFolder');
+    if (btnConfirm) btnConfirm.disabled = false;
+}
+
+async function confirmSaveFolder() {
+    if (!pendingDownloadSong) {
+        closeSaveFolderModal();
+        return;
+    }
+    
+    const btnConfirm = document.getElementById('btnConfirmSaveFolder');
+    if (btnConfirm && btnConfirm.disabled) return;
+    
+    let targetFolder = selectedSaveFolder || '/music';
+    
+    const newFolderInput = document.getElementById('newFolderInSaveInput');
+    const newFolderName = newFolderInput ? newFolderInput.value.trim() : '';
+    if (newFolderName) {
+        targetFolder = targetFolder === '/music' ? `/music/${newFolderName}` : `${targetFolder}/${newFolderName}`;
+    }
+    
+    const { source, songId, name, singer, albumName, songInfo, displayName } = pendingDownloadSong;
+    
+    closeSaveFolderModal();
+    closeDownloadChoiceModal();
+    
+    try {
+        const response = await fetch('/api/download-online-to-server', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                source: source,
+                songId: songId,
+                name: name,
+                singer: singer,
+                albumName: albumName || '',
+                songInfo: songInfo,
+                folderPath: targetFolder
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification({ type: 'success', message: `已添加到下载队列：${displayName}` });
+        } else {
+            showNotification({ type: 'error', message: result.error || '添加下载任务失败' });
+        }
+    } catch (error) {
+        console.error('添加下载任务失败:', error);
+        showNotification({ type: 'error', message: '添加下载任务失败，请重试' });
+    }
+}
+
+async function downloadToServer() {
+    if (!pendingDownloadSong) {
+        closeDownloadChoiceModal();
+        return;
+    }
+    
+    try {
+        await requireLogin();
+    } catch (e) {
+        closeDownloadChoiceModal();
+        return;
+    }
+    
+    const modal = document.getElementById('downloadChoiceModal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
+    showSaveFolderModal();
 }
 
 // 当前选中的在线音乐项
@@ -9508,49 +9854,29 @@ async function downloadSonglistSong(index) {
     const singer = songElement.dataset.singer;
     const albumName = songElement.dataset.album;
     
-    showNotification({ type: 'info', message: `正在获取下载链接...` });
+    const downloadData = {
+        source: source,
+        songId: songId,
+        name: name,
+        singer: singer,
+        albumName: albumName || '',
+        songInfo: {
+            songId: songId,
+            name: name,
+            singer: singer,
+            albumName: albumName,
+            source: source
+        },
+        displayName: singer ? `${singer} - ${name}` : name
+    };
     
-    try {
-        const response = await fetch('/api/download-online', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                source: source,
-                songId: songId,
-                name: name,
-                singer: singer,
-                albumName: albumName || '',
-                songInfo: {
-                    songId: songId,
-                    name: name,
-                    singer: singer,
-                    albumName: albumName,
-                    source: source
-                }
-            })
-        });
-        
-        if (response.ok) {
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            const artistName = singer ? `${singer} - ` : '';
-            link.download = `${artistName}${name}.mp3`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(url);
-            
-            showNotification({ type: 'success', message: `下载完成：${name}` });
-        } else {
-            const result = await response.json();
-            showNotification({ type: 'error', message: result.error || '下载失败' });
-        }
-    } catch (error) {
-        console.error('下载失败:', error);
-        showNotification({ type: 'error', message: '下载失败，请重试' });
+    if (!currentUser) {
+        downloadOnlineSongDirect(downloadData);
+        return;
     }
+    
+    pendingDownloadSong = downloadData;
+    showDownloadChoiceModal(pendingDownloadSong.displayName);
 }
 
 // 播放在线歌曲

@@ -194,6 +194,14 @@ let maxUploadWorkers = 3; // 最大并发上传线程数
 let completedUploads = []; // 已完成的上传任务记录
 let activeConvertTasks = []; // 当前正在转换的任务数组（支持多并发）
 let activeUploadTasks = []; // 当前正在上传的任务数组（支持多并发）
+
+// 下载队列
+let downloadQueue = [];
+let activeDownloadWorkers = 0; // 当前活跃的下载工作线程数
+let maxDownloadWorkers = 3; // 最大并发下载线程数
+let completedDownloads = []; // 已完成的下载任务记录
+let activeDownloadTasks = []; // 当前正在下载的任务数组（支持多并发）
+
 let taskOrderCounter = 0; // 全局任务序号计数器，确保任务按添加顺序执行
 
 // 任务完成通知队列
@@ -219,7 +227,8 @@ function loadTaskData() {
             const parsed = JSON.parse(data);
             completedTasks = parsed.completedTasks || [];
             completedUploads = parsed.completedUploads || [];
-            console.log(`📥 已加载 ${completedTasks.length} 个转换任务和 ${completedUploads.length} 个上传任务`);
+            completedDownloads = parsed.completedDownloads || [];
+            console.log(`📥 已加载 ${completedTasks.length} 个转换任务、${completedUploads.length} 个上传任务和 ${completedDownloads.length} 个下载任务`);
         } catch (error) {
             console.error('加载任务数据失败:', error);
         }
@@ -232,6 +241,7 @@ function saveTaskData() {
     const data = {
         completedTasks,
         completedUploads,
+        completedDownloads,
         savedAt: Date.now()
     };
     fs.writeFileSync(TASK_DATA_FILE, JSON.stringify(data, null, 2));
@@ -1586,11 +1596,12 @@ app.get('/api/tasks', (req, res) => {
     // 构建完整的任务列表（进行中任务 + 队列中的任务 + 已完成的任务）
     let allTasks = [];
     
-    // 添加进行中的任务
+    // 添加进行中的转换任务
     activeConvertTasks.forEach(task => {
         allTasks.push({
             id: task.id,
             orderIndex: task.orderIndex,
+            type: 'convert',
             status: task.status,
             progress: task.progress,
             message: task.message,
@@ -1603,11 +1614,12 @@ app.get('/api/tasks', (req, res) => {
         });
     });
     
-    // 添加队列中的任务
+    // 添加队列中的转换任务
     convertQueue.forEach(task => {
         allTasks.push({
             id: task.id,
             orderIndex: task.orderIndex,
+            type: 'convert',
             status: task.status,
             progress: task.progress,
             message: task.message,
@@ -1620,11 +1632,12 @@ app.get('/api/tasks', (req, res) => {
         });
     });
     
-    // 添加已完成的任务
+    // 添加已完成的转换任务
     completedTasks.forEach(task => {
         allTasks.push({
             id: task.id,
             orderIndex: task.orderIndex,
+            type: 'convert',
             status: task.status,
             progress: task.progress,
             message: task.message,
@@ -1632,6 +1645,105 @@ app.get('/api/tasks', (req, res) => {
             filePath: task.filePath,
             outputPath: task.outputPath,
             bitrate: task.bitrate,
+            startTime: task.startTime,
+            endTime: task.endTime
+        });
+    });
+    
+    // 添加进行中的上传任务
+    activeUploadTasks.forEach(task => {
+        allTasks.push({
+            id: task.id,
+            orderIndex: task.orderIndex,
+            type: 'upload',
+            status: task.status,
+            progress: task.progress,
+            message: task.message,
+            fileName: task.fileName,
+            folderPath: task.folderPath,
+            startTime: task.startTime,
+            endTime: task.endTime
+        });
+    });
+    
+    // 添加队列中的上传任务
+    uploadQueue.forEach(task => {
+        allTasks.push({
+            id: task.id,
+            orderIndex: task.orderIndex,
+            type: 'upload',
+            status: task.status,
+            progress: task.progress,
+            message: task.message,
+            fileName: task.fileName,
+            folderPath: task.folderPath,
+            startTime: task.startTime,
+            endTime: task.endTime
+        });
+    });
+    
+    // 添加已完成的上传任务
+    completedUploads.forEach(task => {
+        allTasks.push({
+            id: task.id,
+            orderIndex: task.orderIndex,
+            type: 'upload',
+            status: task.status,
+            progress: task.progress,
+            message: task.message,
+            fileName: task.fileName,
+            folderPath: task.folderPath,
+            startTime: task.startTime,
+            endTime: task.endTime
+        });
+    });
+    
+    // 添加进行中的下载任务
+    activeDownloadTasks.forEach(task => {
+        allTasks.push({
+            id: task.id,
+            orderIndex: task.orderIndex,
+            type: 'download',
+            status: task.status,
+            progress: task.progress,
+            message: task.message,
+            fileName: task.fileName,
+            folderPath: task.folderPath,
+            source: task.source,
+            startTime: task.startTime,
+            endTime: task.endTime
+        });
+    });
+    
+    // 添加队列中的下载任务
+    downloadQueue.forEach(task => {
+        allTasks.push({
+            id: task.id,
+            orderIndex: task.orderIndex,
+            type: 'download',
+            status: task.status,
+            progress: task.progress,
+            message: task.message,
+            fileName: task.fileName,
+            folderPath: task.folderPath,
+            source: task.source,
+            startTime: task.startTime,
+            endTime: task.endTime
+        });
+    });
+    
+    // 添加已完成的下载任务
+    completedDownloads.forEach(task => {
+        allTasks.push({
+            id: task.id,
+            orderIndex: task.orderIndex,
+            type: 'download',
+            status: task.status,
+            progress: task.progress,
+            message: task.message,
+            fileName: task.fileName,
+            folderPath: task.folderPath,
+            source: task.source,
             startTime: task.startTime,
             endTime: task.endTime
         });
@@ -1642,10 +1754,15 @@ app.get('/api/tasks', (req, res) => {
         allTasks = allTasks.filter(task => task.status === status);
     }
     
+    // 按 orderIndex 排序
+    allTasks.sort((a, b) => a.orderIndex - b.orderIndex);
+    
     // 统计各状态任务数量
     const stats = {
         pending: allTasks.filter(t => t.status === 'queued').length,
         converting: allTasks.filter(t => t.status === 'converting').length,
+        uploading: allTasks.filter(t => t.status === 'uploading').length,
+        downloading: allTasks.filter(t => t.status === 'downloading').length,
         completed: allTasks.filter(t => t.status === 'completed').length,
         failed: allTasks.filter(t => t.status === 'failed').length
     };
@@ -1661,34 +1778,78 @@ app.get('/api/tasks', (req, res) => {
 app.delete('/api/tasks/:taskId', requireAuth, (req, res) => {
     const { taskId } = req.params;
     
-    // 从队列中移除
-    const queueIndex = convertQueue.findIndex(t => t.id === taskId);
-    if (queueIndex !== -1) {
-        convertQueue.splice(queueIndex, 1);
+    // 从转换队列中移除
+    const convertQueueIndex = convertQueue.findIndex(t => t.id === taskId);
+    if (convertQueueIndex !== -1) {
+        convertQueue.splice(convertQueueIndex, 1);
+        saveTaskData();
         res.json({ success: true, message: '任务已删除' });
-    } else if (activeConvertTasks.find(t => t.id === taskId)) {
-        // 不能删除正在转换的任务
-        res.status(400).json({ success: false, error: '无法删除正在转换的任务' });
-    } else {
-        // 从已完成任务中删除
-        const completedIndex = completedTasks.findIndex(t => t.id === taskId);
-        if (completedIndex !== -1) {
-            completedTasks.splice(completedIndex, 1);
-            saveTaskData(); // 持久化保存
-            res.json({ success: true, message: '任务已删除' });
-        } else {
-            res.json({ success: false, error: '任务不存在' });
-        }
+        return;
     }
+    
+    // 从下载队列中移除
+    const downloadQueueIndex = downloadQueue.findIndex(t => t.id === taskId);
+    if (downloadQueueIndex !== -1) {
+        downloadQueue.splice(downloadQueueIndex, 1);
+        saveTaskData();
+        res.json({ success: true, message: '任务已删除' });
+        return;
+    }
+    
+    // 检查是否是正在进行的任务
+    if (activeConvertTasks.find(t => t.id === taskId)) {
+        res.status(400).json({ success: false, error: '无法删除正在转换的任务' });
+        return;
+    }
+    
+    if (activeDownloadTasks.find(t => t.id === taskId)) {
+        res.status(400).json({ success: false, error: '无法删除正在下载的任务' });
+        return;
+    }
+    
+    if (activeUploadTasks.find(t => t.id === taskId)) {
+        res.status(400).json({ success: false, error: '无法删除正在上传的任务' });
+        return;
+    }
+    
+    // 从已完成转换任务中删除
+    const completedConvertIndex = completedTasks.findIndex(t => t.id === taskId);
+    if (completedConvertIndex !== -1) {
+        completedTasks.splice(completedConvertIndex, 1);
+        saveTaskData();
+        res.json({ success: true, message: '任务已删除' });
+        return;
+    }
+    
+    // 从已完成上传任务中删除
+    const completedUploadIndex = completedUploads.findIndex(t => t.id === taskId);
+    if (completedUploadIndex !== -1) {
+        completedUploads.splice(completedUploadIndex, 1);
+        saveTaskData();
+        res.json({ success: true, message: '任务已删除' });
+        return;
+    }
+    
+    // 从已完成下载任务中删除
+    const completedDownloadIndex = completedDownloads.findIndex(t => t.id === taskId);
+    if (completedDownloadIndex !== -1) {
+        completedDownloads.splice(completedDownloadIndex, 1);
+        saveTaskData();
+        res.json({ success: true, message: '任务已删除' });
+        return;
+    }
+    
+    res.json({ success: false, error: '任务不存在' });
 });
 
 // 清除已完成的任务
 app.delete('/api/tasks', requireAuth, (req, res) => {
-    // 清空已完成任务列表
     completedTasks = [];
-    // 队列中只保留等待中的任务（转换中的不能清空）
+    completedUploads = [];
+    completedDownloads = [];
     convertQueue = convertQueue.filter(t => t.status === 'queued');
-    saveTaskData(); // 持久化保存
+    downloadQueue = downloadQueue.filter(t => t.status === 'queued');
+    saveTaskData();
     res.json({ success: true, message: '已清除已完成的任务' });
 });
 
@@ -1745,17 +1906,20 @@ app.get('/api/worker-config', (req, res) => {
         config: {
             maxConvertWorkers,
             maxUploadWorkers,
+            maxDownloadWorkers,
             activeConvertWorkers,
             activeUploadWorkers,
+            activeDownloadWorkers,
             convertQueueLength: convertQueue.length,
-            uploadQueueLength: uploadQueue.length
+            uploadQueueLength: uploadQueue.length,
+            downloadQueueLength: downloadQueue.length
         }
     });
 });
 
 // 更新线程数量配置
 app.post('/api/worker-config', requireAuth, (req, res) => {
-    const { maxConvertWorkers: newConvertWorkers, maxUploadWorkers: newUploadWorkers } = req.body;
+    const { maxConvertWorkers: newConvertWorkers, maxUploadWorkers: newUploadWorkers, maxDownloadWorkers: newDownloadWorkers } = req.body;
     
     if (newConvertWorkers !== undefined) {
         const workers = parseInt(newConvertWorkers, 10);
@@ -1797,6 +1961,25 @@ app.post('/api/worker-config', requireAuth, (req, res) => {
         }
     }
     
+    if (newDownloadWorkers !== undefined) {
+        const workers = parseInt(newDownloadWorkers, 10);
+        if (workers >= 1 && workers <= 10) {
+            maxDownloadWorkers = workers;
+            console.log(`下载线程数量已更新为: ${maxDownloadWorkers}`);
+            
+            if (activeDownloadWorkers < maxDownloadWorkers) {
+                for (let i = activeDownloadWorkers; i < maxDownloadWorkers; i++) {
+                    processDownloadQueue();
+                }
+            }
+        } else {
+            return res.status(400).json({ 
+                success: false, 
+                error: '下载线程数量必须在 1-10 之间' 
+            });
+        }
+    }
+    
     // 保存配置到config.json
     saveConfig();
     
@@ -1805,7 +1988,8 @@ app.post('/api/worker-config', requireAuth, (req, res) => {
         message: '配置已更新',
         config: {
             maxConvertWorkers,
-            maxUploadWorkers
+            maxUploadWorkers,
+            maxDownloadWorkers
         }
     });
 });
@@ -3371,9 +3555,11 @@ function sendFileDownload(res, filePath) {
 // 在线音乐下载函数
 async function downloadOnlineMusic(res, playUrl, title, artist) {
     try {
-        // 构建文件名
-        const artistName = artist ? `${artist} - ` : '';
-        const fileName = `${artistName}${title}.mp3`;
+        // 构建文件名（清理非法字符）
+        const safeArtist = artist ? sanitizeFileName(artist) : '';
+        const safeTitle = sanitizeFileName(title);
+        const artistName = safeArtist ? `${safeArtist} - ` : '';
+        const fileName = `${artistName}${safeTitle}.mp3`;
         
         // 设置响应头
         res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
@@ -4485,7 +4671,7 @@ app.post('/api/batch-download', requireAuth, async (req, res) => {
 });
 
 // 在线音乐下载 API
-app.post('/api/download-online', requireAuth, async (req, res) => {
+app.post('/api/download-online', async (req, res) => {
     try {
         const { source, songId, name, singer, albumName, songInfo } = req.body;
         
@@ -4539,6 +4725,204 @@ app.post('/api/download-online', requireAuth, async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
+
+// 在线音乐下载到服务端 API
+app.post('/api/download-online-to-server', requireAuth, async (req, res) => {
+    try {
+        const { source, songId, name, singer, albumName, songInfo, folderPath } = req.body;
+        
+        const fullSongInfo = songInfo || { 
+            songId: songId, 
+            name: name, 
+            singer: singer, 
+            albumName: albumName 
+        };
+        
+        const taskId = Date.now().toString(36) + Math.random().toString(36).substr(2) + Math.random().toString(36).substr(2);
+        taskOrderCounter++;
+        
+        const safeSinger = singer ? sanitizeFileName(singer) : '';
+        const safeName = sanitizeFileName(name);
+        const artistName = safeSinger ? `${safeSinger} - ` : '';
+        const fileName = `${artistName}${safeName}.mp3`;
+        
+        let targetFolder = folderPath || '在线下载';
+        targetFolder = targetFolder.replace(/^\/music\/?/, '').replace(/^music\/?/, '');
+        targetFolder = targetFolder.replace(/^[\/\\]/, '');
+        
+        const task = {
+            id: taskId,
+            orderIndex: taskOrderCounter,
+            type: 'download',
+            source: source,
+            songId: songId,
+            songInfo: fullSongInfo,
+            name: name,
+            singer: singer,
+            fileName: fileName,
+            folderPath: targetFolder,
+            status: 'queued',
+            progress: 0,
+            message: '等待下载',
+            startTime: Date.now()
+        };
+        
+        downloadQueue.push(task);
+        completedDownloads.push(task);
+        
+        console.log(`⬇️ 添加下载任务到队列：${fileName}`);
+        
+        for (let i = 0; i < maxDownloadWorkers; i++) {
+            processDownloadQueue();
+        }
+        
+        saveTaskData();
+        
+        res.json({
+            success: true,
+            taskId,
+            message: '已添加到下载队列',
+            fileName: fileName
+        });
+        
+    } catch (error) {
+        console.error('添加下载任务失败:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 处理下载队列（支持并发）
+async function processDownloadQueue() {
+    if (downloadQueue.length === 0 || activeDownloadWorkers >= maxDownloadWorkers) {
+        return;
+    }
+    
+    activeDownloadWorkers++;
+    
+    const task = downloadQueue.shift();
+    
+    try {
+        task.status = 'downloading';
+        task.message = '正在下载';
+        
+        activeDownloadTasks.push(task);
+        
+        let playUrl = await getMusicPlayUrl(task.source, task.songInfo, '128');
+        
+        if (!playUrl) {
+            console.log(`当前平台 ${task.source} 无法获取播放链接，尝试其他平台...`);
+            
+            const platforms = ['kw', 'kg', 'tx', 'wy', 'mg'];
+            const currentIndexInPlatforms = platforms.indexOf(task.source);
+            const otherPlatforms = currentIndexInPlatforms >= 0 
+                ? platforms.filter((_, i) => i !== currentIndexInPlatforms)
+                : platforms;
+            
+            for (const platform of otherPlatforms) {
+                try {
+                    const platformName = ONLINE_SOURCES.find(s => s.id === platform)?.name || platform;
+                    console.log(`尝试从 ${platformName} 获取播放链接...`);
+                    
+                    playUrl = await getMusicPlayUrl(platform, task.songInfo, '128');
+                    
+                    if (playUrl) {
+                        console.log(`成功从 ${platformName} 获取播放链接`);
+                        break;
+                    }
+                } catch (e) {
+                    console.log(`尝试 ${platform} 失败:`, e.message);
+                }
+            }
+        }
+        
+        if (!playUrl) {
+            throw new Error('无法获取播放链接（版权限制或需要付费）');
+        }
+        
+        const downloadDir = path.join(MUSIC_DIR, task.folderPath);
+        
+        const resolvedDir = path.resolve(downloadDir);
+        const resolvedMusicDir = path.resolve(MUSIC_DIR);
+        if (!resolvedDir.startsWith(resolvedMusicDir)) {
+            throw new Error('非法的目录路径');
+        }
+        
+        await fs.promises.mkdir(downloadDir, { recursive: true });
+        
+        const filePath = path.join(downloadDir, task.fileName);
+        
+        if (fs.existsSync(filePath)) {
+            task.status = 'completed';
+            task.progress = 100;
+            task.message = '文件已存在';
+            task.endTime = Date.now();
+            console.log(`ℹ️ 文件已存在：${task.fileName}`);
+            saveTaskData();
+            return;
+        }
+        
+        task.progress = 10;
+        task.message = '正在下载...';
+        
+        const response = await fetch(playUrl);
+        
+        if (!response.ok) {
+            throw new Error(`获取在线音乐失败: ${response.status}`);
+        }
+        
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        
+        task.progress = 80;
+        task.message = '正在保存文件...';
+        
+        await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+        await fs.promises.writeFile(filePath, buffer);
+        
+        task.status = 'completed';
+        task.progress = 100;
+        task.message = '下载完成';
+        task.endTime = Date.now();
+        
+        console.log(`✅ 下载完成：${task.fileName}`);
+        
+        saveTaskData();
+        
+        if (fs.existsSync(FOLDER_CACHE_FILE)) {
+            fs.unlinkSync(FOLDER_CACHE_FILE);
+            console.log('🗑️ 删除文件夹缓存，下次扫描重新生成');
+        }
+        
+        broadcastFolderRefresh();
+        
+        taskNotifications.push({
+            type: 'download',
+            status: 'completed',
+            fileName: task.fileName,
+            message: `下载完成：${task.fileName}`
+        });
+        
+    } catch (error) {
+        task.status = 'failed';
+        task.message = '下载失败: ' + error.message;
+        task.endTime = Date.now();
+        console.error('下载失败:', error.message);
+        
+        saveTaskData();
+    } finally {
+        const index = activeDownloadTasks.findIndex(t => t.id === task.id);
+        if (index !== -1) {
+            activeDownloadTasks.splice(index, 1);
+        }
+        activeDownloadWorkers--;
+        
+        if (downloadQueue.length === 0 && activeDownloadWorkers === 0) {
+            console.log('📭 所有下载任务已完成');
+        } else {
+            processDownloadQueue();
+        }
+    }
+}
 
 app.get('/api/play/:index', async (req, res) => {
     const index = parseInt(req.params.index);
@@ -7692,6 +8076,12 @@ const ONLINE_SOURCES = [
     { id: 'wy', name: '网易云音乐' },
     { id: 'mg', name: '咪咕音乐' }
 ];
+
+// 清理文件名中的非法字符
+function sanitizeFileName(name) {
+    if (!name) return '';
+    return String(name).replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, ' ').trim();
+}
 
 // 获取音源文件列表
 app.get('/api/source-files', (req, res) => {

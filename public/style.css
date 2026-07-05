@@ -5343,6 +5343,129 @@ font-size: 72px;
     font-weight: 500;
 }
 
+.download-choice-content {
+    text-align: center;
+    padding: 10px 0;
+}
+
+.download-choice-song {
+    font-weight: 600;
+    color: #1e3a8a !important;
+    font-size: 16px;
+    padding: 15px;
+    background: #f8fafc;
+    border-radius: 8px;
+    word-break: break-all;
+    margin-bottom: 20px;
+}
+
+.download-choice-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.download-choice-option {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 16px;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+}
+
+.download-choice-option:hover {
+    border-color: #a78bfa;
+    background: #faf5ff;
+}
+
+.download-choice-option:active {
+    transform: scale(0.98);
+}
+
+.download-choice-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #e0e7ff;
+    border-radius: 10px;
+    font-size: 20px;
+    color: #4f46e5;
+    flex-shrink: 0;
+}
+
+.download-choice-info {
+    flex: 1;
+}
+
+.download-choice-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 4px;
+}
+
+.download-choice-desc {
+    font-size: 13px;
+    color: #64748b;
+}
+
+.save-folder-tree {
+    max-height: 250px;
+    overflow-y: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 8px;
+    background: #f8fafc;
+}
+
+.save-folder-tree ul {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+.save-folder-tree li {
+    margin: 4px 0;
+}
+
+.save-folder-tree .folder-item {
+    display: flex;
+    align-items: center;
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.save-folder-tree .folder-item:hover {
+    background-color: #e2e8f0;
+}
+
+.save-folder-tree .folder-item.selected {
+    background-color: #ede9fe;
+    color: #6d28d9;
+}
+
+.save-folder-tree .folder-item i {
+    margin-right: 8px;
+    color: #8b5cf6;
+}
+
+.save-folder-tree .folder-item span {
+    font-size: 14px;
+}
+
+.save-folder-tree ul.subfolder {
+    padding-left: 20px;
+    margin-left: 0;
+}
+
 /* 一键整理选项样式 */
 .organize-options {
     display: flex;

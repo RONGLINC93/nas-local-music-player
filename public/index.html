@@ -546,8 +546,8 @@
                         <div class="stat-item">
                             <div class="stat-icon bg-warning"><i class="fas fa-spinner"></i></div>
                             <div class="stat-info">
-                                <span class="stat-value" id="taskStatConverting">0</span>
-                                <span class="stat-label">执行中</span>
+                                <span class="stat-value" id="taskStatProcessing">0</span>
+                                <span class="stat-label">进行中</span>
                             </div>
                         </div>
                         <div class="stat-item">
@@ -573,7 +573,7 @@
                             <div class="task-filter">
                                 <button class="filter-btn active" data-filter="all">全部</button>
                                 <button class="filter-btn" data-filter="queued">等待中</button>
-                                <button class="filter-btn" data-filter="converting">执行中</button>
+                                <button class="filter-btn" data-filter="processing">进行中</button>
                                 <button class="filter-btn" data-filter="completed">已完成</button>
                                 <button class="filter-btn" data-filter="failed">失败</button>
                             </div>
@@ -1368,6 +1368,74 @@
                 <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">取消</button>
                 <button type="button" id="btnConfirmDelete" class="btn btn-danger">
                     <i class="fas fa-trash"></i> 确认删除
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 下载选择模态框 -->
+    <div id="downloadChoiceModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-download"
+                        style="font-size: 24px; color: #3b82f6; vertical-align: middle; margin-right: 8px;"></i>
+                    选择下载方式
+                </h3>
+                <button onclick="closeDownloadChoiceModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="download-choice-content">
+                    <p class="download-choice-song" id="downloadChoiceSongName">-</p>
+                    <div class="download-choice-options">
+                        <div class="download-choice-option" onclick="downloadToLocal()">
+                            <div class="download-choice-icon">
+                                <i class="fas fa-laptop"></i>
+                            </div>
+                            <div class="download-choice-info">
+                                <div class="download-choice-title">下载到本地</div>
+                                <div class="download-choice-desc">保存到当前设备</div>
+                            </div>
+                        </div>
+                        <div class="download-choice-option" onclick="downloadToServer()">
+                            <div class="download-choice-icon">
+                                <i class="fas fa-server"></i>
+                            </div>
+                            <div class="download-choice-info">
+                                <div class="download-choice-title">下载到服务端</div>
+                                <div class="download-choice-desc">保存到服务器音乐库</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 选择保存目录对话框 -->
+    <div id="saveFolderModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-folder-open"
+                        style="font-size: 24px; color: #8b5cf6; vertical-align: middle; margin-right: 8px;"></i>
+                    选择保存目录
+                </h3>
+                <button onclick="closeSaveFolderModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 12px; color: var(--text-secondary);">选择要保存到的文件夹：</p>
+                <div class="save-folder-tree" id="saveFolderTree">
+                </div>
+                <div style="margin-top: 12px;">
+                    <label for="newFolderInSaveInput" style="display: block; margin-bottom: 6px; color: var(--text-secondary); font-size: 14px;">或输入新文件夹名称：</label>
+                    <input type="text" id="newFolderInSaveInput" class="form-control" placeholder="留空则使用上方选择的文件夹" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeSaveFolderModal()">取消</button>
+                <button type="button" id="btnConfirmSaveFolder" class="btn btn-primary" disabled onclick="confirmSaveFolder()">
+                    <i class="fas fa-check"></i> 确认保存
                 </button>
             </div>
         </div>

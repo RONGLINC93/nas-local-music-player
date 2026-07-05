@@ -189,6 +189,43 @@ function updateUserCardUI() {
     }
 }
 
+function refreshAllMusicViews() {
+    const folderView = document.getElementById('view-folder');
+    if (folderView && folderView.style.display !== 'none') {
+        if (typeof renderFolderSections === 'function') {
+            renderFolderSections();
+        }
+    }
+    
+    const onlineView = document.getElementById('view-online');
+    if (onlineView && onlineView.style.display !== 'none') {
+        const rankSection = document.getElementById('onlineRankSection');
+        const searchSection = document.getElementById('onlineResultsSection');
+        const songlistSection = document.getElementById('onlineSonglistSection');
+        
+        if (rankSection && rankSection.style.display !== 'none') {
+            if (typeof renderRankResults === 'function' && onlineRankResults && onlineRankResults.length > 0) {
+                renderRankResults();
+            }
+        }
+        
+        if (searchSection && searchSection.style.display !== 'none') {
+            if (typeof renderOnlineResults === 'function' && onlineSearchResults && onlineSearchResults.length > 0) {
+                renderOnlineResults();
+            }
+        }
+        
+        if (songlistSection && songlistSection.style.display !== 'none') {
+            const detailView = document.getElementById('songlistDetailView');
+            if (detailView && detailView.style.display !== 'none') {
+                if (typeof renderSonglistSongs === 'function' && currentSonglistSongs && currentSonglistSongs.length > 0) {
+                    renderSonglistSongs(currentSonglistSongs);
+                }
+            }
+        }
+    }
+}
+
 function handleUserCardClick() {
     if (currentUser) {
         showLoggedInModal();
@@ -472,6 +509,8 @@ async function doLogin() {
             };
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
             updateUserCardUI();
+            renderPlaylist();
+            refreshAllMusicViews();
             showNotification({ type: 'success', message: '登录成功' });
             
             const pendings = [...pendingAuthRequests];
@@ -560,6 +599,8 @@ async function doLogout() {
     localStorage.removeItem('authToken');
     currentUser = null;
     updateUserCardUI();
+    renderPlaylist();
+    refreshAllMusicViews();
     showNotification({ type: 'success', message: '已退出登录' });
     closeLogoutModal();
     closeLoginModal();
@@ -8225,61 +8266,33 @@ document.addEventListener('DOMContentLoaded', () => {
 // 批量下载文件
 let isDownloading = false;
 async function batchDownloadFiles() {
-    if (isDownloading) return;
     if (selectedMusicFiles.size === 0) return;
     
-    try {
-        await requireLogin();
-    } catch (e) {
-        return;
-    }
+    const files = Array.from(selectedMusicFiles);
     
-    isDownloading = true;
-    const btn = document.querySelector('.batch-download-btn');
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-    }
+    showBatchDownloadModal();
+    updateBatchDownloadProgress(0, files.length, 0, '准备中...');
     
     try {
-        showNotification({
-            type: 'info',
-            message: `正在打包 ${selectedMusicFiles.size} 个文件...`,
-            duration: 3000
-        });
-        
         const response = await fetch('/api/batch-download', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ files: Array.from(selectedMusicFiles) })
+            body: JSON.stringify({ files: files })
         });
         
-        if (response.ok) {
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `music_batch_${Date.now()}.zip`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(url);
-            
-            showSuccess(`已成功下载 ${selectedMusicFiles.size} 个文件`);
-            clearSelection();
+        const result = await response.json();
+        
+        if (result.success) {
+            currentBatchId = result.batchId;
+            startBatchDownloadPolling();
         } else {
-            const result = await response.json();
             showError(result.error || '下载失败');
+            closeBatchDownloadModal();
         }
     } catch (error) {
         console.error('批量下载失败:', error);
         showError('下载失败');
-    } finally {
-        isDownloading = false;
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-download"></i>';
-        }
+        closeBatchDownloadModal();
     }
 }
 
@@ -8374,17 +8387,22 @@ async function fetchTaskNotifications() {
         
         if (result.success && result.notifications && result.notifications.length > 0) {
             result.notifications.forEach(notification => {
-                // 显示通知
+                const isFailed = notification.status === 'failed';
+                const notifType = isFailed ? 'error' : 'success';
+                
+                let title = '';
                 if (notification.type === 'convert') {
-                    showNotification({
-                        type: 'success',
-                        title: '转换完成',
-                        message: notification.message
-                    });
+                    title = isFailed ? '转换失败' : '转换完成';
                 } else if (notification.type === 'upload') {
+                    title = isFailed ? '上传失败' : '上传完成';
+                } else if (notification.type === 'download') {
+                    title = isFailed ? '下载失败' : '下载完成';
+                }
+                
+                if (title) {
                     showNotification({
-                        type: 'success',
-                        title: '上传完成',
+                        type: notifType,
+                        title: title,
                         message: notification.message
                     });
                 }
@@ -8802,42 +8820,194 @@ function updatePlaylistBatchBar() {
 async function playlistBatchDownload() {
     if (selectedPlaylistTracks.size === 0) return;
     
+    // 筛选出在线音乐
+    const onlineSongs = Array.from(selectedPlaylistTracks)
+        .map(index => currentPlaylist[index])
+        .filter(track => track.isOnline);
+    
+    // 如果没有登录，直接下载到本地
+    if (!currentUser) {
+        executeBatchDownloadLocal();
+        return;
+    }
+    
+    // 登录了才弹出选择框
+    isBatchDownloadMode = true;
+    pendingBatchDownloadSongs = onlineSongs.map(track => ({
+        source: track.source,
+        songId: track.songId || (track.songInfo && track.songInfo.songId),
+        name: track.title || track.name,
+        singer: track.artist || track.singer,
+        albumName: track.album || track.albumName,
+        songInfo: track.songInfo || track
+    }));
+    
+    // 更新选择框提示文字
+    const batchDescEl = document.getElementById('downloadChoiceBatchDesc');
+    if (batchDescEl) {
+        const localCount = selectedPlaylistTracks.size - onlineSongs.length;
+        batchDescEl.innerHTML = `
+            <div style="font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">
+                共选择 ${selectedPlaylistTracks.size} 首歌曲
+            </div>
+            <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
+                <div><i class="fas fa-globe" style="color: #3b82f6;"></i> 在线音乐：${onlineSongs.length} 首</div>
+                <div><i class="fas fa-hard-drive" style="color: #10b981;"></i> 本地音乐：${localCount} 首</div>
+                <div style="margin-top: 8px; padding: 8px 12px; background: var(--bg-hover); border-radius: 6px; font-size: 12px;">
+                    <i class="fas fa-info-circle" style="color: #f59e0b;"></i>
+                    <span style="margin-left: 4px;">下载到服务端仅下载在线音乐，跳过本地音乐</span>
+                </div>
+            </div>
+        `;
+    }
+    
+    showDownloadChoiceModal();
+}
+
+let currentBatchId = null;
+let batchDownloadPollTimer = null;
+
+async function executeBatchDownloadLocal() {
+    if (selectedPlaylistTracks.size === 0) return;
+    
+    const selectedItems = Array.from(selectedPlaylistTracks).map(index => {
+        const track = currentPlaylist[index];
+        if (track.isOnline) {
+            return {
+                type: 'online',
+                source: track.source,
+                songId: track.songId || (track.songInfo && track.songInfo.songId),
+                name: track.title || track.name,
+                singer: track.artist || track.singer,
+                albumName: track.album || track.albumName,
+                songInfo: track.songInfo || track
+            };
+        } else {
+            return track.path;
+        }
+    });
+    
+    showBatchDownloadModal();
+    updateBatchDownloadProgress(0, selectedPlaylistTracks.size, 0, '准备中...');
+    
     try {
-        showNotification({
-            type: 'info',
-            message: `正在打包 ${selectedPlaylistTracks.size} 个文件...`,
-            duration: 3000
-        });
-        
-        const selectedPaths = Array.from(selectedPlaylistTracks).map(index => currentPlaylist[index].path);
-        
         const response = await fetch('/api/batch-download', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ files: selectedPaths })
+            body: JSON.stringify({ files: selectedItems })
         });
         
-        if (response.ok) {
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `playlist_batch_${Date.now()}.zip`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(url);
-            
-            showSuccess(`已成功下载 ${selectedPlaylistTracks.size} 个文件`);
-            clearPlaylistSelection();
+        const result = await response.json();
+        
+        if (result.success) {
+            currentBatchId = result.batchId;
+            startBatchDownloadPolling();
         } else {
-            const result = await response.json();
             showError(result.error || '下载失败');
+            closeBatchDownloadModal();
         }
     } catch (error) {
         console.error('批量下载失败:', error);
         showError('下载失败');
+        closeBatchDownloadModal();
     }
+}
+
+function showBatchDownloadModal() {
+    const modal = document.getElementById('batchDownloadModal');
+    if (modal) {
+        modal.classList.add('show');
+    }
+    document.body.style.overflow = 'hidden';
+}
+
+function closeBatchDownloadModal() {
+    const modal = document.getElementById('batchDownloadModal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
+    document.body.style.overflow = '';
+    
+    if (batchDownloadPollTimer) {
+        clearInterval(batchDownloadPollTimer);
+        batchDownloadPollTimer = null;
+    }
+    currentBatchId = null;
+}
+
+function updateBatchDownloadProgress(progress, total, processed, currentFile) {
+    const progressText = document.getElementById('batchDownloadProgressText');
+    const processedEl = document.getElementById('batchDownloadProcessed');
+    const totalEl = document.getElementById('batchDownloadTotal');
+    const progressBar = document.getElementById('batchDownloadProgressBar');
+    const currentFileEl = document.getElementById('batchDownloadCurrentFile');
+    
+    if (progressText) progressText.textContent = `${progress}%`;
+    if (processedEl) processedEl.textContent = processed;
+    if (totalEl) totalEl.textContent = total;
+    if (progressBar) progressBar.style.width = `${progress}%`;
+    if (currentFileEl) currentFileEl.textContent = currentFile || '准备中...';
+}
+
+function startBatchDownloadPolling() {
+    if (batchDownloadPollTimer) {
+        clearInterval(batchDownloadPollTimer);
+    }
+    
+    batchDownloadPollTimer = setInterval(async () => {
+        if (!currentBatchId) return;
+        
+        try {
+            const response = await fetch(`/api/batch-download/${currentBatchId}/progress`);
+            const result = await response.json();
+            
+            if (result.success) {
+                updateBatchDownloadProgress(
+                    result.progress,
+                    result.total,
+                    result.processed,
+                    result.currentFile
+                );
+                
+                if (result.status === 'completed') {
+                    clearInterval(batchDownloadPollTimer);
+                    batchDownloadPollTimer = null;
+                    
+                    const closeBtn = document.getElementById('btnBatchDownloadClose');
+                    const saveBtn = document.getElementById('btnBatchDownloadSave');
+                    if (closeBtn) closeBtn.disabled = false;
+                    if (saveBtn) saveBtn.style.display = 'inline-flex';
+                    
+                    showSuccess('打包完成，正在下载...');
+                    clearPlaylistSelection();
+                    
+                    downloadBatchZip();
+                } else if (result.status === 'failed') {
+                    clearInterval(batchDownloadPollTimer);
+                    batchDownloadPollTimer = null;
+                    
+                    const closeBtn = document.getElementById('btnBatchDownloadClose');
+                    if (closeBtn) closeBtn.disabled = false;
+                    
+                    showError(result.error || '打包失败');
+                }
+            }
+        } catch (error) {
+            console.error('查询批量下载进度失败:', error);
+        }
+    }, 500);
+}
+
+function downloadBatchZip() {
+    if (!currentBatchId) return;
+    
+    const url = `/api/batch-download/${currentBatchId}/download`;
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `music_batch_${currentBatchId}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
 function playlistBatchDelete() {
@@ -9433,7 +9603,8 @@ async function addToPlaylistFromOnline(cacheKey) {
                 singer: song.singer,
                 albumName: song.albumName || '',
                 picUrl: song.picUrl || '',
-                interval: song.interval || ''
+                interval: song.interval || '',
+                songInfo: song
             })
         });
         
@@ -9458,6 +9629,8 @@ async function addToPlaylistFromOnline(cacheKey) {
 
 // 下载在线音乐
 let pendingDownloadSong = null;
+let pendingBatchDownloadSongs = [];
+let isBatchDownloadMode = false;
 
 async function downloadOnlineSong(cacheKey) {
     const song = onlineSongCache[cacheKey];
@@ -9530,7 +9703,20 @@ async function downloadOnlineSongDirect(downloadData) {
 }
 
 function showDownloadChoiceModal(songName) {
-    document.getElementById('downloadChoiceSongName').textContent = songName;
+    const songNameEl = document.getElementById('downloadChoiceSongName');
+    const batchDescEl = document.getElementById('downloadChoiceBatchDesc');
+    
+    if (isBatchDownloadMode) {
+        if (songNameEl) songNameEl.style.display = 'none';
+        if (batchDescEl) batchDescEl.style.display = 'block';
+    } else {
+        if (songNameEl) {
+            songNameEl.textContent = songName;
+            songNameEl.style.display = 'block';
+        }
+        if (batchDescEl) batchDescEl.style.display = 'none';
+    }
+    
     const modal = document.getElementById('downloadChoiceModal');
     if (modal) {
         modal.classList.add('show');
@@ -9539,6 +9725,8 @@ function showDownloadChoiceModal(songName) {
 
 function closeDownloadChoiceModal() {
     pendingDownloadSong = null;
+    pendingBatchDownloadSongs = [];
+    isBatchDownloadMode = false;
     const modal = document.getElementById('downloadChoiceModal');
     if (modal) {
         modal.classList.remove('show');
@@ -9546,6 +9734,12 @@ function closeDownloadChoiceModal() {
 }
 
 async function downloadToLocal() {
+    if (isBatchDownloadMode) {
+        closeDownloadChoiceModal();
+        executeBatchDownloadLocal();
+        return;
+    }
+    
     if (!pendingDownloadSong) {
         closeDownloadChoiceModal();
         return;
@@ -9677,11 +9871,6 @@ function selectSaveFolder(path, element) {
 }
 
 async function confirmSaveFolder() {
-    if (!pendingDownloadSong) {
-        closeSaveFolderModal();
-        return;
-    }
-    
     const btnConfirm = document.getElementById('btnConfirmSaveFolder');
     if (btnConfirm && btnConfirm.disabled) return;
     
@@ -9693,10 +9882,44 @@ async function confirmSaveFolder() {
         targetFolder = targetFolder === '/music' ? `/music/${newFolderName}` : `${targetFolder}/${newFolderName}`;
     }
     
-    const { source, songId, name, singer, albumName, songInfo, displayName } = pendingDownloadSong;
+    const isBatch = isBatchDownloadMode && pendingBatchDownloadSongs.length > 0;
+    const batchSongs = [...pendingBatchDownloadSongs];
+    const singleSong = pendingDownloadSong;
     
     closeSaveFolderModal();
     closeDownloadChoiceModal();
+    
+    if (isBatch) {
+        try {
+            const response = await fetch('/api/batch-download-to-server', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    songs: batchSongs,
+                    folderPath: targetFolder
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showNotification({ type: 'success', message: result.message });
+                clearPlaylistSelection();
+            } else {
+                showNotification({ type: 'error', message: result.error || '添加下载任务失败' });
+            }
+        } catch (error) {
+            console.error('批量添加下载任务失败:', error);
+            showNotification({ type: 'error', message: '添加下载任务失败，请重试' });
+        }
+        return;
+    }
+    
+    if (!singleSong) {
+        return;
+    }
+    
+    const { source, songId, name, singer, albumName, songInfo, displayName } = singleSong;
     
     try {
         const response = await fetch('/api/download-online-to-server', {
@@ -9727,6 +9950,22 @@ async function confirmSaveFolder() {
 }
 
 async function downloadToServer() {
+    if (isBatchDownloadMode && pendingBatchDownloadSongs.length > 0) {
+        try {
+            await requireLogin();
+        } catch (e) {
+            closeDownloadChoiceModal();
+            return;
+        }
+        
+        const modal = document.getElementById('downloadChoiceModal');
+        if (modal) {
+            modal.classList.remove('show');
+        }
+        showSaveFolderModal();
+        return;
+    }
+    
     if (!pendingDownloadSong) {
         closeDownloadChoiceModal();
         return;

@@ -207,6 +207,9 @@ let taskOrderCounter = 0; // 全局任务序号计数器，确保任务按添加
 // 任务完成通知队列
 let taskNotifications = []; // 存储队列完成的通知消息
 
+// 批量下载到本地的任务
+const batchDownloads = new Map();
+
 // 任务持久化相关
 const TASK_DATA_FILE = path.join(__dirname, 'data', 'tasks.json');
 
@@ -1133,6 +1136,13 @@ async function processUploadQueue() {
         
         // 保存任务数据
         saveTaskData();
+        
+        taskNotifications.push({
+            type: 'upload',
+            status: 'failed',
+            fileName: task.fileName || (task.file ? task.file.originalname : ''),
+            message: `上传失败：${task.fileName || (task.file ? task.file.originalname : '未知文件')}`
+        });
     } finally {
         // 从进行中任务列表移除
         const index = activeUploadTasks.findIndex(t => t.id === task.id);
@@ -1510,6 +1520,14 @@ async function processConvertQueue() {
                     completedTasks.push(task);
                     saveTaskData();
                     console.error('后台转换失败:', err.message);
+                    
+                    taskNotifications.push({
+                        type: 'convert',
+                        status: 'failed',
+                        fileName: path.basename(task.filePath),
+                        message: `转换失败：${path.basename(task.filePath)}`
+                    });
+                    
                     reject(err);
                 })
                 .save(task.outputPath);
@@ -1650,39 +1668,7 @@ app.get('/api/tasks', (req, res) => {
         });
     });
     
-    // 添加进行中的上传任务
-    activeUploadTasks.forEach(task => {
-        allTasks.push({
-            id: task.id,
-            orderIndex: task.orderIndex,
-            type: 'upload',
-            status: task.status,
-            progress: task.progress,
-            message: task.message,
-            fileName: task.fileName,
-            folderPath: task.folderPath,
-            startTime: task.startTime,
-            endTime: task.endTime
-        });
-    });
-    
-    // 添加队列中的上传任务
-    uploadQueue.forEach(task => {
-        allTasks.push({
-            id: task.id,
-            orderIndex: task.orderIndex,
-            type: 'upload',
-            status: task.status,
-            progress: task.progress,
-            message: task.message,
-            fileName: task.fileName,
-            folderPath: task.folderPath,
-            startTime: task.startTime,
-            endTime: task.endTime
-        });
-    });
-    
-    // 添加已完成的上传任务
+    // 添加上传任务（completedUploads 已包含所有状态的上传任务）
     completedUploads.forEach(task => {
         allTasks.push({
             id: task.id,
@@ -1698,41 +1684,7 @@ app.get('/api/tasks', (req, res) => {
         });
     });
     
-    // 添加进行中的下载任务
-    activeDownloadTasks.forEach(task => {
-        allTasks.push({
-            id: task.id,
-            orderIndex: task.orderIndex,
-            type: 'download',
-            status: task.status,
-            progress: task.progress,
-            message: task.message,
-            fileName: task.fileName,
-            folderPath: task.folderPath,
-            source: task.source,
-            startTime: task.startTime,
-            endTime: task.endTime
-        });
-    });
-    
-    // 添加队列中的下载任务
-    downloadQueue.forEach(task => {
-        allTasks.push({
-            id: task.id,
-            orderIndex: task.orderIndex,
-            type: 'download',
-            status: task.status,
-            progress: task.progress,
-            message: task.message,
-            fileName: task.fileName,
-            folderPath: task.folderPath,
-            source: task.source,
-            startTime: task.startTime,
-            endTime: task.endTime
-        });
-    });
-    
-    // 添加已完成的下载任务
+    // 添加下载任务（completedDownloads 已包含所有状态的下载任务）
     completedDownloads.forEach(task => {
         allTasks.push({
             id: task.id,
@@ -1787,28 +1739,9 @@ app.delete('/api/tasks/:taskId', requireAuth, (req, res) => {
         return;
     }
     
-    // 从下载队列中移除
-    const downloadQueueIndex = downloadQueue.findIndex(t => t.id === taskId);
-    if (downloadQueueIndex !== -1) {
-        downloadQueue.splice(downloadQueueIndex, 1);
-        saveTaskData();
-        res.json({ success: true, message: '任务已删除' });
-        return;
-    }
-    
-    // 检查是否是正在进行的任务
+    // 检查是否是正在进行的转换任务
     if (activeConvertTasks.find(t => t.id === taskId)) {
         res.status(400).json({ success: false, error: '无法删除正在转换的任务' });
-        return;
-    }
-    
-    if (activeDownloadTasks.find(t => t.id === taskId)) {
-        res.status(400).json({ success: false, error: '无法删除正在下载的任务' });
-        return;
-    }
-    
-    if (activeUploadTasks.find(t => t.id === taskId)) {
-        res.status(400).json({ success: false, error: '无法删除正在上传的任务' });
         return;
     }
     
@@ -1821,19 +1754,35 @@ app.delete('/api/tasks/:taskId', requireAuth, (req, res) => {
         return;
     }
     
-    // 从已完成上传任务中删除
-    const completedUploadIndex = completedUploads.findIndex(t => t.id === taskId);
-    if (completedUploadIndex !== -1) {
-        completedUploads.splice(completedUploadIndex, 1);
+    // 检查是否是正在进行的上传任务
+    if (activeUploadTasks.find(t => t.id === taskId)) {
+        res.status(400).json({ success: false, error: '无法删除正在上传的任务' });
+        return;
+    }
+    
+    // 从上传任务中删除（completedUploads 包含所有上传任务）
+    const uploadIndex = completedUploads.findIndex(t => t.id === taskId);
+    if (uploadIndex !== -1) {
+        completedUploads.splice(uploadIndex, 1);
+        const queueIdx = uploadQueue.findIndex(t => t.id === taskId);
+        if (queueIdx !== -1) uploadQueue.splice(queueIdx, 1);
         saveTaskData();
         res.json({ success: true, message: '任务已删除' });
         return;
     }
     
-    // 从已完成下载任务中删除
-    const completedDownloadIndex = completedDownloads.findIndex(t => t.id === taskId);
-    if (completedDownloadIndex !== -1) {
-        completedDownloads.splice(completedDownloadIndex, 1);
+    // 检查是否是正在进行的下载任务
+    if (activeDownloadTasks.find(t => t.id === taskId)) {
+        res.status(400).json({ success: false, error: '无法删除正在下载的任务' });
+        return;
+    }
+    
+    // 从下载任务中删除（completedDownloads 包含所有下载任务）
+    const downloadIndex = completedDownloads.findIndex(t => t.id === taskId);
+    if (downloadIndex !== -1) {
+        completedDownloads.splice(downloadIndex, 1);
+        const queueIdx = downloadQueue.findIndex(t => t.id === taskId);
+        if (queueIdx !== -1) downloadQueue.splice(queueIdx, 1);
         saveTaskData();
         res.json({ success: true, message: '任务已删除' });
         return;
@@ -1845,8 +1794,8 @@ app.delete('/api/tasks/:taskId', requireAuth, (req, res) => {
 // 清除已完成的任务
 app.delete('/api/tasks', requireAuth, (req, res) => {
     completedTasks = [];
-    completedUploads = [];
-    completedDownloads = [];
+    completedUploads = completedUploads.filter(t => t.status === 'queued' || t.status === 'uploading');
+    completedDownloads = completedDownloads.filter(t => t.status === 'queued' || t.status === 'downloading');
     convertQueue = convertQueue.filter(t => t.status === 'queued');
     downloadQueue = downloadQueue.filter(t => t.status === 'queued');
     saveTaskData();
@@ -4633,7 +4582,7 @@ app.post('/api/batch-delete-files', requireAuth, (req, res) => {
 });
 
 // 批量下载文件 API（打包为 ZIP）
-app.post('/api/batch-download', requireAuth, async (req, res) => {
+app.post('/api/batch-download', async (req, res) => {
     try {
         const { files } = req.body;
         
@@ -4641,33 +4590,197 @@ app.post('/api/batch-download', requireAuth, async (req, res) => {
             return res.status(400).json({ success: false, error: '请选择要下载的文件' });
         }
         
-        // 使用项目已有的 adm-zip 库
-        const zip = new AdmZip();
+        const batchId = Date.now().toString(36) + Math.random().toString(36).substr(2);
         
-        for (const filePath of files) {
-            if (!filePath.startsWith(MUSIC_DIR)) {
-                continue;
-            }
-            
-            if (fs.existsSync(filePath)) {
-                const fileName = path.basename(filePath);
-                const fileContent = fs.readFileSync(filePath);
-                zip.addFile(fileName, fileContent);
-            }
-        }
+        const batchTask = {
+            id: batchId,
+            total: files.length,
+            processed: 0,
+            currentFile: '',
+            status: 'processing',
+            zipPath: null,
+            zipFileName: `music_batch_${batchId}.zip`,
+            error: null,
+            createdAt: Date.now()
+        };
         
-        const zipBuffer = zip.toBuffer();
+        batchDownloads.set(batchId, batchTask);
         
-        res.setHeader('Content-Type', 'application/zip');
-        res.setHeader('Content-Disposition', `attachment; filename="music_batch_${Date.now()}.zip"`);
-        res.setHeader('Content-Length', zipBuffer.length);
+        res.json({
+            success: true,
+            batchId: batchId,
+            total: files.length,
+            message: '已开始打包'
+        });
         
-        res.send(zipBuffer);
+        processBatchDownload(batchId, files);
         
     } catch (error) {
         console.error('批量下载失败:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
+});
+
+async function processBatchDownload(batchId, files) {
+    const task = batchDownloads.get(batchId);
+    if (!task) return;
+    
+    try {
+        const zip = new AdmZip();
+        let addedCount = 0;
+        
+        for (let i = 0; i < files.length; i++) {
+            const item = files[i];
+            try {
+                if (typeof item === 'string') {
+                    const filePath = item;
+                    if (!filePath.startsWith(MUSIC_DIR)) {
+                        task.processed++;
+                        continue;
+                    }
+                    
+                    task.currentFile = path.basename(filePath);
+                    
+                    if (fs.existsSync(filePath)) {
+                        const fileName = path.basename(filePath);
+                        const fileContent = fs.readFileSync(filePath);
+                        zip.addFile(fileName, fileContent);
+                        addedCount++;
+                    }
+                } else if (item && item.type === 'online') {
+                    const { source, songId, name, singer, albumName, songInfo } = item;
+                    
+                    const fullSongInfo = songInfo || { 
+                        songId: songId, 
+                        name: name, 
+                        singer: singer, 
+                        albumName: albumName 
+                    };
+                    
+                    const safeSinger = singer ? sanitizeFileName(singer) : '';
+                    const safeName = sanitizeFileName(name);
+                    const artistName = safeSinger ? `${safeSinger} - ` : '';
+                    const fileName = `${artistName}${safeName}.mp3`;
+                    
+                    task.currentFile = fileName;
+                    
+                    let playUrl = await getMusicPlayUrl(source, fullSongInfo, '128');
+                    
+                    if (!playUrl) {
+                        console.log(`批量下载：当前平台 ${source} 无法获取播放链接，尝试其他平台...`);
+                        
+                        const platforms = ['kw', 'kg', 'tx', 'wy', 'mg'];
+                        const currentIndexInPlatforms = platforms.indexOf(source);
+                        const otherPlatforms = currentIndexInPlatforms >= 0 
+                            ? platforms.filter((_, idx) => idx !== currentIndexInPlatforms)
+                            : platforms;
+                        
+                        for (const platform of otherPlatforms) {
+                            try {
+                                playUrl = await getMusicPlayUrl(platform, fullSongInfo, '128');
+                                if (playUrl) break;
+                            } catch (e) {
+                                // 继续尝试下一个平台
+                            }
+                        }
+                    }
+                    
+                    if (playUrl) {
+                        const response = await fetch(playUrl);
+                        if (response.ok) {
+                            const arrayBuffer = await response.arrayBuffer();
+                            const buffer = Buffer.from(arrayBuffer);
+                            zip.addFile(fileName, buffer);
+                            addedCount++;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('批量下载处理文件失败:', e.message);
+            }
+            
+            task.processed = i + 1;
+        }
+        
+        if (addedCount === 0) {
+            task.status = 'failed';
+            task.error = '没有可下载的文件';
+            return;
+        }
+        
+        task.currentFile = '正在生成 ZIP 文件...';
+        
+        const zipBuffer = zip.toBuffer();
+        const tempDir = path.join(__dirname, 'data', 'temp');
+        if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+        }
+        
+        const zipPath = path.join(tempDir, task.zipFileName);
+        fs.writeFileSync(zipPath, zipBuffer);
+        
+        task.zipPath = zipPath;
+        task.status = 'completed';
+        task.currentFile = '打包完成';
+        
+        setTimeout(() => {
+            if (batchDownloads.has(batchId)) {
+                const t = batchDownloads.get(batchId);
+                if (t.zipPath && fs.existsSync(t.zipPath)) {
+                    fs.unlinkSync(t.zipPath);
+                }
+                batchDownloads.delete(batchId);
+            }
+        }, 30 * 60 * 1000);
+        
+    } catch (error) {
+        console.error('批量下载打包失败:', error.message);
+        task.status = 'failed';
+        task.error = error.message;
+    }
+}
+
+app.get('/api/batch-download/:batchId/progress', (req, res) => {
+    const { batchId } = req.params;
+    const task = batchDownloads.get(batchId);
+    
+    if (!task) {
+        return res.status(404).json({ success: false, error: '任务不存在或已过期' });
+    }
+    
+    res.json({
+        success: true,
+        id: task.id,
+        total: task.total,
+        processed: task.processed,
+        progress: task.total > 0 ? Math.round((task.processed / task.total) * 100) : 0,
+        currentFile: task.currentFile,
+        status: task.status,
+        error: task.error
+    });
+});
+
+app.get('/api/batch-download/:batchId/download', (req, res) => {
+    const { batchId } = req.params;
+    const task = batchDownloads.get(batchId);
+    
+    if (!task) {
+        return res.status(404).json({ success: false, error: '任务不存在或已过期' });
+    }
+    
+    if (task.status !== 'completed' || !task.zipPath) {
+        return res.status(400).json({ success: false, error: '打包尚未完成' });
+    }
+    
+    if (!fs.existsSync(task.zipPath)) {
+        return res.status(404).json({ success: false, error: '文件已过期或不存在' });
+    }
+    
+    res.download(task.zipPath, task.zipFileName, (err) => {
+        if (err) {
+            console.error('批量下载文件发送失败:', err.message);
+        }
+    });
 });
 
 // 在线音乐下载 API
@@ -4791,6 +4904,91 @@ app.post('/api/download-online-to-server', requireAuth, async (req, res) => {
     }
 });
 
+// 批量在线音乐下载到服务端 API
+app.post('/api/batch-download-to-server', requireAuth, async (req, res) => {
+    try {
+        const { songs, folderPath } = req.body;
+        
+        if (!Array.isArray(songs) || songs.length === 0) {
+            return res.status(400).json({ success: false, error: '请选择要下载的歌曲' });
+        }
+        
+        let targetFolder = folderPath || '在线下载';
+        targetFolder = targetFolder.replace(/^\/music\/?/, '').replace(/^music\/?/, '');
+        targetFolder = targetFolder.replace(/^[\/\\]/, '');
+        
+        let addedCount = 0;
+        
+        for (const song of songs) {
+            try {
+                const { source, songId, name, singer, albumName, songInfo } = song;
+                
+                if (!source || !songId || !name) continue;
+                
+                const fullSongInfo = songInfo || { 
+                    songId: songId, 
+                    name: name, 
+                    singer: singer, 
+                    albumName: albumName 
+                };
+                
+                const taskId = Date.now().toString(36) + Math.random().toString(36).substr(2) + Math.random().toString(36).substr(2);
+                taskOrderCounter++;
+                
+                const safeSinger = singer ? sanitizeFileName(singer) : '';
+                const safeName = sanitizeFileName(name);
+                const artistName = safeSinger ? `${safeSinger} - ` : '';
+                const fileName = `${artistName}${safeName}.mp3`;
+                
+                const task = {
+                    id: taskId,
+                    orderIndex: taskOrderCounter,
+                    type: 'download',
+                    source: source,
+                    songId: songId,
+                    songInfo: fullSongInfo,
+                    name: name,
+                    singer: singer,
+                    fileName: fileName,
+                    folderPath: targetFolder,
+                    status: 'queued',
+                    progress: 0,
+                    message: '等待下载',
+                    startTime: Date.now()
+                };
+                
+                downloadQueue.push(task);
+                completedDownloads.push(task);
+                addedCount++;
+                
+                console.log(`⬇️ 批量添加下载任务：${fileName}`);
+            } catch (e) {
+                console.error('批量添加下载任务失败:', e.message);
+            }
+        }
+        
+        if (addedCount === 0) {
+            return res.status(400).json({ success: false, error: '没有可下载的在线歌曲' });
+        }
+        
+        for (let i = 0; i < maxDownloadWorkers; i++) {
+            processDownloadQueue();
+        }
+        
+        saveTaskData();
+        
+        res.json({
+            success: true,
+            message: `已添加 ${addedCount} 个下载任务到队列`,
+            addedCount: addedCount
+        });
+        
+    } catch (error) {
+        console.error('批量添加下载任务失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // 处理下载队列（支持并发）
 async function processDownloadQueue() {
     if (downloadQueue.length === 0 || activeDownloadWorkers >= maxDownloadWorkers) {
@@ -4858,6 +5056,14 @@ async function processDownloadQueue() {
             task.endTime = Date.now();
             console.log(`ℹ️ 文件已存在：${task.fileName}`);
             saveTaskData();
+            
+            taskNotifications.push({
+                type: 'download',
+                status: 'completed',
+                fileName: task.fileName,
+                message: `文件已存在：${task.fileName}`
+            });
+            
             return;
         }
         
@@ -4909,6 +5115,13 @@ async function processDownloadQueue() {
         console.error('下载失败:', error.message);
         
         saveTaskData();
+        
+        taskNotifications.push({
+            type: 'download',
+            status: 'failed',
+            fileName: task.fileName,
+            message: `下载失败：${task.fileName}`
+        });
     } finally {
         const index = activeDownloadTasks.findIndex(t => t.id === task.id);
         if (index !== -1) {
@@ -8779,12 +8992,13 @@ app.post('/api/add-online-to-playlist', async (req, res) => {
             album: albumName || '',
             duration: parseInt(String(interval)) || 0,
             path: `online://${source}/${songId}`,
-            playUrl: '', // 播放时再获取
+            playUrl: '',
             picUrl: picUrl || '',
             source,
+            songId,
             sourceName: ONLINE_SOURCES.find(s => s.id === source)?.name || source,
             isOnline: true,
-            songInfo: songInfo || { songId, name, singer, albumName } // 保存完整的歌曲信息
+            songInfo: songInfo || { songId, name, singer, albumName }
         };
         
         // 检查是否已存在

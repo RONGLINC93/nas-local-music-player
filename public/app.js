@@ -16,8 +16,8 @@ let isStoppingClient = false; // 是否正在主动停止客户端播放
 
 // 用户认证
 let authToken = localStorage.getItem('authToken') || null;
-let currentUser = null;
-let needPassword = false;
+let currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+let needPassword = true; // 初始值为 true，在认证检查完成前隐藏需要登录的按钮
 let pendingAuthRequests = [];
 let isLoginModalShowing = false;
 
@@ -162,26 +162,29 @@ function updateUserCardUI() {
     const statusEl = document.getElementById('userStatus');
     const avatarEl = document.getElementById('userAvatar');
     const navMySonglist = document.getElementById('navMySonglist');
-    
+
     if (!userCard || !nicknameEl || !statusEl || !avatarEl) return;
-    
+
     if (currentUser && currentUser.avatar) {
         avatarEl.innerHTML = `<img src="${currentUser.avatar}" alt="头像" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
     } else {
         avatarEl.innerHTML = '<i class="fas fa-user"></i>';
     }
-    
+
     if (currentUser) {
+        document.body.classList.add('logged-in');
         userCard.classList.add('logged-in');
         nicknameEl.textContent = currentUser.nickname || currentUser.username || '用户';
         statusEl.textContent = '已登录';
         if (navMySonglist) navMySonglist.style.display = 'flex';
     } else if (needPassword) {
+        document.body.classList.remove('logged-in');
         userCard.classList.remove('logged-in');
         nicknameEl.textContent = '未登录';
         statusEl.textContent = '点击登录';
         if (navMySonglist) navMySonglist.style.display = 'none';
     } else {
+        document.body.classList.remove('logged-in');
         userCard.classList.remove('logged-in');
         nicknameEl.textContent = '访客模式';
         statusEl.textContent = '点击设置密码';
@@ -508,6 +511,7 @@ async function doLogin() {
                 avatar: result.avatar
             };
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            needPassword = true; // 登录成功后，肯定需要密码
             updateUserCardUI();
             renderPlaylist();
             refreshAllMusicViews();
@@ -1429,7 +1433,7 @@ function renderPlaylist() {
                 <button class="playlist-action-btn playlist-download-btn" onclick="event.stopPropagation(); downloadTrack(${index})" title="下载">
                     <i class="fas fa-download"></i>
                 </button>
-                <button class="playlist-action-btn playlist-delete-btn" onclick="event.stopPropagation(); deleteTrack(${index})" title="删除">
+                <button class="playlist-action-btn playlist-delete-btn needs-auth" onclick="event.stopPropagation(); deleteTrack(${index})" title="删除">
                     <i class="fas fa-trash"></i>
                 </button>
                 ${currentUser ? `
@@ -1881,7 +1885,7 @@ async function refreshCacheList() {
                             <span>${formatCacheDate(item.cachedAt)}</span>
                         </div>
                     </div>
-                    <button class="cache-item-delete" onclick="deleteCacheItem('${item.cacheKey}', '${escapeHtml(item.title || '未知歌曲')}')" title="删除此缓存">
+                    <button class="cache-item-delete needs-auth" onclick="deleteCacheItem('${item.cacheKey}', '${escapeHtml(item.title || '未知歌曲')}')" title="删除此缓存">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
@@ -2437,7 +2441,7 @@ function togglePlaylistMenu(index, event) {
             <i class="fas fa-download"></i>
             <span>下载</span>
         </div>
-        <div class="playlist-menu-item playlist-menu-item-danger" onclick="event.stopPropagation(); deleteTrack(${index}); closePlaylistMenu();">
+        <div class="playlist-menu-item playlist-menu-item-danger needs-auth" onclick="event.stopPropagation(); deleteTrack(${index}); closePlaylistMenu();">
             <i class="fas fa-trash"></i>
             <span>删除</span>
         </div>
@@ -6864,22 +6868,22 @@ function createFolderCardHTML(folder) {
                     <i class="fas fa-plus-circle"></i>
                 </button>
                 ` : ''}
-                <button onclick="event.stopPropagation(); moveFolder('${escapedPath}', '${folderName}')" class="folder-icon-btn folder-move-btn" title="移动">
+                <button onclick="event.stopPropagation(); moveFolder('${escapedPath}', '${folderName}')" class="folder-icon-btn folder-move-btn needs-auth" title="移动">
                     <i class="fas fa-arrows-alt"></i>
                 </button>
                 <button onclick="event.stopPropagation(); downloadFolder('${escapedPath}')" class="folder-icon-btn folder-download-btn" title="下载">
                     <i class="fas fa-download"></i>
                 </button>
-                <button onclick="event.stopPropagation(); openConvertFolderToMp3Modal('${escapedPath}', '${folderName}')" class="folder-icon-btn folder-convert-btn" title="转MP3">
+                <button onclick="event.stopPropagation(); openConvertFolderToMp3Modal('${escapedPath}', '${folderName}')" class="folder-icon-btn folder-convert-btn needs-auth" title="转MP3">
                     <i class="fas fa-exchange-alt"></i>
                 </button>
-                <button onclick="event.stopPropagation(); openRenameFolderModal('${escapedPath}', '${folderName}')" class="folder-icon-btn folder-rename-btn" title="重命名">
+                <button onclick="event.stopPropagation(); openRenameFolderModal('${escapedPath}', '${folderName}')" class="folder-icon-btn folder-rename-btn needs-auth" title="重命名">
                     <i class="fas fa-edit"></i>
                 </button>
-                <button onclick="event.stopPropagation(); openDissolveFolderModal('${escapedPath}', '${folderName}')" class="folder-icon-btn folder-dissolve-btn" title="解散">
+                <button onclick="event.stopPropagation(); openDissolveFolderModal('${escapedPath}', '${folderName}')" class="folder-icon-btn folder-dissolve-btn needs-auth" title="解散">
                     <i class="fas fa-box-open"></i>
                 </button>
-                <button onclick="event.stopPropagation(); openDeleteFolderModal('${escapedPath}', '${folderName}')" class="folder-icon-btn folder-delete-btn" title="删除">
+                <button onclick="event.stopPropagation(); openDeleteFolderModal('${escapedPath}', '${folderName}')" class="folder-icon-btn folder-delete-btn needs-auth" title="删除">
                     <i class="fas fa-trash"></i>
                 </button>
                 <button onclick="event.stopPropagation(); toggleFolderCardMenu(event, '${escapedPath}', '${folderName}')" class="folder-icon-btn folder-card-menu-btn" title="更多操作">
@@ -6921,22 +6925,22 @@ function createFileItemHTML(track, index, searchKeyword = '') {
                     <i class="fas fa-plus-circle"></i>
                 </button>
                 ` : ''}
-                <button onclick="openRenameFileModal('${escapedPath}', '${escapedFilename}')" class="folder-music-action-btn folder-music-rename-btn" title="重命名">
+                <button onclick="openRenameFileModal('${escapedPath}', '${escapedFilename}')" class="folder-music-action-btn folder-music-rename-btn needs-auth" title="重命名">
                     <i class="fas fa-font"></i>
                 </button>
-                <button onclick="moveSingleFile('${escapedPath}')" class="folder-music-action-btn folder-music-move-btn" title="移动">
+                <button onclick="moveSingleFile('${escapedPath}')" class="folder-music-action-btn folder-music-move-btn needs-auth" title="移动">
                     <i class="fas fa-arrows-alt"></i>
                 </button>
                 <button onclick="downloadTrack('${escapedPath}')" class="folder-music-action-btn folder-music-download-btn" title="下载文件">
                     <i class="fas fa-download"></i>
                 </button>
-                <button onclick="openEditMetadataModal('${escapedPath}')" class="folder-music-action-btn folder-music-edit-btn" title="编辑属性">
+                <button onclick="openEditMetadataModal('${escapedPath}')" class="folder-music-action-btn folder-music-edit-btn needs-auth" title="编辑属性">
                     <i class="fas fa-edit"></i>
                 </button>
-                <button onclick="openConvertToMp3Modal('${escapedPath}')" class="folder-music-action-btn folder-music-convert-btn" title="转MP3">
+                <button onclick="openConvertToMp3Modal('${escapedPath}')" class="folder-music-action-btn folder-music-convert-btn needs-auth" title="转MP3">
                     <i class="fas fa-exchange-alt"></i>
                 </button>
-                <button onclick="openDeleteModal('${escapedPath}', true)" class="folder-music-action-btn folder-music-delete-btn" title="删除文件">
+                <button onclick="openDeleteModal('${escapedPath}', true)" class="folder-music-action-btn folder-music-delete-btn needs-auth" title="删除文件">
                     <i class="fas fa-trash"></i>
                 </button>
                 <button onclick="toggleFileMenu(event, '${escapedPath}')" class="folder-music-action-btn folder-music-menu-btn folder-music-menu-btn-mobile" title="更多">
@@ -6989,25 +6993,25 @@ function showFileContextMenu(event, filePath, anchorRect) {
             <i class="fas fa-download"></i>
             <span>下载</span>
         </div>
-        <div class="context-menu-item" onclick="event.stopPropagation(); moveSingleFile('${filePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'); closeFileContextMenu();">
+        <div class="context-menu-item needs-auth" onclick="event.stopPropagation(); moveSingleFile('${filePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'); closeFileContextMenu();">
             <i class="fas fa-arrows-alt"></i>
             <span>移动</span>
         </div>
-        <div class="context-menu-item" onclick="event.stopPropagation(); openRenameFileModal('${filePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', '${(filePath.split(/[\\/]/).pop() || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'); closeFileContextMenu();">
+        <div class="context-menu-item needs-auth" onclick="event.stopPropagation(); openRenameFileModal('${filePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', '${(filePath.split(/[\\/]/).pop() || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'); closeFileContextMenu();">
             <i class="fas fa-font"></i>
             <span>重命名</span>
         </div>
-        <div class="context-menu-divider"></div>
-        <div class="context-menu-item" onclick="event.stopPropagation(); openEditMetadataModal('${filePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'); closeFileContextMenu();">
+        <div class="context-menu-divider needs-auth"></div>
+        <div class="context-menu-item needs-auth" onclick="event.stopPropagation(); openEditMetadataModal('${filePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'); closeFileContextMenu();">
             <i class="fas fa-edit"></i>
             <span>编辑属性</span>
         </div>
-        <div class="context-menu-item" onclick="event.stopPropagation(); openConvertToMp3Modal('${filePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'); closeFileContextMenu();">
+        <div class="context-menu-item needs-auth" onclick="event.stopPropagation(); openConvertToMp3Modal('${filePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'); closeFileContextMenu();">
             <i class="fas fa-exchange-alt"></i>
             <span>转MP3</span>
         </div>
-        <div class="context-menu-divider"></div>
-        <div class="context-menu-item context-menu-item-danger" onclick="event.stopPropagation(); openDeleteModal('${filePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', true); closeFileContextMenu();">
+        <div class="context-menu-divider needs-auth"></div>
+        <div class="context-menu-item context-menu-item-danger needs-auth" onclick="event.stopPropagation(); openDeleteModal('${filePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', true); closeFileContextMenu();">
             <i class="fas fa-trash"></i>
             <span>删除</span>
         </div>
@@ -7070,25 +7074,25 @@ function showFolderContextMenu(event, folderPath, folderName) {
             <i class="fas fa-download"></i>
             <span>下载</span>
         </div>
-        <div class="context-menu-item" onclick="event.stopPropagation(); moveFolder('${folderPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', '${folderName.replace(/'/g, "\\'")}'); closeFolderContextMenu();">
+        <div class="context-menu-item needs-auth" onclick="event.stopPropagation(); moveFolder('${folderPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', '${folderName.replace(/'/g, "\\'")}'); closeFolderContextMenu();">
             <i class="fas fa-arrows-alt"></i>
             <span>移动</span>
         </div>
-        <div class="context-menu-item" onclick="event.stopPropagation(); openConvertFolderToMp3Modal('${folderPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', '${folderName.replace(/'/g, "\\'")}'); closeFolderContextMenu();">
+        <div class="context-menu-item needs-auth" onclick="event.stopPropagation(); openConvertFolderToMp3Modal('${folderPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', '${folderName.replace(/'/g, "\\'")}'); closeFolderContextMenu();">
             <i class="fas fa-exchange-alt"></i>
             <span>转MP3</span>
         </div>
-        <div class="context-menu-divider"></div>
-        <div class="context-menu-item" onclick="event.stopPropagation(); openRenameFolderModal('${folderPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', '${folderName.replace(/'/g, "\\'")}'); closeFolderContextMenu();">
+        <div class="context-menu-divider needs-auth"></div>
+        <div class="context-menu-item needs-auth" onclick="event.stopPropagation(); openRenameFolderModal('${folderPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', '${folderName.replace(/'/g, "\\'")}'); closeFolderContextMenu();">
             <i class="fas fa-edit"></i>
             <span>重命名</span>
         </div>
-        <div class="context-menu-item" onclick="event.stopPropagation(); openDissolveFolderModal('${folderPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', '${folderName.replace(/'/g, "\\'")}'); closeFolderContextMenu();">
+        <div class="context-menu-item needs-auth" onclick="event.stopPropagation(); openDissolveFolderModal('${folderPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', '${folderName.replace(/'/g, "\\'")}'); closeFolderContextMenu();">
             <i class="fas fa-box-open"></i>
             <span>解散</span>
         </div>
-        <div class="context-menu-divider"></div>
-        <div class="context-menu-item context-menu-item-danger" onclick="event.stopPropagation(); openDeleteFolderModal('${folderPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', '${folderName.replace(/'/g, "\\'")}'); closeFolderContextMenu();">
+        <div class="context-menu-divider needs-auth"></div>
+        <div class="context-menu-item context-menu-item-danger needs-auth" onclick="event.stopPropagation(); openDeleteFolderModal('${folderPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', '${folderName.replace(/'/g, "\\'")}'); closeFolderContextMenu();">
             <i class="fas fa-trash"></i>
             <span>删除</span>
         </div>
@@ -10464,7 +10468,7 @@ function renderSourceFileList(files) {
             </div>
             <span class="source-file-status ${isActive ? 'active' : 'inactive'}">${isActive ? '已选中' : '未选中'}</span>
             <div class="source-file-actions-row">
-                <button class="source-file-delete-btn" onclick="event.stopPropagation(); deleteSourceFile('${file.name}')" title="删除">
+                <button class="source-file-delete-btn needs-auth" onclick="event.stopPropagation(); deleteSourceFile('${file.name}')" title="删除">
                     <i class="fas fa-trash"></i>
                 </button>
             </div>

@@ -103,7 +103,7 @@
                                     <button onclick="playlistBatchDownload()" class="playlist-batch-btn playlist-batch-download-btn" title="批量下载">
                                         <i class="fas fa-download"></i>
                                     </button>
-                                    <button onclick="playlistBatchDelete()" class="playlist-batch-btn playlist-batch-delete-btn" title="批量删除">
+                                    <button onclick="playlistBatchDelete()" class="playlist-batch-btn playlist-batch-delete-btn needs-auth" title="批量删除">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </div>
@@ -368,7 +368,7 @@
                             <div class="online-setting-card" id="setting-play-output">
                                 <h4><i class="fas fa-broadcast-tower"></i> 播放输出方式</h4>
                                 <p class="setting-description">选择音频播放的输出方式</p>
-                                <div class="play-output-options" id="playOutputOptions">                                
+                                <div class="play-output-options" id="playOutputOptions">
                                     <label class="play-output-option">
                                         <input type="radio" name="playOutput" value="client" onchange="changePlayOutput('client')">
                                         <div class="play-output-label">
@@ -416,7 +416,7 @@
                                         <button onclick="refreshCacheList()" class="cache-refresh-btn" title="刷新缓存列表">
                                             <i class="fas fa-sync-alt"></i> 刷新
                                         </button>
-                                        <button onclick="clearAllCache()" class="cache-clear-btn" title="清空所有缓存">
+                                        <button onclick="clearAllCache()" class="cache-clear-btn needs-auth" title="清空所有缓存">
                                             <i class="fas fa-trash-alt"></i> 清空缓存
                                         </button>
                                     </div>
@@ -521,11 +521,11 @@
                             <i class="fas fa-sync-alt"></i>
                             <span>刷新</span>
                         </button>
-                        <button onclick="openWorkerConfigModal()" class="task-action-btn task-config-btn" title="线程数量设置">
+                        <button onclick="openWorkerConfigModal()" class="task-action-btn task-config-btn needs-auth" title="线程数量设置">
                             <i class="fas fa-cog"></i>
                             <span>设置</span>
                         </button>
-                        <button onclick="clearCompletedTasks()" class="task-action-btn task-clear-btn" title="清除已完成任务">
+                        <button onclick="clearCompletedTasks()" class="task-action-btn task-clear-btn needs-auth" title="清除已完成任务">
                             <i class="fas fa-trash"></i>
                             <span>清除</span>
                         </button>
@@ -605,11 +605,11 @@
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
-                        <button onclick="openUploadModal()" class="folder-action-btn folder-upload-btn" title="上传音乐">
+                        <button onclick="openUploadModal()" class="folder-action-btn folder-upload-btn needs-auth" title="上传音乐">
                             <i class="fas fa-upload"></i>
                             <span>上传</span>
                         </button>
-                        <button onclick="scanFolders()" class="folder-action-btn folder-scan-btn" title="扫描文件">
+                        <button onclick="scanFolders()" class="folder-action-btn folder-scan-btn needs-auth" title="扫描文件">
                             <i class="fas fa-search"></i>
                             <span>扫描文件</span>
                         </button>
@@ -617,11 +617,11 @@
                             <i class="fas fa-sync-alt"></i>
                             <span>刷新</span>
                         </button>
-                        <button onclick="openOrganizeModal()" class="folder-action-btn folder-organize-btn" title="一键整理">
+                        <button onclick="openOrganizeModal()" class="folder-action-btn folder-organize-btn needs-auth" title="一键整理">
                             <i class="fas fa-magic"></i>
                             <span>整理</span>
                         </button>
-                        <button onclick="openScrapeModal()" class="folder-action-btn folder-scrape-btn folder-scrape-btn-desktop" title="自动刮削">
+                        <button onclick="openScrapeModal()" class="folder-action-btn folder-scrape-btn folder-scrape-btn-desktop needs-auth" title="自动刮削">
                             <i class="fas fa-cloud-download-alt"></i>
                             <span>刮削</span>
                         </button>
@@ -630,11 +630,11 @@
                                 <i class="fas fa-ellipsis-v"></i>
                             </button>
                             <div id="folderMoreMenu" class="folder-more-menu" style="display: none;">
-                                <div class="folder-menu-item" onclick="openUploadModal(); closeFolderMoreMenu();">
+                                <div class="folder-menu-item needs-auth" onclick="openUploadModal(); closeFolderMoreMenu();">
                                     <i class="fas fa-upload"></i>
                                     <span>上传</span>
                                 </div>
-                                <div class="folder-menu-item" onclick="scanFolders(); closeFolderMoreMenu();">
+                                <div class="folder-menu-item needs-auth" onclick="scanFolders(); closeFolderMoreMenu();">
                                     <i class="fas fa-search"></i>
                                     <span>扫描文件</span>
                                 </div>
@@ -642,11 +642,11 @@
                                     <i class="fas fa-sync-alt"></i>
                                     <span>刷新</span>
                                 </div>
-                                <div class="folder-menu-item" onclick="openOrganizeModal(); closeFolderMoreMenu();">
+                                <div class="folder-menu-item needs-auth" onclick="openOrganizeModal(); closeFolderMoreMenu();">
                                     <i class="fas fa-magic"></i>
                                     <span>整理</span>
                                 </div>
-                                <div class="folder-menu-item" onclick="openScrapeModal(); closeFolderMoreMenu();">
+                                <div class="folder-menu-item needs-auth" onclick="openScrapeModal(); closeFolderMoreMenu();">
                                     <i class="fas fa-cloud-download-alt"></i>
                                     <span>刮削</span>
                                 </div>
@@ -664,22 +664,22 @@
                     </label>
                     <div class="batch-divider"></div>
                     <div class="batch-actions-right">
-                        <button onclick="createNewFolder()" class="batch-action-btn batch-new-folder-btn" title="新建文件夹">
+                        <button onclick="createNewFolder()" class="batch-action-btn batch-new-folder-btn needs-auth" title="新建文件夹">
                             <i class="fas fa-folder-plus"></i>
                         </button>
                         <button onclick="batchAddToPlaylist()" class="batch-action-btn batch-add-btn" title="加入播放列表" disabled>
                             <i class="fas fa-plus"></i>
                         </button>
-                        <button onclick="batchMoveFiles()" class="batch-action-btn batch-move-btn" title="移动" disabled>
+                        <button onclick="batchMoveFiles()" class="batch-action-btn batch-move-btn needs-auth" title="移动" disabled>
                             <i class="fas fa-arrows-alt"></i>
                         </button>
-                        <button onclick="batchDeleteFiles()" class="batch-action-btn batch-delete-btn" title="删除" disabled>
+                        <button onclick="batchDeleteFiles()" class="batch-action-btn batch-delete-btn needs-auth" title="删除" disabled>
                             <i class="fas fa-trash"></i>
                         </button>
                         <button onclick="batchDownloadFiles()" class="batch-action-btn batch-download-btn" title="下载" disabled>
                             <i class="fas fa-download"></i>
                         </button>
-                        <button onclick="batchConvertToMp3()" class="batch-action-btn batch-convert-btn" title="转MP3" disabled>
+                        <button onclick="batchConvertToMp3()" class="batch-action-btn batch-convert-btn needs-auth" title="转MP3" disabled>
                             <i class="fas fa-exchange-alt"></i>
                         </button>
                         <div class="batch-more-menu-wrapper">
@@ -687,7 +687,7 @@
                                 <i class="fas fa-ellipsis-v"></i>
                             </button>
                             <div id="batchMoreMenu" class="batch-more-menu" style="display: none;">
-                                <div class="batch-menu-item" onclick="createNewFolder(); closeBatchMoreMenu();">
+                                <div class="batch-menu-item needs-auth" onclick="createNewFolder(); closeBatchMoreMenu();">
                                     <i class="fas fa-folder-plus"></i>
                                     <span>新建文件夹</span>
                                 </div>
@@ -695,7 +695,7 @@
                                     <i class="fas fa-plus"></i>
                                     <span>加入播放列表</span>
                                 </div>
-                                <div class="batch-menu-item" onclick="batchMoveFiles(); closeBatchMoreMenu();" id="batchMenuMove">
+                                <div class="batch-menu-item needs-auth" onclick="batchMoveFiles(); closeBatchMoreMenu();" id="batchMenuMove">
                                     <i class="fas fa-arrows-alt"></i>
                                     <span>移动</span>
                                 </div>
@@ -703,11 +703,11 @@
                                     <i class="fas fa-download"></i>
                                     <span>下载</span>
                                 </div>
-                                <div class="batch-menu-item" onclick="batchConvertToMp3(); closeBatchMoreMenu();" id="batchMenuConvert">
+                                <div class="batch-menu-item needs-auth" onclick="batchConvertToMp3(); closeBatchMoreMenu();" id="batchMenuConvert">
                                     <i class="fas fa-exchange-alt"></i>
                                     <span>转MP3</span>
                                 </div>
-                                <div class="batch-menu-item batch-menu-item-danger" onclick="batchDeleteFiles(); closeBatchMoreMenu();" id="batchMenuDelete">
+                                <div class="batch-menu-item batch-menu-item-danger needs-auth" onclick="batchDeleteFiles(); closeBatchMoreMenu();" id="batchMenuDelete">
                                     <i class="fas fa-trash"></i>
                                     <span>删除</span>
                                 </div>

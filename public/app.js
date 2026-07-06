@@ -8651,7 +8651,7 @@ function renderTaskList(tasks) {
                 </div>
                 <div class="task-actions-cell">
                     ${task.status === 'completed' || task.status === 'failed' ? `
-                        <button class="task-action delete" onclick="deleteTask('${task.id}', '${task.type}')" title="删除任务">
+                        <button class="task-action delete needs-auth" onclick="deleteTask('${task.id}', '${task.type}')" title="删除任务">
                             <i class="fas fa-trash"></i>
                         </button>
                     ` : ''}

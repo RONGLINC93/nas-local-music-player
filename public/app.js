@@ -1787,6 +1787,25 @@ function renderPlaylist() {
                </span>`;
         }
         
+        // 生成封面
+        let coverHtml;
+        if (track.isOnline) {
+            if (track.picUrl || track.cover) {
+                const coverUrl = track.picUrl || track.cover;
+                coverHtml = `<img class="playlist-item-cover" src="${coverUrl}" alt="" 
+                             onerror="this.outerHTML='<div class=\\'playlist-item-cover playlist-item-cover-placeholder\\'><i class=\\'fas fa-music\\'></i></div>'">`;
+            } else {
+                coverHtml = `<div class="playlist-item-cover playlist-item-cover-placeholder"><i class="fas fa-music"></i></div>`;
+            }
+        } else {
+            if (track.cover) {
+                coverHtml = `<img class="playlist-item-cover" src="/api/cover?path=${encodeURIComponent(track.cover)}&size=small" alt=""
+                             onerror="this.outerHTML='<div class=\\'playlist-item-cover playlist-item-cover-placeholder\\'><i class=\\'fas fa-music\\'></i></div>'">`;
+            } else {
+                coverHtml = `<div class="playlist-item-cover playlist-item-cover-placeholder"><i class="fas fa-music"></i></div>`;
+            }
+        }
+        
         item.innerHTML = `
             <div class="playlist-item-checkbox">
                 <input type="checkbox" 
@@ -1796,6 +1815,7 @@ function renderPlaylist() {
             <div class="playlist-item-index">
                 ${index === currentIndex && isPlaying ? '<i class="fas fa-volume-up playing-icon"></i>' : index + 1}
             </div>
+            ${coverHtml}
             <div class="playlist-item-title">${track.title}${sourceBadge}</div>
             <div class="playlist-item-artist">${track.artist || '-'}</div>
             <div class="playlist-item-duration">${formatDuration(track.duration)}</div>
@@ -2362,8 +2382,17 @@ async function refreshCacheList() {
             cacheListEl.innerHTML = result.cacheList.map(item => {
                 const sourceColor = getSourceColor(item.source);
                 const sourceName = getSourceName(item.source);
+                let coverHtml;
+                if (item.cover || item.picUrl) {
+                    const coverUrl = item.cover || item.picUrl;
+                    coverHtml = `<img class="cache-item-cover" src="${coverUrl}" alt=""
+                                 onerror="this.outerHTML='<div class=\\'cache-item-cover cache-item-cover-placeholder\\'><i class=\\'fas fa-music\\'></i></div>'">`;
+                } else {
+                    coverHtml = `<div class="cache-item-cover cache-item-cover-placeholder"><i class="fas fa-music"></i></div>`;
+                }
                 return `
                 <div class="cache-item">
+                    ${coverHtml}
                     <div class="cache-item-info">
                         <div class="cache-item-title">${escapeHtml(item.title || '未知歌曲')}</div>
                         <div class="cache-item-meta">
@@ -4670,9 +4699,16 @@ function renderPlayHistory() {
             ? `style="background-color: ${sourceColor}20; color: ${sourceColor};"` 
             : '';
         
+        const hasCover = song.cover && (isOnline || song.cover);
+        const coverHtml = hasCover
+            ? `<img class="history-song-cover" src="${isOnline ? song.cover : '/api/cover?path=' + encodeURIComponent(song.cover) + '&size=small'}" 
+                     onerror="this.outerHTML='<div class=\\'history-song-cover history-song-cover-placeholder\\'><i class=\\'fas fa-music\\'></i></div>'" alt="">`
+            : `<div class="history-song-cover history-song-cover-placeholder"><i class="fas fa-music"></i></div>`;
+        
         return `
             <div class="history-song-item" ondblclick="playHistorySong(${index})">
                 <div class="history-song-index">${index + 1}</div>
+                ${coverHtml}
                 <div class="history-song-info">
                     <div class="history-song-title">
                         ${escapeHtml(song.title || '未知歌曲')}
@@ -5089,9 +5125,28 @@ function renderUserSonglistDetail(songlist) {
             ? `style="background-color: ${sourceColor}20; color: ${sourceColor};"` 
             : '';
         
+        let coverHtml;
+        if (isOnline) {
+            if (song.picUrl || song.cover) {
+                const coverUrl = song.picUrl || song.cover;
+                coverHtml = `<img class="mysonglist-song-cover" src="${coverUrl}" alt=""
+                             onerror="this.outerHTML='<div class=\\'mysonglist-song-cover mysonglist-song-cover-placeholder\\'><i class=\\'fas fa-music\\'></i></div>'">`;
+            } else {
+                coverHtml = `<div class="mysonglist-song-cover mysonglist-song-cover-placeholder"><i class="fas fa-music"></i></div>`;
+            }
+        } else {
+            if (song.cover) {
+                coverHtml = `<img class="mysonglist-song-cover" src="/api/cover?path=${encodeURIComponent(song.cover)}&size=small" alt=""
+                             onerror="this.outerHTML='<div class=\\'mysonglist-song-cover mysonglist-song-cover-placeholder\\'><i class=\\'fas fa-music\\'></i></div>'">`;
+            } else {
+                coverHtml = `<div class="mysonglist-song-cover mysonglist-song-cover-placeholder"><i class="fas fa-music"></i></div>`;
+            }
+        }
+        
         return `
         <div class="mysonglist-song-item" ondblclick="playMySonglistSong(${index})">
             <div class="mysonglist-song-index">${index + 1}</div>
+            ${coverHtml}
             <div class="mysonglist-song-title">
                 ${escapeHtml(song.title || song.name || '未知歌曲')}
                 <span class="song-source-badge ${isOnline ? 'online' : 'local'}" ${sourceStyle} title="${isOnline ? sourceName + '音乐' : '本地音乐'}">
@@ -6722,18 +6777,24 @@ function renderStats(stats) {
     // 常听歌曲列表
     const topSongsEl = document.getElementById('topSongsList');
     if (stats.topSongs && stats.topSongs.length > 0) {
-        topSongsEl.innerHTML = stats.topSongs.map((song, index) => `
+        topSongsEl.innerHTML = stats.topSongs.map((song, index) => {
+            const isOnline = song.isOnline;
+            const hasCover = song.cover;
+            const coverHtml = hasCover
+                ? `<img class="top-song-cover" src="${isOnline ? song.cover : '/api/cover?path=' + encodeURIComponent(song.cover) + '&size=small'}" 
+                         onerror="this.outerHTML='<div class=\\'top-song-cover top-song-cover-placeholder\\'><i class=\\'fas fa-music\\'></i></div>'" alt="">`
+                : `<div class="top-song-cover top-song-cover-placeholder"><i class="fas fa-music"></i></div>`;
+            return `
             <div class="top-song-item">
                 <div class="top-song-rank">${index + 1}</div>
-                <img class="top-song-cover" src="${song.cover ? '/api/cover?path=' + encodeURIComponent(song.cover) + '&size=small' : ''}" 
-                     onerror="this.style.display='none'" alt="">
+                ${coverHtml}
                 <div class="top-song-info">
                     <div class="top-song-title">${escapeHtml(song.title || '未知歌曲')}</div>
                     <div class="top-song-artist">${escapeHtml(song.artist || '未知歌手')}</div>
                 </div>
                 <div class="top-song-count">${song.count} 次</div>
             </div>
-        `).join('');
+        `}).join('');
     } else {
         topSongsEl.innerHTML = `
             <div class="empty-state">
@@ -8403,13 +8464,19 @@ function createFileItemHTML(track, index, searchKeyword = '') {
     const highlightedTitle = highlightText(track.title, searchKeyword);
     const highlightedArtist = highlightText(track.artist, searchKeyword);
     
+    let coverHtml;
+    if (track.cover) {
+        coverHtml = `<img class="folder-music-cover" src="/api/cover?path=${encodeURIComponent(track.cover)}&size=small" alt=""
+                      onerror="this.outerHTML='<div class=\\'folder-music-cover folder-music-cover-placeholder\\'><i class=\\'fas fa-music\\'></i></div>'">`;
+    } else {
+        coverHtml = `<div class="folder-music-cover folder-music-cover-placeholder"><i class="fas fa-music"></i></div>`;
+    }
+    
     return `
         <div class="folder-music-item" data-path="${escapedPath}" draggable="true" ondragstart="handleDragStart(event, '${escapedPath}')" oncontextmenu="showFileContextMenu(event, '${escapedPath}')">
             <input type="checkbox" class="folder-music-checkbox" data-path="${escapedPath}">
             <div class="folder-music-index">${index + 1}</div>
-            <div class="folder-music-icon">
-                <i class="fas fa-music"></i>
-            </div>
+            ${coverHtml}
             <div class="folder-music-info">
                 <div class="folder-music-title">
                     ${highlightedTitle}
@@ -10923,7 +10990,10 @@ function renderRankResults() {
         html += `
             <div class="online-item" data-source="${song.source}" data-songid="${song.songId}">
                 ${rankBadge}
-                <img src="${song.picUrl || ''}" alt="" class="online-item-pic" onerror="this.style.display='none'">
+                ${song.picUrl 
+                    ? `<img src="${song.picUrl}" alt="" class="online-item-pic" onerror="this.outerHTML='<div class=\\'online-item-pic online-item-pic-placeholder\\'><i class=\\'fas fa-music\\'></i></div>'">`
+                    : `<div class="online-item-pic online-item-pic-placeholder"><i class="fas fa-music"></i></div>`
+                }
                 <div class="online-item-info">
                     <div class="online-item-title-row">
                         <div class="online-item-title">${song.name}</div>
@@ -11084,7 +11154,10 @@ function renderOnlineResults() {
         html += `
             <div class="online-item" data-source="${song.source}" data-songid="${song.songId}">
                 ${indexBadge}
-                <img src="${song.picUrl || ''}" alt="" class="online-item-pic" onerror="this.style.display='none'">
+                ${song.picUrl 
+                    ? `<img src="${song.picUrl}" alt="" class="online-item-pic" onerror="this.outerHTML='<div class=\\'online-item-pic online-item-pic-placeholder\\'><i class=\\'fas fa-music\\'></i></div>'">`
+                    : `<div class="online-item-pic online-item-pic-placeholder"><i class="fas fa-music"></i></div>`
+                }
                 <div class="online-item-info">
                     <div class="online-item-title-row">
                         <div class="online-item-title">${song.name}</div>
@@ -12692,9 +12765,19 @@ function renderSonglistSongs(songs) {
     const sourceName = getSourceName(source);
     const sourceColor = getSourceColor(source);
     
-    resultsDiv.innerHTML = songs.map((song, index) => `
+    resultsDiv.innerHTML = songs.map((song, index) => {
+        const picUrl = song.img || song.picUrl || song.cover;
+        let coverHtml;
+        if (picUrl) {
+            coverHtml = `<img class="online-music-cover" src="${picUrl}" alt=""
+                         onerror="this.outerHTML='<div class=\\'online-music-cover online-music-cover-placeholder\\'><i class=\\'fas fa-music\\'></i></div>'">`;
+        } else {
+            coverHtml = `<div class="online-music-cover online-music-cover-placeholder"><i class="fas fa-music"></i></div>`;
+        }
+        return `
         <div class="online-music-item" data-index="${index}" data-source="${source}" data-songid="${song.songmid || song.id || index}" data-name="${song.name || '未知歌曲'}" data-singer="${song.singer || ''}" data-album="${song.albumName || ''}" data-pic="${song.img || ''}" data-interval="${song.interval || '0'}">
             <div class="online-music-index">${index + 1}</div>
+            ${coverHtml}
             <div class="online-music-info">
                 <div class="online-music-title">
                     ${song.name || '未知歌曲'}
@@ -12727,7 +12810,8 @@ function renderSonglistSongs(songs) {
                 <i class="fas fa-ellipsis-v"></i>
             </button>
         </div>
-    `).join('');
+    `;
+    }).join('');
 }
 
 // 添加歌单歌曲到播放列表
@@ -12932,7 +13016,14 @@ function getCoverImgSrc(target) {
         '.online-song-cover img',
         '.search-result-cover img',
         '.folder-item-cover img',
-        '.playlist-item-cover img'
+        '.playlist-item-cover img',
+        '.history-song-cover img',
+        '.folder-music-cover img',
+        '.mysonglist-song-cover img',
+        '.online-item-pic',
+        '.online-music-cover img',
+        '.cache-item-cover img',
+        '.top-song-cover img'
     ];
     
     for (const selector of coverSelectors) {

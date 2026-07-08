@@ -2905,6 +2905,13 @@ font-size: 72px;
 .login-modal-header {
     text-align: center;
     padding: 30px 30px 20px;
+    position: relative;
+}
+
+.login-modal-header .close-btn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
 }
 
 .login-avatar {

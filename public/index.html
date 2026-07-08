@@ -666,9 +666,28 @@
             <div id="view-folder" class="view">
                 <!-- 顶部栏 -->
                 <header class="top-bar">
-                    <div class="folder-breadcrumb" id="folderBreadcrumb">
-                        <i class="fas fa-folder-open"></i>
-                        <span>文件管理</span>
+                    <div class="folder-browse-header">
+                        <div class="folder-breadcrumb" id="folderBreadcrumb">
+                            <i class="fas fa-folder-open"></i>
+                            <span>文件管理</span>
+                        </div>
+                        <div class="browse-tabs" id="browseTabs">
+                            <div class="browse-tab active" data-view="folder" onclick="switchBrowseView('folder')">
+                                <i class="fas fa-folder"></i> 文件夹
+                            </div>
+                            <div class="browse-tab" data-view="artist" onclick="switchBrowseView('artist')">
+                                <i class="fas fa-user-music"></i> 艺术家
+                            </div>
+                            <div class="browse-tab" data-view="album" onclick="switchBrowseView('album')">
+                                <i class="fas fa-compact-disc"></i> 专辑
+                            </div>
+                            <div class="browse-tab" data-view="genre" onclick="switchBrowseView('genre')">
+                                <i class="fas fa-tags"></i> 流派
+                            </div>
+                            <div class="browse-tab" data-view="year" onclick="switchBrowseView('year')">
+                                <i class="fas fa-calendar-alt"></i> 年份
+                            </div>
+                        </div>
                     </div>
                     <div class="top-actions">
                         <div class="folder-search-box">
@@ -722,6 +741,14 @@
                                 <div class="folder-menu-item needs-auth" onclick="openScrapeModal(); closeFolderMoreMenu();">
                                     <i class="fas fa-cloud-download-alt"></i>
                                     <span>刮削</span>
+                                </div>
+                                <div class="folder-menu-item" onclick="openDuplicateModal(); closeFolderMoreMenu();">
+                                    <i class="fas fa-copy"></i>
+                                    <span>重复检测</span>
+                                </div>
+                                <div class="folder-menu-item" onclick="openCoverManager(); closeFolderMoreMenu();">
+                                    <i class="fas fa-images"></i>
+                                    <span>封面管理</span>
                                 </div>
                             </div>
                         </div>
@@ -806,9 +833,14 @@
                         <div id="mysonglistListView">
                             <div class="section-header">
                                 <h2><i class="fas fa-heart"></i> 我的歌单</h2>
-                                <button class="btn btn-primary" onclick="showCreateSonglistModal()">
-                                    <i class="fas fa-plus"></i> 新建歌单
-                                </button>
+                                <div style="display: flex; gap: 8px;">
+                                    <button class="btn btn-secondary" onclick="showImportSonglistModal()">
+                                        <i class="fas fa-file-import"></i> 导入歌单
+                                    </button>
+                                    <button class="btn btn-primary" onclick="showCreateSonglistModal()">
+                                        <i class="fas fa-plus"></i> 新建歌单
+                                    </button>
+                                </div>
                             </div>
                             <div id="mysonglistGrid" class="songlist-grid">
                                 <div class="empty-state">
@@ -824,6 +856,19 @@
                                     <i class="fas fa-arrow-left"></i> 返回
                                 </button>
                                 <div style="flex: 1;"></div>
+                                <div class="songlist-export-dropdown" style="position: relative;">
+                                    <button class="btn btn-secondary" onclick="toggleExportDropdown()">
+                                        <i class="fas fa-file-export"></i> 导出 <i class="fas fa-caret-down" style="margin-left: 4px; font-size: 11px;"></i>
+                                    </button>
+                                    <div id="exportDropdown" class="songlist-export-menu" style="display: none; position: absolute; right: 0; top: 100%; background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 140px; z-index: 100; margin-top: 4px;">
+                                        <div class="dropdown-item" onclick="exportSonglist('json')" style="padding: 10px 16px; cursor: pointer; font-size: 13px; color: #374151; transition: background 0.2s;">
+                                            <i class="fas fa-file-code" style="width: 16px; color: #8b5cf6; margin-right: 8px;"></i> JSON 格式
+                                        </div>
+                                        <div class="dropdown-item" onclick="exportSonglist('m3u')" style="padding: 10px 16px; cursor: pointer; font-size: 13px; color: #374151; transition: background 0.2s;">
+                                            <i class="fas fa-list-ul" style="width: 16px; color: #10b981; margin-right: 8px;"></i> M3U 格式
+                                        </div>
+                                    </div>
+                                </div>
                                 <button class="btn btn-secondary" onclick="playAllMySonglistSongs()">
                                     <i class="fas fa-play"></i> 播放全部
                                 </button>
@@ -2646,6 +2691,54 @@
         </div>
     </div>
 
+    <!-- 导入歌单模态框 -->
+    <div id="importSonglistModal" class="modal">
+        <div class="modal-content modal-md">
+            <div class="modal-header">
+                <h3><i class="fas fa-file-import" style="color: #4f46e5; margin-right: 8px;"></i> 导入歌单</h3>
+                <button onclick="closeImportSonglistModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="import-upload-area" id="importUploadArea" onclick="document.getElementById('importSonglistFile').click()" ondragover="handleImportDragOver(event)" ondrop="handleImportDrop(event)">
+                    <div class="import-upload-icon">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                    </div>
+                    <p class="import-upload-text">点击或拖拽文件到此处上传</p>
+                    <p class="import-upload-hint">支持 JSON 和 M3U 格式</p>
+                    <input type="file" id="importSonglistFile" accept=".json,.m3u,.m3u8" style="display: none;" onchange="handleImportFileSelect(event)">
+                </div>
+                <div id="importFileInfo" style="display: none; margin-top: 16px; padding: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-file-alt" style="color: #10b981; font-size: 20px;"></i>
+                        <div style="flex: 1;">
+                            <div id="importFileName" style="font-size: 14px; font-weight: 600; color: #1f2937;"></div>
+                            <div id="importFileSize" style="font-size: 12px; color: #6b7280; margin-top: 2px;"></div>
+                        </div>
+                        <button class="btn btn-sm btn-secondary" onclick="clearImportFile()" style="padding: 4px 10px; font-size: 12px;">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-top: 16px;">
+                    <label class="form-label">歌单名称（可选）</label>
+                    <input type="text" id="importSonglistName" class="form-input" placeholder="留空则使用文件名">
+                </div>
+                <div class="import-tips">
+                    <p style="font-size: 12px; color: #6b7280; margin: 0;">
+                        <i class="fas fa-info-circle" style="margin-right: 4px;"></i>
+                        导入的歌曲需要存在于音乐库中才能正常播放
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeImportSonglistModal()">取消</button>
+                <button type="button" class="btn btn-primary" id="importBtn" onclick="doImportSonglist()" disabled>
+                    <i class="fas fa-check"></i> 导入
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- 重命名歌单模态框 -->
     <div id="renameSonglistModal" class="modal">
         <div class="modal-content modal-sm">
@@ -2684,6 +2777,104 @@
                             <i class="fas fa-plus"></i> 新建歌单
                         </button>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 重复文件检测模态框 -->
+    <div id="duplicateModal" class="modal">
+        <div class="modal-content" style="width: 900px; max-width: 95vw; max-height: 85vh;">
+            <span class="close-btn" onclick="closeDuplicateModal()">&times;</span>
+            <div class="modal-header">
+                <h3><i class="fas fa-copy"></i> 重复文件检测</h3>
+            </div>
+            <div class="duplicate-detect-content">
+                <div class="duplicate-toolbar">
+                    <div class="duplicate-method-select">
+                        <label>检测方式：</label>
+                        <select id="duplicateMethod" onchange="changeDuplicateMethod()">
+                            <option value="metadata">按歌名+歌手</option>
+                            <option value="filename">按文件名</option>
+                            <option value="size">按文件大小</option>
+                        </select>
+                    </div>
+                    <button onclick="startDuplicateDetection()" class="btn btn-primary btn-sm">
+                        <i class="fas fa-search"></i> 开始检测
+                    </button>
+                </div>
+                <div class="duplicate-stats" id="duplicateStats" style="display: none;">
+                    <div class="duplicate-stat-item">
+                        <div class="duplicate-stat-icon"><i class="fas fa-layer-group"></i></div>
+                        <div class="duplicate-stat-info">
+                            <div class="duplicate-stat-value" id="dupGroupCount">0</div>
+                            <div class="duplicate-stat-label">重复组</div>
+                        </div>
+                    </div>
+                    <div class="duplicate-stat-item">
+                        <div class="duplicate-stat-icon warning"><i class="fas fa-music"></i></div>
+                        <div class="duplicate-stat-info">
+                            <div class="duplicate-stat-value" id="dupFileCount">0</div>
+                            <div class="duplicate-stat-label">重复文件</div>
+                        </div>
+                    </div>
+                    <div class="duplicate-stat-item">
+                        <div class="duplicate-stat-icon danger"><i class="fas fa-database"></i></div>
+                        <div class="duplicate-stat-info">
+                            <div class="duplicate-stat-value" id="dupWastedSize">0 MB</div>
+                            <div class="duplicate-stat-label">可释放空间</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="duplicate-loading" id="duplicateLoading" style="display: none;">
+                    <div class="loading-spinner"></div>
+                    <p>正在检测重复文件...</p>
+                </div>
+                <div class="duplicate-list" id="duplicateList"></div>
+                <div class="duplicate-empty" id="duplicateEmpty" style="display: none;">
+                    <i class="fas fa-check-circle" style="font-size: 48px; color: #10b981; margin-bottom: 16px;"></i>
+                    <p>没有发现重复文件</p>
+                    <p class="empty-hint">您的音乐库很整洁</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 封面管理模态框 -->
+    <div id="coverManagerModal" class="modal">
+        <div class="modal-content" style="width: 1000px; max-width: 95vw; max-height: 85vh;">
+            <span class="close-btn" onclick="closeCoverManager()">&times;</span>
+            <div class="modal-header">
+                <h3><i class="fas fa-images"></i> 专辑封面管理</h3>
+            </div>
+            <div class="cover-manager-content">
+                <div class="cover-manager-toolbar">
+                    <div class="cover-stats">
+                        <span style="font-size: 13px; color: #666;">
+                            共 <span id="coverAlbumTotal" style="font-weight: 600; color: #1f2937;">0</span> 张专辑
+                        </span>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="coverSearchInput" class="form-input" placeholder="搜索专辑/艺术家..." style="width: 200px; padding: 6px 10px; font-size: 13px;" oninput="filterCoverAlbums()">
+                        <button onclick="refreshCoverList()" class="btn btn-secondary btn-sm">
+                            <i class="fas fa-sync-alt"></i> 刷新
+                        </button>
+                    </div>
+                </div>
+                <div class="cover-album-grid" id="coverAlbumGrid">
+                    <div class="duplicate-loading">
+                        <div class="loading-spinner"></div>
+                        <p>加载专辑列表中...</p>
+                    </div>
+                </div>
+                <div class="cover-manager-pagination" id="coverPagination" style="display: none;">
+                    <button class="btn btn-sm btn-secondary" onclick="prevCoverPage()" id="prevCoverPageBtn">
+                        <i class="fas fa-chevron-left"></i> 上一页
+                    </button>
+                    <span id="coverPageInfo" style="font-size: 13px; color: #666;">第 1 页</span>
+                    <button class="btn btn-sm btn-secondary" onclick="nextCoverPage()" id="nextCoverPageBtn">
+                        下一页 <i class="fas fa-chevron-right"></i>
+                    </button>
                 </div>
             </div>
         </div>

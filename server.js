@@ -1289,6 +1289,353 @@ app.delete('/api/user/songlists/:id/songs', requireAuth, (req, res) => {
     res.json({ success: true, removedCount, totalCount: songlist.songs.length });
 });
 
+// 导出歌单
+app.get('/api/user/songlists/:id/export', requireAuth, (req, res) => {
+    try {
+        const songlist = userSonglists.find(l => l.id === req.params.id);
+        if (!songlist) {
+            return res.status(404).json({ success: false, error: '歌单不存在' });
+        }
+
+        const format = req.query.format || 'json';
+
+        if (format === 'm3u') {
+            let m3uContent = '#EXTM3U\n';
+            songlist.songs.forEach(song => {
+                const duration = Math.round(song.duration || 0);
+                const title = song.title || '未知歌曲';
+                const artist = song.artist || '未知艺术家';
+                const path = song.path || '';
+                m3uContent += `#EXTINF:${duration},${artist} - ${title}\n`;
+                m3uContent += `${path}\n`;
+            });
+
+            const fileName = encodeURIComponent(songlist.name) + '.m3u';
+            res.setHeader('Content-Type', 'audio/x-mpegurl');
+            res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${fileName}`);
+            res.send(m3uContent);
+        } else {
+            const exportData = {
+                name: songlist.name,
+                createdAt: songlist.createdAt,
+                updatedAt: songlist.updatedAt,
+                songs: songlist.songs
+            };
+
+            const fileName = encodeURIComponent(songlist.name) + '.json';
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${fileName}`);
+            res.json(exportData);
+        }
+    } catch (error) {
+        console.error('导出歌单失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 导入歌单
+app.post('/api/user/songlists/import', requireAuth, async (req, res) => {
+    try {
+        const { name, format, content } = req.body;
+
+        if (!content) {
+            return res.status(400).json({ success: false, error: '歌单内容不能为空' });
+        }
+
+        let songs = [];
+
+        if (format === 'm3u') {
+            const lines = content.split('\n').map(l => l.trim()).filter(l => l);
+            let i = 0;
+
+            while (i < lines.length) {
+                const line = lines[i];
+
+                if (line.startsWith('#EXTINF:')) {
+                    const infoMatch = line.match(/#EXTINF:(-?\d+),(.+)/);
+                    let duration = 0;
+                    let title = '';
+                    let artist = '';
+
+                    if (infoMatch) {
+                        duration = parseInt(infoMatch[1]) || 0;
+                        const fullTitle = infoMatch[2];
+                        const dashIndex = fullTitle.indexOf(' - ');
+                        if (dashIndex > 0) {
+                            artist = fullTitle.substring(0, dashIndex).trim();
+                            title = fullTitle.substring(dashIndex + 3).trim();
+                        } else {
+                            title = fullTitle.trim();
+                        }
+                    }
+
+                    i++;
+                    if (i < lines.length && !lines[i].startsWith('#')) {
+                        const filePath = lines[i];
+                        let fullPath = filePath;
+
+                        if (!path.isAbsolute(filePath)) {
+                            fullPath = path.join(MUSIC_DIR, filePath);
+                        }
+
+                        if (!fullPath.startsWith(MUSIC_DIR)) {
+                            fullPath = path.join(MUSIC_DIR, path.basename(filePath));
+                        }
+
+                        if (fs.existsSync(fullPath) && MUSIC_EXTENSIONS.includes(path.extname(fullPath).toLowerCase())) {
+                            const metadata = await getMusicMetadata(fullPath);
+                            if (metadata) {
+                                songs.push({
+                                    id: `song_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                                    path: metadata.path,
+                                    title: metadata.title,
+                                    artist: metadata.artist,
+                                    album: metadata.album,
+                                    duration: metadata.duration,
+                                    cover: metadata.path,
+                                    type: 'local',
+                                    addedAt: Date.now()
+                                });
+                            }
+                        }
+                    }
+                } else if (!line.startsWith('#') && line) {
+                    const filePath = line;
+                    let fullPath = filePath;
+
+                    if (!path.isAbsolute(filePath)) {
+                        fullPath = path.join(MUSIC_DIR, filePath);
+                    }
+
+                    if (!fullPath.startsWith(MUSIC_DIR)) {
+                        fullPath = path.join(MUSIC_DIR, path.basename(filePath));
+                    }
+
+                    if (fs.existsSync(fullPath) && MUSIC_EXTENSIONS.includes(path.extname(fullPath).toLowerCase())) {
+                        const metadata = await getMusicMetadata(fullPath);
+                        if (metadata) {
+                            songs.push({
+                                id: `song_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                                path: metadata.path,
+                                title: metadata.title,
+                                artist: metadata.artist,
+                                album: metadata.album,
+                                duration: metadata.duration,
+                                cover: metadata.path,
+                                type: 'local',
+                                addedAt: Date.now()
+                            });
+                        }
+                    }
+                }
+
+                i++;
+            }
+        } else {
+            const data = JSON.parse(content);
+            if (data.songs && Array.isArray(data.songs)) {
+                for (const song of data.songs) {
+                    if (song.path && fs.existsSync(song.path) && song.path.startsWith(MUSIC_DIR)) {
+                        songs.push({
+                            id: `song_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                            path: song.path,
+                            title: song.title || path.basename(song.path, path.extname(song.path)),
+                            artist: song.artist || '未知艺术家',
+                            album: song.album || '未知专辑',
+                            duration: song.duration || 0,
+                            cover: song.cover || song.path,
+                            type: song.type || 'local',
+                            addedAt: Date.now()
+                        });
+                    }
+                }
+            }
+        }
+
+        if (songs.length === 0) {
+            return res.status(400).json({ success: false, error: '没有找到可导入的有效歌曲' });
+        }
+
+        const newSonglist = {
+            id: 'sl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+            name: name || '导入的歌单',
+            cover: null,
+            songs,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+        };
+
+        userSonglists.push(newSonglist);
+        saveUserSonglists();
+
+        res.json({
+            success: true,
+            songlist: {
+                id: newSonglist.id,
+                name: newSonglist.name,
+                count: newSonglist.songs.length,
+                createdAt: newSonglist.createdAt
+            },
+            importedCount: songs.length
+        });
+    } catch (error) {
+        console.error('导入歌单失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 封面管理 - 获取音乐文件嵌入封面
+app.get('/api/cover/embedded', requireAuth, async (req, res) => {
+    try {
+        const filePath = decodeURIComponent(req.query.path || '');
+        
+        if (!filePath || !filePath.startsWith(MUSIC_DIR)) {
+            return res.status(400).json({ success: false, error: '无效的文件路径' });
+        }
+
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ success: false, error: '文件不存在' });
+        }
+
+        const metadata = await mm.parseFile(filePath);
+        
+        if (metadata.common.picture && metadata.common.picture.length > 0) {
+            const pic = metadata.common.picture[0];
+            res.setHeader('Content-Type', pic.format || 'image/jpeg');
+            res.setHeader('Cache-Control', 'public, max-age=86400');
+            return res.send(pic.data);
+        }
+
+        res.status(404).json({ success: false, error: '没有嵌入封面' });
+    } catch (error) {
+        console.error('获取嵌入封面失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 封面管理 - 获取文件夹封面
+app.get('/api/cover/folder', requireAuth, (req, res) => {
+    try {
+        const folderPath = decodeURIComponent(req.query.path || '');
+        
+        if (!folderPath || !folderPath.startsWith(MUSIC_DIR)) {
+            return res.status(400).json({ success: false, error: '无效的文件夹路径' });
+        }
+
+        if (!fs.existsSync(folderPath) || !fs.statSync(folderPath).isDirectory()) {
+            return res.status(404).json({ success: false, error: '文件夹不存在' });
+        }
+
+        const coverNames = ['cover.jpg', 'cover.jpeg', 'cover.png', 'folder.jpg', 'folder.jpeg', 'folder.png', 'Cover.jpg', 'Cover.jpeg', 'album.jpg', 'album.jpeg'];
+        
+        for (const name of coverNames) {
+            const coverPath = path.join(folderPath, name);
+            if (fs.existsSync(coverPath)) {
+                const ext = path.extname(name).toLowerCase();
+                const contentType = ext === '.png' ? 'image/png' : 'image/jpeg';
+                res.setHeader('Content-Type', contentType);
+                res.setHeader('Cache-Control', 'public, max-age=86400');
+                return res.sendFile(coverPath);
+            }
+        }
+
+        res.status(404).json({ success: false, error: '文件夹中没有封面' });
+    } catch (error) {
+        console.error('获取文件夹封面失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 封面管理 - 获取最佳封面（先嵌入，后文件夹）
+app.get('/api/cover/best', requireAuth, async (req, res) => {
+    try {
+        const filePath = decodeURIComponent(req.query.path || '');
+        
+        if (!filePath || !filePath.startsWith(MUSIC_DIR)) {
+            return res.status(400).json({ success: false, error: '无效的文件路径' });
+        }
+
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ success: false, error: '文件不存在' });
+        }
+
+        try {
+            const metadata = await mm.parseFile(filePath);
+            if (metadata.common.picture && metadata.common.picture.length > 0) {
+                const pic = metadata.common.picture[0];
+                res.setHeader('Content-Type', pic.format || 'image/jpeg');
+                res.setHeader('Cache-Control', 'public, max-age=86400');
+                return res.send(pic.data);
+            }
+        } catch (e) {
+            // 忽略元数据解析错误，继续尝试文件夹封面
+        }
+
+        const folderPath = path.dirname(filePath);
+        const coverNames = ['cover.jpg', 'cover.jpeg', 'cover.png', 'folder.jpg', 'folder.jpeg', 'folder.png', 'Cover.jpg', 'Cover.jpeg', 'album.jpg', 'album.jpeg'];
+        
+        for (const name of coverNames) {
+            const coverPath = path.join(folderPath, name);
+            if (fs.existsSync(coverPath)) {
+                const ext = path.extname(name).toLowerCase();
+                const contentType = ext === '.png' ? 'image/png' : 'image/jpeg';
+                res.setHeader('Content-Type', contentType);
+                res.setHeader('Cache-Control', 'public, max-age=86400');
+                return res.sendFile(coverPath);
+            }
+        }
+
+        res.status(404).json({ success: false, error: '没有找到封面' });
+    } catch (error) {
+        console.error('获取封面失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 封面管理 - 批量获取专辑封面列表
+app.get('/api/covers/albums', requireAuth, async (req, res) => {
+    try {
+        const albums = {};
+        
+        for (const song of currentPlaylist) {
+            const albumKey = `${song.artist} - ${song.album}`;
+            if (!albums[albumKey]) {
+                albums[albumKey] = {
+                    artist: song.artist,
+                    album: song.album,
+                    songCount: 0,
+                    hasEmbeddedCover: false,
+                    hasFolderCover: false,
+                    samplePath: song.path
+                };
+            }
+            albums[albumKey].songCount++;
+        }
+
+        const albumList = Object.values(albums).sort((a, b) => {
+            if (a.artist === b.artist) return a.album.localeCompare(b.album);
+            return a.artist.localeCompare(b.artist);
+        });
+
+        const page = parseInt(req.query.page) || 1;
+        const pageSize = parseInt(req.query.pageSize) || 50;
+        const start = (page - 1) * pageSize;
+        const end = start + pageSize;
+        const paginated = albumList.slice(start, end);
+
+        res.json({
+            success: true,
+            albums: paginated,
+            total: albumList.length,
+            page,
+            pageSize
+        });
+    } catch (error) {
+        console.error('获取专辑封面列表失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 app.post('/api/upload-music', requireAuth, (req, res, next) => {
     upload.array('musicFiles', 50)(req, res, (err) => {
         if (err) {
@@ -2745,6 +3092,355 @@ app.get('/api/folder/:folderPath', async (req, res) => {
 // 文件夹缓存：folderPath -> { files: [{path, title, artist, album, duration}], lastModified: timestamp }
 const folderCache = new Map();
 
+// 分类浏览缓存
+const browseCache = new Map();
+
+// 按分类浏览音乐（艺术家/专辑/流派/年份）
+app.get('/api/browse', async (req, res) => {
+    try {
+        const type = req.query.type || 'artist';
+        const group = req.query.group ? decodeURIComponent(req.query.group) : null;
+        const page = parseInt(req.query.page) || 1;
+        const pageSize = parseInt(req.query.pageSize) || 50;
+        const search = req.query.search ? decodeURIComponent(req.query.search).trim() : '';
+
+        const validTypes = ['artist', 'album', 'genre', 'year'];
+        if (!validTypes.includes(type)) {
+            return res.status(400).json({ success: false, error: '无效的分类类型' });
+        }
+
+        const cacheKey = `browse_${type}`;
+        const musicDirStat = fs.statSync(MUSIC_DIR);
+        const cached = browseCache.get(cacheKey);
+        let allFiles;
+
+        if (cached && cached.lastModified >= musicDirStat.mtimeMs) {
+            allFiles = cached.files;
+            console.log(`📦 使用分类浏览缓存: ${type}`);
+        } else {
+            const filePaths = [];
+            const scanDir = (dir) => {
+                if (!fs.existsSync(dir)) return;
+                const items = fs.readdirSync(dir, { withFileTypes: true });
+                for (const item of items) {
+                    const fullPath = path.join(dir, item.name);
+                    if (item.isDirectory()) {
+                        scanDir(fullPath);
+                    } else if (MUSIC_EXTENSIONS.includes(path.extname(item.name).toLowerCase())) {
+                        filePaths.push(fullPath);
+                    }
+                }
+            };
+            scanDir(MUSIC_DIR);
+
+            allFiles = [];
+            const batchSize = 20;
+            for (let i = 0; i < filePaths.length; i += batchSize) {
+                const batch = filePaths.slice(i, i + batchSize);
+                const promises = batch.map(async (filePath) => {
+                    try {
+                        const metadata = await mm.parseFile(filePath);
+                        const common = metadata.common;
+                        let artist = '未知艺术家';
+                        let album = '未知专辑';
+                        let genre = '未知流派';
+                        let year = '未知年份';
+
+                        if (common.artists && common.artists.length > 0 && common.artists[0].trim()) {
+                            artist = common.artists[0].trim();
+                        } else if (common.artist && common.artist.trim()) {
+                            artist = common.artist.trim();
+                        }
+
+                        if (common.album && common.album.trim()) {
+                            album = common.album.trim();
+                        }
+
+                        if (common.genres && common.genres.length > 0 && common.genres[0].trim()) {
+                            genre = common.genres[0].trim();
+                        }
+
+                        if (common.date) {
+                            const yearStr = String(common.date).substring(0, 4);
+                            if (yearStr && /^\d{4}$/.test(yearStr)) {
+                                year = yearStr;
+                            }
+                        }
+
+                        return {
+                            path: filePath,
+                            filename: path.basename(filePath),
+                            title: common.title || path.basename(filePath, path.extname(filePath)),
+                            artist,
+                            album,
+                            genre,
+                            year,
+                            duration: metadata.format.duration || 0,
+                            size: fs.statSync(filePath).size
+                        };
+                    } catch (e) {
+                        return {
+                            path: filePath,
+                            filename: path.basename(filePath),
+                            title: path.basename(filePath, path.extname(filePath)),
+                            artist: '未知艺术家',
+                            album: '未知专辑',
+                            genre: '未知流派',
+                            year: '未知年份',
+                            duration: 0,
+                            size: fs.existsSync(filePath) ? fs.statSync(filePath).size : 0
+                        };
+                    }
+                });
+                allFiles.push(...(await Promise.all(promises)));
+                await new Promise(r => setImmediate(r));
+            }
+
+            browseCache.set(cacheKey, {
+                files: allFiles,
+                lastModified: musicDirStat.mtimeMs
+            });
+            console.log(`📚 分类浏览扫描完成: ${type} (${allFiles.length} 首)`);
+        }
+
+        if (search) {
+            const searchLower = search.toLowerCase();
+            allFiles = allFiles.filter(f =>
+                f.title.toLowerCase().includes(searchLower) ||
+                f.artist.toLowerCase().includes(searchLower) ||
+                f.album.toLowerCase().includes(searchLower)
+            );
+        }
+
+        const groupMap = new Map();
+        allFiles.forEach(file => {
+            let key;
+            switch (type) {
+                case 'artist': key = file.artist; break;
+                case 'album': key = file.album; break;
+                case 'genre': key = file.genre; break;
+                case 'year': key = file.year; break;
+                default: key = file.artist;
+            }
+            if (!groupMap.has(key)) {
+                groupMap.set(key, []);
+            }
+            groupMap.get(key).push(file);
+        });
+
+        if (group) {
+            const groupFiles = groupMap.get(group) || [];
+            groupFiles.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+
+            const total = groupFiles.length;
+            const totalPages = Math.ceil(total / pageSize);
+            const startIndex = (page - 1) * pageSize;
+            const pageFiles = groupFiles.slice(startIndex, startIndex + pageSize);
+
+            res.json({
+                success: true,
+                type,
+                group,
+                totalFiles: total,
+                totalPages,
+                page,
+                pageSize,
+                files: pageFiles
+            });
+        } else {
+            const groups = Array.from(groupMap.entries())
+                .map(([name, files]) => ({
+                    name,
+                    count: files.length,
+                    duration: files.reduce((sum, f) => sum + (f.duration || 0), 0)
+                }))
+                .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+
+            res.json({
+                success: true,
+                type,
+                totalGroups: groups.length,
+                groups
+            });
+        }
+    } catch (error) {
+        console.error('分类浏览失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 刷新分类浏览缓存
+app.post('/api/browse/refresh', requireAuth, async (req, res) => {
+    try {
+        browseCache.clear();
+        res.json({ success: true, message: '分类缓存已刷新' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 重复文件检测
+app.get('/api/duplicates', async (req, res) => {
+    try {
+        const method = req.query.method || 'metadata';
+        const threshold = parseFloat(req.query.threshold) || 2;
+
+        const cacheKey = `browse_artist`;
+        const musicDirStat = fs.statSync(MUSIC_DIR);
+        const cached = browseCache.get(cacheKey);
+        let allFiles;
+
+        if (cached && cached.lastModified >= musicDirStat.mtimeMs) {
+            allFiles = cached.files;
+        } else {
+            const filePaths = [];
+            const scanDir = (dir) => {
+                if (!fs.existsSync(dir)) return;
+                const items = fs.readdirSync(dir, { withFileTypes: true });
+                for (const item of items) {
+                    const fullPath = path.join(dir, item.name);
+                    if (item.isDirectory()) {
+                        scanDir(fullPath);
+                    } else if (MUSIC_EXTENSIONS.includes(path.extname(item.name).toLowerCase())) {
+                        filePaths.push(fullPath);
+                    }
+                }
+            };
+            scanDir(MUSIC_DIR);
+
+            allFiles = [];
+            const batchSize = 20;
+            for (let i = 0; i < filePaths.length; i += batchSize) {
+                const batch = filePaths.slice(i, i + batchSize);
+                const promises = batch.map(async (filePath) => {
+                    try {
+                        const stat = fs.statSync(filePath);
+                        const metadata = await mm.parseFile(filePath);
+                        const common = metadata.common;
+                        let artist = '未知艺术家';
+                        let album = '未知专辑';
+                        let title = path.basename(filePath, path.extname(filePath));
+
+                        if (common.artists && common.artists.length > 0 && common.artists[0].trim()) {
+                            artist = common.artists[0].trim();
+                        } else if (common.artist && common.artist.trim()) {
+                            artist = common.artist.trim();
+                        }
+
+                        if (common.album && common.album.trim()) {
+                            album = common.album.trim();
+                        }
+
+                        if (common.title && common.title.trim()) {
+                            title = common.title.trim();
+                        }
+
+                        return {
+                            path: filePath,
+                            filename: path.basename(filePath),
+                            title,
+                            artist,
+                            album,
+                            duration: metadata.format.duration || 0,
+                            size: stat.size,
+                            bitrate: metadata.format.bitrate || 0
+                        };
+                    } catch (e) {
+                        const stat = fs.existsSync(filePath) ? fs.statSync(filePath) : { size: 0 };
+                        return {
+                            path: filePath,
+                            filename: path.basename(filePath),
+                            title: path.basename(filePath, path.extname(filePath)),
+                            artist: '未知艺术家',
+                            album: '未知专辑',
+                            duration: 0,
+                            size: stat.size || 0,
+                            bitrate: 0
+                        };
+                    }
+                });
+                allFiles.push(...(await Promise.all(promises)));
+                await new Promise(r => setImmediate(r));
+            }
+
+            browseCache.set(cacheKey, {
+                files: allFiles,
+                lastModified: musicDirStat.mtimeMs
+            });
+        }
+
+        const duplicates = [];
+        const groups = new Map();
+
+        if (method === 'filename') {
+            allFiles.forEach(file => {
+                const key = file.filename.toLowerCase();
+                if (!groups.has(key)) groups.set(key, []);
+                groups.get(key).push(file);
+            });
+        } else if (method === 'size') {
+            allFiles.forEach(file => {
+                const key = String(file.size);
+                if (!groups.has(key)) groups.set(key, []);
+                groups.get(key).push(file);
+            });
+        } else {
+            allFiles.forEach(file => {
+                const normalizedTitle = file.title.toLowerCase().trim();
+                const normalizedArtist = file.artist.toLowerCase().trim();
+                const key = `${normalizedTitle}__${normalizedArtist}`;
+                if (!groups.has(key)) groups.set(key, []);
+                groups.get(key).push(file);
+            });
+        }
+
+        for (const [key, files] of groups) {
+            if (files.length > 1) {
+                if (method === 'metadata') {
+                    const durations = files.map(f => f.duration).filter(d => d > 0);
+                    if (durations.length >= 2) {
+                        const maxDuration = Math.max(...durations);
+                        const minDuration = Math.min(...durations);
+                        if (maxDuration - minDuration > threshold) {
+                            continue;
+                        }
+                    }
+                }
+
+                let totalSize = 0;
+                files.forEach(f => totalSize += f.size);
+                const wastedSize = totalSize - Math.max(...files.map(f => f.size));
+
+                duplicates.push({
+                    key,
+                    count: files.length,
+                    totalSize,
+                    wastedSize,
+                    files
+                });
+            }
+        }
+
+        duplicates.sort((a, b) => b.wastedSize - a.wastedSize);
+
+        const totalDuplicateGroups = duplicates.length;
+        const totalDuplicateFiles = duplicates.reduce((sum, d) => sum + d.count, 0);
+        const totalWastedSize = duplicates.reduce((sum, d) => sum + d.wastedSize, 0);
+
+        res.json({
+            success: true,
+            method,
+            totalDuplicateGroups,
+            totalDuplicateFiles,
+            totalWastedSize,
+            duplicates
+        });
+    } catch (error) {
+        console.error('重复文件检测失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // 播放整个文件夹
 app.post('/api/folder-play', async (req, res) => {
     try {
@@ -3993,10 +4689,14 @@ app.get('/api/download-folder', (req, res) => {
 // 批量加入播放列表 API
 app.post('/api/batch-add-to-playlist', async (req, res) => {
     try {
-        const { files } = req.body;
+        const { files, clear = false } = req.body;
         
         if (!Array.isArray(files) || files.length === 0) {
             return res.status(400).json({ success: false, error: '请选择要添加的文件' });
+        }
+        
+        if (clear) {
+            currentPlaylist = [];
         }
         
         let addedCount = 0;
@@ -4025,7 +4725,7 @@ app.post('/api/batch-add-to-playlist', async (req, res) => {
         currentPlaylist.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
         
         fs.writeFileSync(PLAYLIST_CACHE_FILE, JSON.stringify(currentPlaylist, null, 2));
-        res.json({ success: true, message: `成功添加 ${addedCount} 首歌曲到播放列表` });
+        res.json({ success: true, addedCount, message: `成功添加 ${addedCount} 首歌曲到播放列表` });
         
     } catch (error) {
         console.error('批量添加失败:', error.message);

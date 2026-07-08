@@ -5545,6 +5545,342 @@ async function confirmDeleteSonglist() {
     }
 }
 
+// 歌单导出下拉菜单
+function toggleExportDropdown() {
+    const dropdown = document.getElementById('exportDropdown');
+    if (dropdown) {
+        dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+document.addEventListener('click', function(e) {
+    const dropdown = document.getElementById('exportDropdown');
+    const dropdownBtn = e.target.closest('.songlist-export-dropdown');
+    if (!dropdownBtn && dropdown) {
+        dropdown.style.display = 'none';
+    }
+});
+
+// 导出歌单
+function exportSonglist(format) {
+    if (!currentSonglist) return;
+
+    const dropdown = document.getElementById('exportDropdown');
+    if (dropdown) dropdown.style.display = 'none';
+
+    const url = `/api/user/songlists/${currentSonglist.id}/export?format=${format}`;
+    window.open(url, '_blank');
+    showNotification({ type: 'success', message: '歌单导出中...' });
+}
+
+// 导入歌单
+let importFileContent = null;
+let importFileName = '';
+let importFormat = 'json';
+
+function showImportSonglistModal() {
+    const modal = document.getElementById('importSonglistModal');
+    if (modal) modal.classList.add('show');
+    clearImportFile();
+}
+
+function closeImportSonglistModal() {
+    const modal = document.getElementById('importSonglistModal');
+    if (modal) modal.classList.remove('show');
+    clearImportFile();
+}
+
+function clearImportFile() {
+    importFileContent = null;
+    importFileName = '';
+    importFormat = 'json';
+
+    const fileInput = document.getElementById('importSonglistFile');
+    if (fileInput) fileInput.value = '';
+
+    const fileInfo = document.getElementById('importFileInfo');
+    if (fileInfo) fileInfo.style.display = 'none';
+
+    const nameInput = document.getElementById('importSonglistName');
+    if (nameInput) nameInput.value = '';
+
+    const importBtn = document.getElementById('importBtn');
+    if (importBtn) importBtn.disabled = true;
+}
+
+function handleImportDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const uploadArea = document.getElementById('importUploadArea');
+    if (uploadArea) {
+        uploadArea.style.borderColor = '#4f46e5';
+        uploadArea.style.background = '#eef2ff';
+    }
+}
+
+function handleImportDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const uploadArea = document.getElementById('importUploadArea');
+    if (uploadArea) {
+        uploadArea.style.borderColor = '';
+        uploadArea.style.background = '';
+    }
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+        processImportFile(files[0]);
+    }
+}
+
+function handleImportFileSelect(e) {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+        processImportFile(files[0]);
+    }
+}
+
+function processImportFile(file) {
+    importFileName = file.name;
+    const ext = file.name.split('.').pop().toLowerCase();
+    importFormat = ext === 'm3u' || ext === 'm3u8' ? 'm3u' : 'json';
+
+    const fileInfo = document.getElementById('importFileInfo');
+    const fileNameEl = document.getElementById('importFileName');
+    const fileSizeEl = document.getElementById('importFileSize');
+
+    if (fileNameEl) fileNameEl.textContent = file.name;
+    if (fileSizeEl) fileSizeEl.textContent = formatFileSize(file.size);
+    if (fileInfo) fileInfo.style.display = 'block';
+
+    const nameInput = document.getElementById('importSonglistName');
+    if (nameInput && !nameInput.value) {
+        nameInput.value = file.name.replace(/\.(json|m3u|m3u8)$/i, '');
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        importFileContent = e.target.result;
+        const importBtn = document.getElementById('importBtn');
+        if (importBtn) importBtn.disabled = false;
+    };
+    reader.onerror = function() {
+        showNotification({ type: 'error', message: '文件读取失败' });
+    };
+    reader.readAsText(file, 'UTF-8');
+}
+
+async function doImportSonglist() {
+    if (!importFileContent) {
+        showNotification({ type: 'error', message: '请先选择文件' });
+        return;
+    }
+
+    const nameInput = document.getElementById('importSonglistName');
+    const name = nameInput ? nameInput.value.trim() : '';
+
+    const importBtn = document.getElementById('importBtn');
+    if (importBtn) {
+        importBtn.disabled = true;
+        importBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 导入中...';
+    }
+
+    try {
+        const response = await fetch('/api/user/songlists/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: name,
+                format: importFormat,
+                content: importFileContent
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showNotification({ type: 'success', message: `成功导入 ${result.importedCount} 首歌曲` });
+            closeImportSonglistModal();
+            loadUserSonglists();
+        } else {
+            showNotification({ type: 'error', message: '导入失败: ' + (result.error || '未知错误') });
+        }
+    } catch (error) {
+        console.error('导入歌单失败:', error);
+        showNotification({ type: 'error', message: '导入失败: ' + error.message });
+    }
+
+    if (importBtn) {
+        importBtn.disabled = false;
+        importBtn.innerHTML = '<i class="fas fa-check"></i> 导入';
+    }
+}
+
+// 封面管理
+let allCoverAlbums = [];
+let filteredCoverAlbums = [];
+let coverCurrentPage = 1;
+const coverPageSize = 48;
+
+function openCoverManager() {
+    const modal = document.getElementById('coverManagerModal');
+    if (modal) modal.classList.add('show');
+    loadCoverAlbums();
+}
+
+function closeCoverManager() {
+    const modal = document.getElementById('coverManagerModal');
+    if (modal) modal.classList.remove('show');
+}
+
+async function loadCoverAlbums() {
+    const grid = document.getElementById('coverAlbumGrid');
+    if (grid) {
+        grid.innerHTML = `
+            <div class="duplicate-loading">
+                <div class="loading-spinner"></div>
+                <p>加载专辑列表中...</p>
+            </div>
+        `;
+    }
+
+    try {
+        const response = await fetch('/api/covers/albums?pageSize=1000');
+        const result = await response.json();
+
+        if (result.success) {
+            allCoverAlbums = result.albums;
+            filteredCoverAlbums = [...allCoverAlbums];
+            coverCurrentPage = 1;
+
+            const totalEl = document.getElementById('coverAlbumTotal');
+            if (totalEl) totalEl.textContent = result.total;
+
+            renderCoverAlbumGrid();
+            updateCoverPagination();
+        } else {
+            if (grid) {
+                grid.innerHTML = '<p style="color: #ef4444; text-align: center; padding: 40px;">加载失败: ' + (result.error || '未知错误') + '</p>';
+            }
+        }
+    } catch (error) {
+        console.error('加载专辑列表失败:', error);
+        if (grid) {
+            grid.innerHTML = '<p style="color: #ef4444; text-align: center; padding: 40px;">加载失败: ' + error.message + '</p>';
+        }
+    }
+}
+
+function refreshCoverList() {
+    const searchInput = document.getElementById('coverSearchInput');
+    if (searchInput) searchInput.value = '';
+    loadCoverAlbums();
+}
+
+function filterCoverAlbums() {
+    const searchInput = document.getElementById('coverSearchInput');
+    const keyword = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+    if (!keyword) {
+        filteredCoverAlbums = [...allCoverAlbums];
+    } else {
+        filteredCoverAlbums = allCoverAlbums.filter(album => 
+            album.album.toLowerCase().includes(keyword) || 
+            album.artist.toLowerCase().includes(keyword)
+        );
+    }
+
+    coverCurrentPage = 1;
+    renderCoverAlbumGrid();
+    updateCoverPagination();
+}
+
+function renderCoverAlbumGrid() {
+    const grid = document.getElementById('coverAlbumGrid');
+    if (!grid) return;
+
+    const start = (coverCurrentPage - 1) * coverPageSize;
+    const end = start + coverPageSize;
+    const pageAlbums = filteredCoverAlbums.slice(start, end);
+
+    if (pageAlbums.length === 0) {
+        grid.innerHTML = `
+            <div class="duplicate-empty">
+                <i class="fas fa-search" style="font-size: 48px; color: #d1d5db; margin-bottom: 16px;"></i>
+                <p>没有找到专辑</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    pageAlbums.forEach((album, index) => {
+        const coverUrl = `/api/cover/best?path=${encodeURIComponent(album.samplePath)}`;
+        const globalIndex = start + index;
+        
+        html += `
+            <div class="cover-album-card" onclick="viewAlbumSongs('${escapeHtml(album.artist)}', '${escapeHtml(album.album)}')">
+                <div class="cover-album-cover">
+                    <img src="${coverUrl}" alt="${escapeHtml(album.album)}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div class="cover-album-placeholder" style="display: none;">
+                        <i class="fas fa-compact-disc"></i>
+                    </div>
+                </div>
+                <div class="cover-album-info">
+                    <div class="cover-album-name" title="${escapeHtml(album.album)}">${escapeHtml(album.album)}</div>
+                    <div class="cover-album-artist" title="${escapeHtml(album.artist)}">${escapeHtml(album.artist)}</div>
+                    <div class="cover-album-count">${album.songCount} 首</div>
+                </div>
+            </div>
+        `;
+    });
+
+    grid.innerHTML = html;
+}
+
+function updateCoverPagination() {
+    const pagination = document.getElementById('coverPagination');
+    const pageInfo = document.getElementById('coverPageInfo');
+    const prevBtn = document.getElementById('prevCoverPageBtn');
+    const nextBtn = document.getElementById('nextCoverPageBtn');
+
+    if (!pagination || filteredCoverAlbums.length <= coverPageSize) {
+        if (pagination) pagination.style.display = 'none';
+        return;
+    }
+
+    const totalPages = Math.ceil(filteredCoverAlbums.length / coverPageSize);
+    pagination.style.display = 'flex';
+    
+    if (pageInfo) pageInfo.textContent = `第 ${coverCurrentPage} / ${totalPages} 页`;
+    if (prevBtn) prevBtn.disabled = coverCurrentPage === 1;
+    if (nextBtn) nextBtn.disabled = coverCurrentPage === totalPages;
+}
+
+function prevCoverPage() {
+    if (coverCurrentPage > 1) {
+        coverCurrentPage--;
+        renderCoverAlbumGrid();
+        updateCoverPagination();
+    }
+}
+
+function nextCoverPage() {
+    const totalPages = Math.ceil(filteredCoverAlbums.length / coverPageSize);
+    if (coverCurrentPage < totalPages) {
+        coverCurrentPage++;
+        renderCoverAlbumGrid();
+        updateCoverPagination();
+    }
+}
+
+function viewAlbumSongs(artist, album) {
+    closeCoverManager();
+    switchView('browse');
+    switchBrowseView('album');
+    loadBrowseSongs('album', `${artist} - ${album}`);
+}
+
 // 将播放列表中的歌曲添加到歌单
 function addTrackToSonglist(index) {
     const track = currentPlaylist[index];
@@ -7269,6 +7605,18 @@ let FOLDER_PAGE_SIZE = 20;
 let folderTotalFiles = 0;
 let folderTotalPages = 0;
 
+// 分类浏览状态
+let currentBrowseView = 'folder';
+let currentBrowseType = 'artist';
+let currentBrowseGroup = null;
+let browseGroups = [];
+let browseFiles = [];
+let browseTotalFiles = 0;
+let browseTotalPages = 0;
+let browseCurrentPage = 1;
+let BROWSE_PAGE_SIZE = 50;
+let browseSearchKeyword = '';
+
 async function loadFolderData(folderPath, page, pageSize, search) {
     const folderView = document.getElementById('folderView');
     
@@ -8184,6 +8532,618 @@ function handleMouseDownOnFile(e) {
     
     // 更新上次点击的索引
     lastClickedFileIndex = clickedIndex;
+}
+
+// ========== 分类浏览功能 ==========
+
+function switchBrowseView(viewType) {
+    currentBrowseView = viewType;
+    currentBrowseGroup = null;
+    browseCurrentPage = 1;
+
+    document.querySelectorAll('.browse-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.view === viewType);
+    });
+
+    const breadcrumb = document.getElementById('folderBreadcrumb');
+    const batchBar = document.getElementById('batchActionsBar');
+
+    if (viewType === 'folder') {
+        batchBar.style.display = 'flex';
+        renderBreadcrumb(currentFolderPath);
+        renderFolderSections();
+    } else {
+        batchBar.style.display = 'none';
+        currentBrowseType = viewType;
+        loadBrowseGroups();
+    }
+
+    closeAllContextMenus();
+}
+
+function getBrowseTypeLabel(type) {
+    const labels = {
+        artist: '艺术家',
+        album: '专辑',
+        genre: '流派',
+        year: '年份'
+    };
+    return labels[type] || type;
+}
+
+function getBrowseTypeIcon(type) {
+    const icons = {
+        artist: 'fa-user-music',
+        album: 'fa-compact-disc',
+        genre: 'fa-tags',
+        year: 'fa-calendar-alt'
+    };
+    return icons[type] || 'fa-folder';
+}
+
+async function loadBrowseGroups() {
+    const folderView = document.getElementById('folderView');
+    const breadcrumb = document.getElementById('folderBreadcrumb');
+
+    breadcrumb.innerHTML = `
+        <i class="fas ${getBrowseTypeIcon(currentBrowseType)}"></i>
+        <span>按${getBrowseTypeLabel(currentBrowseType)}浏览</span>
+    `;
+
+    try {
+        folderView.innerHTML = `
+            <div class="folder-loading">
+                <div class="loading-spinner"></div>
+                <p>正在加载${getBrowseTypeLabel(currentBrowseType)}列表...</p>
+            </div>
+        `;
+
+        const params = new URLSearchParams({ type: currentBrowseType });
+        if (browseSearchKeyword) {
+            params.set('search', browseSearchKeyword);
+        }
+
+        const result = await apiRequest(`/api/browse?${params.toString()}`, 'GET');
+
+        if (result.success) {
+            browseGroups = result.groups || [];
+            renderBrowseGroups();
+        } else {
+            throw new Error(result.error || '加载失败');
+        }
+    } catch (error) {
+        console.error('加载分类列表失败:', error);
+        folderView.innerHTML = `
+            <div class="folder-empty">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>加载失败</p>
+            </div>
+        `;
+        showError('加载分类列表失败');
+    }
+}
+
+function renderBrowseGroups() {
+    const folderView = document.getElementById('folderView');
+    const paginationEl = document.getElementById('folderPagination');
+
+    if (paginationEl) paginationEl.innerHTML = '';
+
+    if (browseGroups.length === 0) {
+        folderView.innerHTML = `
+            <div class="folder-empty">
+                <i class="fas ${getBrowseTypeIcon(currentBrowseType)}"></i>
+                <p>暂无${getBrowseTypeLabel(currentBrowseType)}</p>
+                <p class="empty-hint">音乐库中还没有相关分类</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '<div class="browse-groups-grid">';
+
+    browseGroups.forEach(group => {
+        const escapedName = group.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        html += `
+            <div class="browse-group-card" onclick="openBrowseGroup('${escapedName}')">
+                <div class="browse-group-icon">
+                    <i class="fas ${getBrowseTypeIcon(currentBrowseType)}"></i>
+                </div>
+                <div class="browse-group-info">
+                    <div class="browse-group-name" title="${group.name}">${group.name}</div>
+                    <div class="browse-group-meta">
+                        <span><i class="fas fa-music"></i> ${group.count} 首</span>
+                        <span><i class="fas fa-clock"></i> ${formatDuration(group.duration)}</span>
+                    </div>
+                </div>
+                <div class="browse-group-actions">
+                    <button onclick="event.stopPropagation(); playBrowseGroup('${escapedName}')" class="browse-group-btn" title="播放全部">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <button onclick="event.stopPropagation(); addBrowseGroupToPlaylist('${escapedName}')" class="browse-group-btn" title="加入播放列表">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+
+    html += '</div>';
+    folderView.innerHTML = html;
+}
+
+async function openBrowseGroup(groupName) {
+    currentBrowseGroup = groupName;
+    browseCurrentPage = 1;
+    await loadBrowseGroupFiles();
+}
+
+async function loadBrowseGroupFiles() {
+    const folderView = document.getElementById('folderView');
+    const breadcrumb = document.getElementById('folderBreadcrumb');
+
+    breadcrumb.innerHTML = `
+        <span class="breadcrumb-item" onclick="switchBrowseView('${currentBrowseType}')">
+            <i class="fas ${getBrowseTypeIcon(currentBrowseType)}"></i>
+            ${getBrowseTypeLabel(currentBrowseType)}
+        </span>
+        <i class="fas fa-chevron-right breadcrumb-sep"></i>
+        <span>${currentBrowseGroup}</span>
+    `;
+
+    try {
+        folderView.innerHTML = `
+            <div class="folder-loading">
+                <div class="loading-spinner"></div>
+                <p>正在加载歌曲列表...</p>
+            </div>
+        `;
+
+        const params = new URLSearchParams({
+            type: currentBrowseType,
+            group: currentBrowseGroup,
+            page: browseCurrentPage,
+            pageSize: BROWSE_PAGE_SIZE
+        });
+
+        const result = await apiRequest(`/api/browse?${params.toString()}`, 'GET');
+
+        if (result.success) {
+            browseFiles = result.files || [];
+            browseTotalFiles = result.totalFiles || 0;
+            browseTotalPages = result.totalPages || 0;
+            browseCurrentPage = result.page || 1;
+            renderBrowseGroupFiles();
+        } else {
+            throw new Error(result.error || '加载失败');
+        }
+    } catch (error) {
+        console.error('加载分类歌曲失败:', error);
+        folderView.innerHTML = `
+            <div class="folder-empty">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>加载失败</p>
+            </div>
+        `;
+        showError('加载歌曲列表失败');
+    }
+}
+
+function renderBrowseGroupFiles() {
+    const folderView = document.getElementById('folderView');
+
+    if (browseFiles.length === 0) {
+        folderView.innerHTML = `
+            <div class="folder-empty">
+                <i class="fas fa-music"></i>
+                <p>暂无歌曲</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '<div class="folder-music-list">';
+
+    browseFiles.forEach((track, index) => {
+        const globalIndex = (browseCurrentPage - 1) * BROWSE_PAGE_SIZE + index;
+        const trackWithCover = { ...track, cover: track.path };
+        html += createFileItemHTML(trackWithCover, globalIndex, '');
+    });
+
+    html += '</div>';
+    folderView.innerHTML = html;
+
+    renderBrowsePagination();
+    initSelectionBox();
+}
+
+function renderBrowsePagination() {
+    const paginationEl = document.getElementById('folderPagination');
+    if (!paginationEl || browseTotalPages <= 1) {
+        if (paginationEl) paginationEl.innerHTML = '';
+        return;
+    }
+
+    const startItem = (browseCurrentPage - 1) * BROWSE_PAGE_SIZE + 1;
+    const endItem = Math.min(browseCurrentPage * BROWSE_PAGE_SIZE, browseTotalFiles);
+
+    let html = '<div class="pagination-container">';
+    html += '<div class="pagination-info">';
+    html += `显示 ${startItem}-${endItem} 条，共 ${browseTotalFiles} 条`;
+    html += '</div>';
+    html += '<div class="pagination-controls-wrapper">';
+    html += '<div class="pagination-controls">';
+
+    html += `<button class="pagination-btn mobile-visible ${browseCurrentPage === 1 ? 'disabled' : ''}" 
+        onclick="changeBrowsePage(1)" ${browseCurrentPage === 1 ? 'disabled' : ''}>
+        <i class="fas fa-angle-double-left"></i>
+    </button>`;
+
+    html += `<button class="pagination-btn mobile-visible ${browseCurrentPage === 1 ? 'disabled' : ''}" 
+        onclick="changeBrowsePage(${browseCurrentPage - 1})" ${browseCurrentPage === 1 ? 'disabled' : ''}>
+        <i class="fas fa-angle-left"></i>
+    </button>`;
+
+    html += `<span class="pagination-current-page">${browseCurrentPage} / ${browseTotalPages}</span>`;
+
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, browseCurrentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(browseTotalPages, startPage + maxVisiblePages - 1);
+
+    if (endPage - startPage < maxVisiblePages - 1) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    if (startPage > 1) {
+        html += `<button class="pagination-btn" onclick="changeBrowsePage(1)">1</button>`;
+        if (startPage > 2) {
+            html += '<span class="pagination-ellipsis">...</span>';
+        }
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+        html += `<button class="pagination-btn ${i === browseCurrentPage ? 'active' : ''}" 
+            onclick="changeBrowsePage(${i})">${i}</button>`;
+    }
+
+    if (endPage < browseTotalPages) {
+        if (endPage < browseTotalPages - 1) {
+            html += '<span class="pagination-ellipsis">...</span>';
+        }
+        html += `<button class="pagination-btn" onclick="changeBrowsePage(${browseTotalPages})">${browseTotalPages}</button>`;
+    }
+
+    html += `<button class="pagination-btn mobile-visible ${browseCurrentPage === browseTotalPages ? 'disabled' : ''}" 
+        onclick="changeBrowsePage(${browseCurrentPage + 1})" ${browseCurrentPage === browseTotalPages ? 'disabled' : ''}>
+        <i class="fas fa-angle-right"></i>
+    </button>`;
+
+    html += `<button class="pagination-btn mobile-visible ${browseCurrentPage === browseTotalPages ? 'disabled' : ''}" 
+        onclick="changeBrowsePage(${browseTotalPages})" ${browseCurrentPage === browseTotalPages ? 'disabled' : ''}>
+        <i class="fas fa-angle-double-right"></i>
+    </button>`;
+
+    html += '</div></div>';
+    html += '<div class="pagination-size">';
+    html += `<span>每页</span>`;
+    html += `<select class="pagination-size-select" onchange="changeBrowsePageSize(this.value)">`;
+    html += `<option value="20" ${BROWSE_PAGE_SIZE === 20 ? 'selected' : ''}>20</option>`;
+    html += `<option value="50" ${BROWSE_PAGE_SIZE === 50 ? 'selected' : ''}>50</option>`;
+    html += `<option value="100" ${BROWSE_PAGE_SIZE === 100 ? 'selected' : ''}>100</option>`;
+    html += `</select>`;
+    html += `<span>条</span>`;
+    html += '</div></div>';
+
+    paginationEl.innerHTML = html;
+}
+
+async function changeBrowsePage(page) {
+    if (page < 1 || page > browseTotalPages) return;
+    browseCurrentPage = page;
+    await loadBrowseGroupFiles();
+    const folderView = document.getElementById('folderView');
+    if (folderView) folderView.scrollTop = 0;
+}
+
+async function changeBrowsePageSize(size) {
+    BROWSE_PAGE_SIZE = parseInt(size);
+    browseCurrentPage = 1;
+    await loadBrowseGroupFiles();
+}
+
+async function playBrowseGroup(groupName) {
+    try {
+        showNotification({ type: 'info', message: '正在加载...' });
+        const params = new URLSearchParams({
+            type: currentBrowseType,
+            group: groupName,
+            page: 1,
+            pageSize: 9999
+        });
+        const result = await apiRequest(`/api/browse?${params.toString()}`, 'GET');
+        if (result.success && result.files && result.files.length > 0) {
+            const paths = result.files.map(f => f.path);
+            const addResult = await apiRequest('/api/batch-add-to-playlist', 'POST', { files: paths, clear: true });
+            if (addResult.success) {
+                const playlistResult = await apiRequest('/api/playlist');
+                if (playlistResult.playlist) {
+                    currentPlaylist = playlistResult.playlist;
+                }
+                renderPlaylist();
+                if (playOutput === 'client') {
+                    playTrack(0);
+                } else {
+                    const statusResult = await apiRequest('/api/play/0');
+                    if (statusResult.current) {
+                        updateNowPlaying(statusResult.current);
+                    }
+                    isPlaying = true;
+                    updatePlayPauseButton();
+                    startProgressUpdate();
+                }
+                switchView('music');
+                showNotification({ type: 'success', message: `已加载 ${result.files.length} 首音乐` });
+            }
+        }
+    } catch (error) {
+        showError('播放失败');
+    }
+}
+
+async function addBrowseGroupToPlaylist(groupName) {
+    try {
+        const params = new URLSearchParams({
+            type: currentBrowseType,
+            group: groupName,
+            page: 1,
+            pageSize: 9999
+        });
+        const result = await apiRequest(`/api/browse?${params.toString()}`, 'GET');
+        if (result.success && result.files && result.files.length > 0) {
+            const paths = result.files.map(f => f.path);
+            const addResult = await apiRequest('/api/batch-add-to-playlist', 'POST', { files: paths });
+            if (addResult.success) {
+                showToast(`已添加 ${addResult.addedCount || result.files.length} 首歌曲到播放列表`);
+                const playlistResult = await apiRequest('/api/playlist');
+                if (playlistResult.playlist) {
+                    currentPlaylist = playlistResult.playlist;
+                }
+                renderPlaylist();
+            }
+        }
+    } catch (error) {
+        showError('添加失败');
+    }
+}
+
+function renderBreadcrumb(folderPath) {
+    const breadcrumb = document.getElementById('folderBreadcrumb');
+    if (!breadcrumb) return;
+
+    if (!folderPath) {
+        breadcrumb.innerHTML = `
+            <i class="fas fa-folder-open"></i>
+            <span>文件管理</span>
+        `;
+        return;
+    }
+
+    const parts = folderPath.split('/').filter(p => p);
+    let html = `<span class="breadcrumb-item" onclick="openFolder('')"><i class="fas fa-folder-open"></i> 文件管理</span>`;
+    let currentPath = '';
+
+    parts.forEach((part, index) => {
+        currentPath += (currentPath ? '/' : '') + part;
+        html += `<i class="fas fa-chevron-right breadcrumb-sep"></i>`;
+        if (index === parts.length - 1) {
+            html += `<span>${part}</span>`;
+        } else {
+            html += `<span class="breadcrumb-item" onclick="openFolder('${currentPath}')">${part}</span>`;
+        }
+    });
+
+    breadcrumb.innerHTML = html;
+}
+
+// ========== 重复文件检测功能 ==========
+
+let currentDuplicateData = null;
+
+function openDuplicateModal() {
+    const modal = document.getElementById('duplicateModal');
+    if (modal) {
+        modal.classList.add('show');
+        document.getElementById('duplicateList').innerHTML = '';
+        document.getElementById('duplicateStats').style.display = 'none';
+        document.getElementById('duplicateLoading').style.display = 'none';
+        document.getElementById('duplicateEmpty').style.display = 'none';
+    }
+}
+
+function closeDuplicateModal() {
+    const modal = document.getElementById('duplicateModal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
+}
+
+function changeDuplicateMethod() {
+}
+
+async function startDuplicateDetection() {
+    const method = document.getElementById('duplicateMethod').value;
+    const loadingEl = document.getElementById('duplicateLoading');
+    const listEl = document.getElementById('duplicateList');
+    const statsEl = document.getElementById('duplicateStats');
+    const emptyEl = document.getElementById('duplicateEmpty');
+
+    loadingEl.style.display = 'flex';
+    listEl.innerHTML = '';
+    statsEl.style.display = 'none';
+    emptyEl.style.display = 'none';
+
+    try {
+        const result = await apiRequest(`/api/duplicates?method=${method}`, 'GET');
+        if (result.success) {
+            currentDuplicateData = result;
+            loadingEl.style.display = 'none';
+
+            if (result.totalDuplicateGroups === 0) {
+                emptyEl.style.display = 'flex';
+            } else {
+                statsEl.style.display = 'flex';
+                document.getElementById('dupGroupCount').textContent = result.totalDuplicateGroups;
+                document.getElementById('dupFileCount').textContent = result.totalDuplicateFiles;
+                document.getElementById('dupWastedSize').textContent = formatFileSize(result.totalWastedSize);
+                renderDuplicateList(result.duplicates);
+            }
+        } else {
+            throw new Error(result.error || '检测失败');
+        }
+    } catch (error) {
+        loadingEl.style.display = 'none';
+        showError('重复文件检测失败');
+        console.error('重复检测失败:', error);
+    }
+}
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+}
+
+function renderDuplicateList(duplicates) {
+    const listEl = document.getElementById('duplicateList');
+    let html = '';
+
+    duplicates.forEach((group, groupIndex) => {
+        html += `
+            <div class="duplicate-group">
+                <div class="duplicate-group-header" onclick="toggleDuplicateGroup(${groupIndex})">
+                    <div class="duplicate-group-title">
+                        <i class="fas fa-chevron-right dup-group-toggle" id="dupToggle${groupIndex}"></i>
+                        <span class="duplicate-group-name">${escapeHtml(group.files[0].title)}</span>
+                        <span class="duplicate-group-artist">- ${escapeHtml(group.files[0].artist)}</span>
+                    </div>
+                    <div class="duplicate-group-info">
+                        <span class="duplicate-group-count">${group.count} 个重复</span>
+                        <span class="duplicate-group-waste">浪费 ${formatFileSize(group.wastedSize)}</span>
+                    </div>
+                </div>
+                <div class="duplicate-group-files" id="dupGroupFiles${groupIndex}" style="display: none;">
+                    ${group.files.map((file, fileIndex) => `
+                        <div class="duplicate-file-item">
+                            <div class="duplicate-file-info">
+                                <i class="fas fa-music duplicate-file-icon"></i>
+                                <div class="duplicate-file-details">
+                                    <div class="duplicate-file-name" title="${escapeHtml(file.path)}">${escapeHtml(file.filename)}</div>
+                                    <div class="duplicate-file-path">${escapeHtml(file.path.replace(/\\/g, '/'))}</div>
+                                </div>
+                            </div>
+                            <div class="duplicate-file-meta">
+                                <span>${formatFileSize(file.size)}</span>
+                                <span>${formatDuration(file.duration)}</span>
+                            </div>
+                            <div class="duplicate-file-actions">
+                                <button onclick="playDuplicateFile('${file.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')" class="dup-file-btn" title="播放">
+                                    <i class="fas fa-play"></i>
+                                </button>
+                                <button onclick="deleteDuplicateFile('${file.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', ${groupIndex})" class="dup-file-btn dup-delete-btn needs-auth" title="删除">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `).join('')}
+                    <div class="duplicate-group-actions">
+                        <button onclick="keepFirstDeleteOthers(${groupIndex})" class="btn btn-sm btn-danger needs-auth">
+                            <i class="fas fa-trash"></i> 保留第一个，删除其余
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    listEl.innerHTML = html;
+}
+
+function toggleDuplicateGroup(index) {
+    const filesEl = document.getElementById(`dupGroupFiles${index}`);
+    const toggleEl = document.getElementById(`dupToggle${index}`);
+    if (filesEl && toggleEl) {
+        if (filesEl.style.display === 'none') {
+            filesEl.style.display = 'block';
+            toggleEl.style.transform = 'rotate(90deg)';
+        } else {
+            filesEl.style.display = 'none';
+            toggleEl.style.transform = 'rotate(0deg)';
+        }
+    }
+}
+
+async function playDuplicateFile(filePath) {
+    try {
+        await playTrackFromFolder(filePath);
+        closeDuplicateModal();
+    } catch (e) {
+        showError('播放失败');
+    }
+}
+
+async function deleteDuplicateFile(filePath, groupIndex) {
+    if (!currentUser) {
+        showLoginModal();
+        return;
+    }
+
+    showDeleteConfirmModal(filePath, true, () => {
+        startDuplicateDetection();
+    });
+}
+
+async function keepFirstDeleteOthers(groupIndex) {
+    if (!currentUser) {
+        showLoginModal();
+        return;
+    }
+
+    if (!currentDuplicateData || !currentDuplicateData.duplicates[groupIndex]) return;
+
+    const group = currentDuplicateData.duplicates[groupIndex];
+    if (group.files.length <= 1) return;
+
+    const filesToDelete = group.files.slice(1);
+
+    const confirmed = await showConfirmModal(
+        `确定要删除 ${filesToDelete.length} 个重复文件吗？`,
+        `将保留: ${group.files[0].filename}\n将删除: ${filesToDelete.length} 个重复文件`
+    );
+
+    if (!confirmed) return;
+
+    try {
+        let deletedCount = 0;
+        for (const file of filesToDelete) {
+            try {
+                const result = await apiRequest('/api/delete-file', 'DELETE', { path: file.path });
+                if (result.success) {
+                    deletedCount++;
+                }
+            } catch (e) {
+                console.error('删除失败:', file.path, e);
+            }
+        }
+
+        if (deletedCount > 0) {
+            showToast(`已删除 ${deletedCount} 个重复文件`);
+            await refreshFolders();
+            startDuplicateDetection();
+        }
+    } catch (error) {
+        showError('批量删除失败');
+    }
 }
 
 // 渲染文件夹分区

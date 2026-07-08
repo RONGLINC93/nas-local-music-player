@@ -2997,6 +2997,22 @@ font-size: 72px;
     border-color: #6366f1;
 }
 
+.login-form .form-group:has(#rememberPassword) {
+    margin-bottom: 15px;
+}
+
+#rememberPassword {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: #6366f1;
+}
+
+#rememberPassword + label {
+    cursor: pointer;
+    user-select: none;
+}
+
 .login-btn-group {
     margin-top: 24px;
 }

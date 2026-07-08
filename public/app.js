@@ -301,8 +301,17 @@ function showLoginModal() {
     if (!needPassword) {
         showSetPasswordForm();
     } else {
-        document.getElementById('loginUsername').value = '';
-        document.getElementById('loginPassword').value = '';
+        // 尝试从 localStorage 读取记住的密码
+        const remembered = JSON.parse(localStorage.getItem('rememberedLogin') || 'null');
+        if (remembered) {
+            document.getElementById('loginUsername').value = remembered.username;
+            document.getElementById('loginPassword').value = remembered.password;
+            document.getElementById('rememberPassword').checked = true;
+        } else {
+            document.getElementById('loginUsername').value = '';
+            document.getElementById('loginPassword').value = '';
+            document.getElementById('rememberPassword').checked = false;
+        }
         document.getElementById('loginPassword').focus();
     }
     
@@ -494,6 +503,7 @@ async function uploadAvatar(event) {
 async function doLogin() {
     const username = document.getElementById('loginUsername').value.trim();
     const password = document.getElementById('loginPassword').value;
+    const rememberPassword = document.getElementById('rememberPassword').checked;
     
     if (!username || !password) {
         showNotification({ type: 'warning', message: '请输入用户名和密码' });
@@ -511,6 +521,14 @@ async function doLogin() {
                 avatar: result.avatar
             };
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            
+            // 处理记住密码
+            if (rememberPassword) {
+                localStorage.setItem('rememberedLogin', JSON.stringify({ username, password }));
+            } else {
+                localStorage.removeItem('rememberedLogin');
+            }
+            
             needPassword = true; // 登录成功后，肯定需要密码
             updateUserCardUI();
             renderPlaylist();

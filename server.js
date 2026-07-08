@@ -192,12 +192,20 @@ function generateToken() {
     return crypto.randomBytes(32).toString('hex');
 }
 
+const TOKEN_EXPIRE_MS = 7 * 24 * 60 * 60 * 1000; // 7天
+
 function requireAuth(req, res, next) {
     if (!userConfig.passwordHash) {
         return next();
     }
     const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
     if (!token || !authTokens.has(token)) {
+        return res.status(401).json({ success: false, error: '未登录或登录已过期' });
+    }
+    const tokenData = authTokens.get(token);
+    if (tokenData.loginAt && (Date.now() - tokenData.loginAt > TOKEN_EXPIRE_MS)) {
+        authTokens.delete(token);
+        saveAuthTokens();
         return res.status(401).json({ success: false, error: '未登录或登录已过期' });
     }
     req.authToken = token;
@@ -676,7 +684,16 @@ app.get('/api/playlist', (req, res) => {
 // 获取用户信息（是否需要登录等）
 app.get('/api/user/info', (req, res) => {
     const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
-    const isLoggedIn = token && authTokens.has(token);
+    let isLoggedIn = false;
+    if (token && authTokens.has(token)) {
+        const tokenData = authTokens.get(token);
+        if (tokenData.loginAt && (Date.now() - tokenData.loginAt > TOKEN_EXPIRE_MS)) {
+            authTokens.delete(token);
+            saveAuthTokens();
+        } else {
+            isLoggedIn = true;
+        }
+    }
     res.json({
         success: true,
         needPassword: !!userConfig.passwordHash,

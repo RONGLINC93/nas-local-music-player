@@ -5093,9 +5093,23 @@ function renderUserSonglistDetail(songlist) {
     const countEl = document.getElementById('userSonglistDetailCount');
     const songsEl = document.getElementById('mysonglistSongs');
     const coverEl = document.getElementById('userSonglistDetailCover');
+    const cleanBtn = document.getElementById('cleanMissingBtn');
     
     if (nameEl) nameEl.textContent = songlist.name;
-    if (countEl) countEl.textContent = `${songlist.songs.length} 首歌曲`;
+    
+    const missingCount = songlist.songs ? songlist.songs.filter(s => s.exists === false).length : 0;
+    if (countEl) {
+        if (missingCount > 0) {
+            countEl.innerHTML = `${songlist.songs.length} 首歌曲 <span style="color: #ef4444; font-size: 12px;">(${missingCount} 首丢失)</span>`;
+        } else {
+            countEl.textContent = `${songlist.songs.length} 首歌曲`;
+        }
+    }
+    
+    if (cleanBtn) {
+        cleanBtn.style.display = missingCount > 0 ? 'inline-flex' : 'none';
+    }
+    
     if (coverEl) {
         if (songlist.cover) {
             coverEl.innerHTML = `<img src="${songlist.cover}" alt="">`;
@@ -5118,6 +5132,7 @@ function renderUserSonglistDetail(songlist) {
     
     songsEl.innerHTML = songlist.songs.map((song, index) => {
         const isOnline = song.isOnline || song.path?.startsWith('online://');
+        const isMissing = !isOnline && song.exists === false;
         const sourceName = isOnline ? (song.sourceName || getSourceName(song.source)) : '本地';
         const sourceIcon = isOnline ? 'fa-globe' : 'fa-hard-drive';
         const sourceColor = isOnline ? getSourceColor(song.source) : null;
@@ -5143,12 +5158,19 @@ function renderUserSonglistDetail(songlist) {
             }
         }
         
+        const missingBadge = isMissing 
+            ? `<span class="song-missing-badge" title="文件不存在"><i class="fas fa-exclamation-triangle"></i> 丢失</span>` 
+            : '';
+        
+        const itemClass = isMissing ? 'mysonglist-song-item song-missing' : 'mysonglist-song-item';
+        
         return `
-        <div class="mysonglist-song-item" ondblclick="playMySonglistSong(${index})">
+        <div class="${itemClass}" ondblclick="${isMissing ? '' : `playMySonglistSong(${index})`}">
             <div class="mysonglist-song-index">${index + 1}</div>
             ${coverHtml}
             <div class="mysonglist-song-title">
                 ${escapeHtml(song.title || song.name || '未知歌曲')}
+                ${missingBadge}
                 <span class="song-source-badge ${isOnline ? 'online' : 'local'}" ${sourceStyle} title="${isOnline ? sourceName + '音乐' : '本地音乐'}">
                     <i class="fas ${sourceIcon}"></i> ${sourceName}
                 </span>
@@ -5157,13 +5179,13 @@ function renderUserSonglistDetail(songlist) {
             <div class="mysonglist-song-album">${escapeHtml(song.album || '')}</div>
             <div class="mysonglist-song-duration">${formatTime(song.duration)}</div>
             <div class="mysonglist-song-actions">
-                <button title="播放" onclick="event.stopPropagation();playMySonglistSong(${index})">
+                <button title="播放" onclick="event.stopPropagation();${isMissing ? `showNotification({type:'warning',message:'文件不存在，无法播放'})` : `playMySonglistSong(${index})`}" ${isMissing ? 'disabled style="opacity:0.4;cursor:not-allowed;"' : ''}>
                     <i class="fas fa-play"></i>
                 </button>
-                <button title="添加到播放列表" onclick="event.stopPropagation();addUserSonglistSongToPlaylist(${index})">
+                <button title="添加到播放列表" onclick="event.stopPropagation();${isMissing ? `showNotification({type:'warning',message:'文件不存在'})` : `addUserSonglistSongToPlaylist(${index})`}" ${isMissing ? 'disabled style="opacity:0.4;cursor:not-allowed;"' : ''}>
                     <i class="fas fa-plus"></i>
                 </button>
-                <button title="下载" onclick="event.stopPropagation();downloadUserSonglistSong(${index})">
+                <button title="下载" onclick="event.stopPropagation();${isMissing ? `showNotification({type:'warning',message:'文件不存在'})` : `downloadUserSonglistSong(${index})`}" ${isMissing ? 'disabled style="opacity:0.4;cursor:not-allowed;"' : ''}>
                     <i class="fas fa-download"></i>
                 </button>
                 <button title="移除" onclick="event.stopPropagation();removeSongFromSonglist(${index})">
@@ -5353,17 +5375,30 @@ async function playAllMySonglistSongs() {
     try {
         showNotification({ type: 'info', message: '正在加载歌单...' });
         
-        await apiRequest('/api/clear-playlist', 'POST');
-        
         const songs = currentSonglist.songs;
+        const totalCount = songs.length;
+        const localSongs = songs.filter(s => s.path && !s.isOnline);
+        const onlineSongs = songs.filter(s => s.isOnline || (!s.path && (s.songId || s.id)));
         let addedCount = 0;
+        let localAdded = 0;
         
-        for (let i = 0; i < songs.length; i++) {
-            const song = songs[i];
-            if (song.path) {
-                await apiRequest('/api/add-to-playlist', 'POST', { path: song.path });
-                addedCount++;
-            } else if (song.isOnline || song.songId || song.id) {
+        if (localSongs.length > 0) {
+            const localPaths = localSongs.map(s => s.path);
+            const result = await apiRequest('/api/batch-add-to-playlist', 'POST', { 
+                files: localPaths,
+                clear: true
+            });
+            if (result && result.success) {
+                localAdded = result.addedCount || 0;
+                addedCount += localAdded;
+            }
+        } else {
+            await apiRequest('/api/clear-playlist', 'POST');
+        }
+        
+        if (onlineSongs.length > 0) {
+            for (let i = 0; i < onlineSongs.length; i++) {
+                const song = onlineSongs[i];
                 const songId = song.songId || (song.id && song.source && song.id.startsWith(song.source + '_') 
                     ? song.id.substring(song.source.length + 1) 
                     : song.id);
@@ -5398,10 +5433,67 @@ async function playAllMySonglistSongs() {
         }
         
         loadPlaylistData();
-        showNotification({ type: 'success', message: `已添加 ${addedCount} 首歌曲到播放列表` });
+        
+        const missingCount = totalCount - addedCount;
+        if (missingCount > 0) {
+            showNotification({ 
+                type: 'warning', 
+                message: `已添加 ${addedCount} 首，有 ${missingCount} 首歌曲不存在或已被移除` 
+            });
+        } else {
+            showNotification({ type: 'success', message: `已添加 ${addedCount} 首歌曲到播放列表` });
+        }
     } catch (error) {
         console.error('播放歌单失败:', error);
         showNotification({ type: 'error', message: '播放失败: ' + error.message });
+    }
+}
+
+// 清理丢失的歌曲
+function cleanMissingSongs() {
+    if (!currentSonglist) return;
+    
+    const missingCount = currentSonglist.songs.filter(s => s.exists === false).length;
+    if (missingCount === 0) {
+        showNotification({ type: 'info', message: '没有丢失的歌曲' });
+        return;
+    }
+    
+    const countEl = document.getElementById('cleanMissingCount');
+    if (countEl) countEl.textContent = missingCount;
+    
+    const modal = document.getElementById('cleanMissingModal');
+    if (modal) modal.classList.add('show');
+}
+
+function closeCleanMissingModal() {
+    const modal = document.getElementById('cleanMissingModal');
+    if (modal) modal.classList.remove('show');
+}
+
+async function confirmCleanMissing() {
+    if (!currentSonglist) return;
+    
+    try {
+        closeCleanMissingModal();
+        const response = await apiRequest(`/api/user/songlists/${currentSonglist.id}/clean-missing`, 'DELETE');
+        
+        if (response.success) {
+            showNotification({ type: 'success', message: `已清理 ${response.removedCount} 首丢失歌曲` });
+            
+            const detailResult = await apiRequest(`/api/user/songlists/${currentSonglist.id}`, 'GET');
+            if (detailResult.success) {
+                currentSonglist = detailResult.songlist;
+                renderUserSonglistDetail(detailResult.songlist);
+            }
+            
+            loadUserSonglists();
+        } else {
+            showNotification({ type: 'error', message: '清理失败: ' + (response.error || '未知错误') });
+        }
+    } catch (error) {
+        console.error('清理丢失歌曲失败:', error);
+        showNotification({ type: 'error', message: '清理失败: ' + error.message });
     }
 }
 

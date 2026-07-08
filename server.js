@@ -948,16 +948,34 @@ app.get('/api/user/songlists', requireAuth, (req, res) => {
 });
 
 // 获取歌单详情
-app.get('/api/user/songlists/:id', requireAuth, (req, res) => {
-    const songlist = userSonglists.find(l => l.id === req.params.id);
-    if (!songlist) {
-        return res.status(404).json({ success: false, error: '歌单不存在' });
+app.get('/api/user/songlists/:id', requireAuth, async (req, res) => {
+    try {
+        const songlist = userSonglists.find(l => l.id === req.params.id);
+        if (!songlist) {
+            return res.status(404).json({ success: false, error: '歌单不存在' });
+        }
+        
+        const songsWithStatus = songlist.songs.map(song => {
+            let exists = true;
+            if (song.path && !song.isOnline) {
+                exists = fs.existsSync(song.path);
+            }
+            return {
+                ...song,
+                exists
+            };
+        });
+        
+        const result = {
+            ...songlist,
+            songs: songsWithStatus,
+            cover: getSonglistCover(songlist)
+        };
+        res.json({ success: true, songlist: result });
+    } catch (error) {
+        console.error('获取歌单详情失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
     }
-    const result = {
-        ...songlist,
-        cover: getSonglistCover(songlist)
-    };
-    res.json({ success: true, songlist: result });
 });
 
 // 创建歌单
@@ -1287,6 +1305,40 @@ app.delete('/api/user/songlists/:id/songs', requireAuth, (req, res) => {
     saveUserSonglists();
     
     res.json({ success: true, removedCount, totalCount: songlist.songs.length });
+});
+
+// 清理歌单中不存在的歌曲
+app.delete('/api/user/songlists/:id/clean-missing', requireAuth, (req, res) => {
+    try {
+        const songlist = userSonglists.find(l => l.id === req.params.id);
+        
+        if (!songlist) {
+            return res.status(404).json({ success: false, error: '歌单不存在' });
+        }
+
+        const beforeCount = songlist.songs.length;
+        
+        songlist.songs = songlist.songs.filter(song => {
+            if (song.isOnline || !song.path) {
+                return true;
+            }
+            return fs.existsSync(song.path);
+        });
+        
+        const removedCount = beforeCount - songlist.songs.length;
+        
+        songlist.updatedAt = Date.now();
+        saveUserSonglists();
+        
+        res.json({ 
+            success: true, 
+            removedCount, 
+            totalCount: songlist.songs.length 
+        });
+    } catch (error) {
+        console.error('清理丢失歌曲失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
 // 导出歌单

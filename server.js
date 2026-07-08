@@ -290,12 +290,74 @@ const APP_CONFIG_FILE = path.join(__dirname, 'data', 'config.json'); // 应用�
 const FOLDER_CACHE_FILE = path.join(__dirname, 'data', 'folder_cache.json'); // 文件夹缓存文件
 const PLAYLIST_CACHE_FILE = path.join(__dirname, 'data', 'playlist_cache.json');
 const USER_SONGLISTS_FILE = path.join(__dirname, 'data', 'user_songlists.json');
+const PLAY_HISTORY_FILE = path.join(__dirname, 'data', 'play_history.json');
 const CACHE_DIR = path.join(__dirname, 'data', 'cache'); // 在线音乐缓存目录
 const CACHE_META_FILE = path.join(__dirname, 'data', 'cache_meta.json'); // 缓存元数据文件
 const MUSIC_EXTENSIONS = ['.mp3', '.flac', '.wav', '.m4a', '.ogg', '.wma'];
+const MAX_PLAY_HISTORY = 200; // 最多保存200条播放历史
 
 // 用户歌单
 let userSonglists = [];
+
+// 播放历史
+let playHistory = [];
+
+function loadPlayHistory() {
+    try {
+        if (fs.existsSync(PLAY_HISTORY_FILE)) {
+            const data = fs.readFileSync(PLAY_HISTORY_FILE, 'utf8');
+            playHistory = JSON.parse(data);
+            console.log(`⏱️  已加载播放历史，共 ${playHistory.length} 条`);
+        }
+    } catch (err) {
+        console.error('加载播放历史失败:', err.message);
+        playHistory = [];
+    }
+}
+
+function savePlayHistory() {
+    try {
+        fs.writeFileSync(PLAY_HISTORY_FILE, JSON.stringify(playHistory, null, 2), 'utf8');
+    } catch (err) {
+        console.error('保存播放历史失败:', err.message);
+    }
+}
+
+function addToPlayHistory(track) {
+    if (!track) return;
+    
+    // 去重：如果已存在相同歌曲，先移除旧的
+    const existingIndex = playHistory.findIndex(item => 
+        (item.id && track.id && item.id === track.id) || 
+        (item.path && track.path && item.path === track.path)
+    );
+    
+    if (existingIndex !== -1) {
+        playHistory.splice(existingIndex, 1);
+    }
+    
+    // 添加到最前面
+    playHistory.unshift({
+        id: track.id || null,
+        title: track.title,
+        artist: track.artist,
+        album: track.album,
+        duration: track.duration,
+        path: track.path,
+        source: track.source,
+        cover: track.cover || track.picUrl || track.albumCover,
+        isOnline: track.isOnline || track.path?.startsWith('online://'),
+        songInfo: track.songInfo,
+        playedAt: Date.now()
+    });
+    
+    // 限制数量
+    if (playHistory.length > MAX_PLAY_HISTORY) {
+        playHistory = playHistory.slice(0, MAX_PLAY_HISTORY);
+    }
+    
+    savePlayHistory();
+}
 
 function loadUserSonglists() {
     try {
@@ -307,6 +369,27 @@ function loadUserSonglists() {
     } catch (err) {
         console.error('加载用户歌单失败:', err.message);
         userSonglists = [];
+    }
+    ensureFavoritesSonglist();
+}
+
+function ensureFavoritesSonglist() {
+    const favorites = userSonglists.find(l => l.id === 'favorites');
+    if (!favorites) {
+        userSonglists.unshift({
+            id: 'favorites',
+            name: '我喜欢的音乐',
+            cover: null,
+            songs: [],
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            isFavorites: true
+        });
+        saveUserSonglists();
+        console.log('❤️ 已创建"我喜欢的音乐"歌单');
+    } else if (!favorites.isFavorites) {
+        favorites.isFavorites = true;
+        saveUserSonglists();
     }
 }
 
@@ -676,6 +759,7 @@ ensureCacheDir();
 loadCacheMetadata();
 loadMusicLibrary();
 loadUserSonglists();
+loadPlayHistory();
 
 app.get('/api/playlist', (req, res) => {
     res.json({ playlist: currentPlaylist, currentIndex, isPlaying });
@@ -908,6 +992,10 @@ app.put('/api/user/songlists/:id', requireAuth, (req, res) => {
 
 // 删除歌单
 app.delete('/api/user/songlists/:id', requireAuth, (req, res) => {
+    if (req.params.id === 'favorites') {
+        return res.status(400).json({ success: false, error: '不能删除"我喜欢的音乐"歌单' });
+    }
+    
     const index = userSonglists.findIndex(l => l.id === req.params.id);
     
     if (index === -1) {
@@ -917,6 +1005,96 @@ app.delete('/api/user/songlists/:id', requireAuth, (req, res) => {
     userSonglists.splice(index, 1);
     saveUserSonglists();
     
+    res.json({ success: true });
+});
+
+// 收藏/取消收藏歌曲
+app.post('/api/user/favorites/toggle', requireAuth, (req, res) => {
+    const { song } = req.body;
+    const favorites = userSonglists.find(l => l.id === 'favorites');
+    
+    if (!favorites) {
+        return res.status(500).json({ success: false, error: '收藏歌单不存在' });
+    }
+    
+    if (!song) {
+        return res.status(400).json({ success: false, error: '歌曲信息不能为空' });
+    }
+    
+    const existsIndex = favorites.songs.findIndex(s => 
+        (s.id && song.id && s.id === song.id) || 
+        (s.path && song.path && s.path === song.path)
+    );
+    
+    let isFavorited;
+    if (existsIndex !== -1) {
+        favorites.songs.splice(existsIndex, 1);
+        isFavorited = false;
+    } else {
+        favorites.songs.unshift(song);
+        isFavorited = true;
+    }
+    
+    favorites.updatedAt = Date.now();
+    saveUserSonglists();
+    
+    res.json({ success: true, isFavorited, totalCount: favorites.songs.length });
+});
+
+// 检查歌曲是否已收藏
+app.post('/api/user/favorites/check', requireAuth, (req, res) => {
+    const { songId, path } = req.body;
+    const favorites = userSonglists.find(l => l.id === 'favorites');
+    
+    if (!favorites) {
+        return res.json({ success: true, isFavorited: false });
+    }
+    
+    const exists = favorites.songs.some(s => 
+        (songId && s.id === songId) || 
+        (path && s.path === path)
+    );
+    
+    res.json({ success: true, isFavorited: exists });
+});
+
+// 批量检查歌曲收藏状态
+app.post('/api/user/favorites/check-batch', requireAuth, (req, res) => {
+    const { songs } = req.body;
+    const favorites = userSonglists.find(l => l.id === 'favorites');
+    
+    if (!favorites || !Array.isArray(songs)) {
+        return res.json({ success: true, favorites: [] });
+    }
+    
+    const result = songs.map(song => {
+        const isFavorited = favorites.songs.some(s => 
+            (song.id && s.id === song.id) || 
+            (song.path && s.path === song.path)
+        );
+        return { id: song.id, path: song.path, isFavorited };
+    });
+    
+    res.json({ success: true, favorites: result });
+});
+
+// 获取播放历史
+app.get('/api/play-history', (req, res) => {
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = parseInt(req.query.offset) || 0;
+    
+    const history = playHistory.slice(offset, offset + limit);
+    res.json({ 
+        success: true, 
+        history,
+        total: playHistory.length
+    });
+});
+
+// 清空播放历史
+app.delete('/api/play-history', requireAuth, (req, res) => {
+    playHistory = [];
+    savePlayHistory();
     res.json({ success: true });
 });
 
@@ -2496,6 +2674,11 @@ app.post('/api/folder-play', async (req, res) => {
         currentIndex = 0;
         isPlaying = true;
 
+        // 添加到播放历史
+        if (tracks.length > 0) {
+            addToPlayHistory(tracks[0]);
+        }
+
         // 保存到播放列表缓存
         try {
             fs.writeFileSync(PLAYLIST_CACHE_FILE, JSON.stringify(currentPlaylist, null, 2));
@@ -3357,6 +3540,9 @@ app.post('/api/play', async (req, res) => {
             currentIndex = currentPlaylist.findIndex(track => track.path === fullPath);
         }
         isPlaying = true;
+        
+        // 添加到播放历史
+        addToPlayHistory(metadata);
         
         console.log(`🎵 单曲播放：${metadata.title}`);
         
@@ -5206,6 +5392,9 @@ app.get('/api/play/:index', async (req, res) => {
     // 设置新的播放索引
     currentIndex = index;
 
+    // 添加到播放历史
+    addToPlayHistory(track);
+
     if (playOutput === 'client') {
         isPlaying = true;
         currentDuration = track.duration;
@@ -5597,6 +5786,9 @@ app.get('/api/next', async (req, res) => {
 
     const track = currentPlaylist[nextIndex];
     currentIndex = nextIndex;
+    
+    // 添加到播放历史
+    addToPlayHistory(track);
 
     if (playOutput === 'client') {
         isPlaying = true;
@@ -5700,6 +5892,9 @@ app.get('/api/previous', async (req, res) => {
 
     const track = currentPlaylist[prevIndex];
     currentIndex = prevIndex;
+    
+    // 添加到播放历史
+    addToPlayHistory(track);
 
     if (playOutput === 'client') {
         isPlaying = true;
@@ -9131,6 +9326,9 @@ app.post('/api/play-online', async (req, res) => {
         } catch (error) {
             console.error('更新播放列表缓存失败:', error.message);
         }
+        
+        // 添加到播放历史
+        addToPlayHistory(onlineTrack);
         
         currentDuration = onlineTrack.duration;
         

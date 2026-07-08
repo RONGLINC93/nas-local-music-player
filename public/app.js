@@ -228,6 +228,11 @@ function refreshAllMusicViews() {
             }
         }
     }
+    
+    // 更新收藏按钮状态
+    if (currentIndex >= 0 && currentPlaylist[currentIndex]) {
+        updateFavoriteButton(currentPlaylist[currentIndex]);
+    }
 }
 
 function handleUserCardClick() {
@@ -677,6 +682,9 @@ function updateNowPlaying(track) {
         // 更新下载按钮显示
         updateDownloadButton(track);
         
+        // 更新收藏按钮显示
+        updateFavoriteButton(track);
+        
         // 更新大播放界面信息
         updateFullPlayerInfo();
         
@@ -690,6 +698,10 @@ function updateNowPlaying(track) {
         // 隐藏下载按钮
         const downloadBtn = document.getElementById('downloadBtn');
         if (downloadBtn) downloadBtn.style.display = 'none';
+        
+        // 隐藏收藏按钮
+        const favoriteBtn = document.getElementById('favoriteBtn');
+        if (favoriteBtn) favoriteBtn.style.display = 'none';
         
         updateFullPlayerInfo();
     }
@@ -885,6 +897,17 @@ function closeFullPlayer() {
     document.body.style.overflow = '';
 }
 
+function toggleFullPlayer() {
+    const fullPlayer = document.getElementById('fullPlayer');
+    if (!fullPlayer) return;
+    
+    if (fullPlayer.classList.contains('show')) {
+        closeFullPlayer();
+    } else {
+        openFullPlayer();
+    }
+}
+
 function toggleFullscreen() {
     const fullPlayer = document.getElementById('fullPlayer');
     if (!fullPlayer) return;
@@ -1060,6 +1083,332 @@ async function updateDownloadButton(track) {
     } else {
         downloadBtn.style.display = 'none';
     }
+}
+
+// 更新收藏按钮状态
+async function updateFavoriteButton(track) {
+    const favoriteBtn = document.getElementById('favoriteBtn');
+    if (!favoriteBtn) return;
+    
+    if (!track) {
+        favoriteBtn.style.display = 'none';
+        return;
+    }
+    
+    // 未登录不显示收藏按钮
+    if (!currentUser) {
+        favoriteBtn.style.display = 'none';
+        return;
+    }
+    
+    favoriteBtn.style.display = 'flex';
+    
+    try {
+        const songId = getSongId(track);
+        const path = track.path && !track.path.startsWith('online://') ? track.path : null;
+        
+        const result = await apiRequest('/api/user/favorites/check', 'POST', {
+            songId: songId,
+            path: path
+        });
+        
+        if (result.success) {
+            setFavoriteButtonState(result.isFavorited);
+        }
+    } catch (error) {
+        console.warn('检查收藏状态失败:', error);
+    }
+}
+
+// 设置收藏按钮状态
+function setFavoriteButtonState(isFavorited) {
+    const favoriteBtn = document.getElementById('favoriteBtn');
+    if (!favoriteBtn) return;
+    
+    const icon = favoriteBtn.querySelector('i');
+    if (isFavorited) {
+        favoriteBtn.classList.add('active');
+        favoriteBtn.title = '取消收藏';
+        if (icon) icon.className = 'fas fa-heart';
+    } else {
+        favoriteBtn.classList.remove('active');
+        favoriteBtn.title = '收藏';
+        if (icon) icon.className = 'far fa-heart';
+    }
+}
+
+// 切换收藏状态
+async function toggleFavorite() {
+    if (!currentUser) {
+        requireLogin(() => toggleFavorite());
+        return;
+    }
+    
+    if (currentIndex < 0) return;
+    
+    const track = currentPlaylist[currentIndex];
+    if (!track) return;
+    
+    const song = {
+        id: getSongId(track),
+        title: track.title,
+        artist: track.artist,
+        album: track.album,
+        duration: track.duration,
+        path: track.path,
+        source: track.source,
+        cover: track.cover || track.picUrl || track.albumCover,
+        isOnline: track.isOnline || track.path?.startsWith('online://'),
+        songInfo: track.songInfo
+    };
+    
+    try {
+        const result = await apiRequest('/api/user/favorites/toggle', 'POST', { song });
+        
+        if (result.success) {
+            setFavoriteButtonState(result.isFavorited);
+            showNotification({ 
+                type: 'success', 
+                message: result.isFavorited ? '已添加到我喜欢的音乐' : '已取消收藏' 
+            });
+            
+            // 刷新歌单列表
+            if (typeof loadUserSonglists === 'function') {
+                loadUserSonglists();
+            }
+        }
+    } catch (error) {
+        console.error('切换收藏状态失败:', error);
+        showNotification({ type: 'error', message: '操作失败: ' + error.message });
+    }
+}
+
+// ========== 播放速度控制 ==========
+let currentPlaySpeed = 1;
+
+function toggleSpeedMenu() {
+    const menu = document.getElementById('speedMenu');
+    if (!menu) return;
+    
+    if (menu.style.display === 'none' || !menu.style.display) {
+        menu.style.display = 'block';
+        // 点击外部关闭
+        setTimeout(() => {
+            document.addEventListener('click', closeSpeedMenuOutside);
+        }, 10);
+    } else {
+        menu.style.display = 'none';
+        document.removeEventListener('click', closeSpeedMenuOutside);
+    }
+}
+
+function closeSpeedMenuOutside(e) {
+    const speedControl = document.querySelector('.player-speed-control');
+    if (speedControl && !speedControl.contains(e.target)) {
+        const menu = document.getElementById('speedMenu');
+        if (menu) {
+            menu.style.display = 'none';
+        }
+        document.removeEventListener('click', closeSpeedMenuOutside);
+    }
+}
+
+function setPlaySpeed(speed) {
+    currentPlaySpeed = speed;
+    
+    // 更新按钮显示
+    const speedText = document.getElementById('speedText');
+    if (speedText) {
+        speedText.textContent = `${speed}x`;
+    }
+    
+    // 更新菜单选中状态
+    const options = document.querySelectorAll('.speed-option');
+    options.forEach((option, index) => {
+        const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
+        if (speeds[index] === speed) {
+            option.classList.add('active');
+        } else {
+            option.classList.remove('active');
+        }
+    });
+    
+    // 应用到客户端播放
+    if (clientAudio && playOutput === 'client') {
+        clientAudio.playbackRate = speed;
+    }
+    
+    // 保存到 localStorage
+    try {
+        localStorage.setItem('playSpeed', String(speed));
+    } catch (e) {}
+    
+    // 关闭菜单
+    const menu = document.getElementById('speedMenu');
+    if (menu) {
+        menu.style.display = 'none';
+    }
+    document.removeEventListener('click', closeSpeedMenuOutside);
+    
+    // 如果是服务端模式，提示不支持
+    if (playOutput === 'server') {
+        showNotification({ type: 'info', message: '播放速度调节仅支持客户端播放模式' });
+    }
+}
+
+// 初始化播放速度
+function initPlaySpeed() {
+    try {
+        const savedSpeed = localStorage.getItem('playSpeed');
+        if (savedSpeed) {
+            currentPlaySpeed = parseFloat(savedSpeed);
+            const speedText = document.getElementById('speedText');
+            if (speedText) {
+                speedText.textContent = `${currentPlaySpeed}x`;
+            }
+            
+            // 更新菜单选中状态
+            const options = document.querySelectorAll('.speed-option');
+            const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
+            options.forEach((option, index) => {
+                if (speeds[index] === currentPlaySpeed) {
+                    option.classList.add('active');
+                } else {
+                    option.classList.remove('active');
+                }
+            });
+        }
+    } catch (e) {}
+}
+
+// ========== 睡眠定时器 ==========
+let sleepTimerMinutes = 0;
+let sleepTimerInterval = null;
+let sleepTimerEndTime = 0;
+
+function toggleSleepTimerMenu() {
+    const menu = document.getElementById('sleepTimerMenu');
+    if (!menu) return;
+    
+    if (menu.style.display === 'none' || !menu.style.display) {
+        menu.style.display = 'block';
+        setTimeout(() => {
+            document.addEventListener('click', closeSleepTimerMenuOutside);
+        }, 10);
+    } else {
+        menu.style.display = 'none';
+        document.removeEventListener('click', closeSleepTimerMenuOutside);
+    }
+}
+
+function closeSleepTimerMenuOutside(e) {
+    const sleepTimerControl = document.querySelector('.sleep-timer-control');
+    if (sleepTimerControl && !sleepTimerControl.contains(e.target)) {
+        const menu = document.getElementById('sleepTimerMenu');
+        if (menu) {
+            menu.style.display = 'none';
+        }
+        document.removeEventListener('click', closeSleepTimerMenuOutside);
+    }
+}
+
+function setSleepTimer(minutes) {
+    sleepTimerMinutes = minutes;
+    
+    // 清除现有定时器
+    if (sleepTimerInterval) {
+        clearInterval(sleepTimerInterval);
+        sleepTimerInterval = null;
+    }
+    
+    const btn = document.getElementById('sleepTimerBtn');
+    const text = document.getElementById('sleepTimerText');
+    
+    if (minutes <= 0) {
+        // 关闭定时器
+        sleepTimerEndTime = 0;
+        if (btn) btn.classList.remove('active');
+        if (text) {
+            text.style.display = 'none';
+            text.textContent = '';
+        }
+        showNotification({ type: 'info', message: '睡眠定时已关闭' });
+    } else {
+        // 设置定时器
+        sleepTimerEndTime = Date.now() + minutes * 60 * 1000;
+        if (btn) btn.classList.add('active');
+        if (text) {
+            text.style.display = 'inline';
+        }
+        
+        // 更新显示
+        updateSleepTimerDisplay();
+        
+        // 启动倒计时
+        sleepTimerInterval = setInterval(() => {
+            const now = Date.now();
+            if (now >= sleepTimerEndTime) {
+                // 时间到，停止播放
+                clearInterval(sleepTimerInterval);
+                sleepTimerInterval = null;
+                sleepTimerMinutes = 0;
+                sleepTimerEndTime = 0;
+                
+                if (btn) btn.classList.remove('active');
+                if (text) {
+                    text.style.display = 'none';
+                    text.textContent = '';
+                }
+                
+                // 停止播放
+                stop();
+                
+                showNotification({ type: 'success', message: '定时时间到，已停止播放' });
+                return;
+            }
+            
+            updateSleepTimerDisplay();
+        }, 1000);
+        
+        showNotification({ type: 'success', message: `已设置 ${minutes} 分钟后停止播放` });
+    }
+    
+    // 关闭菜单
+    const menu = document.getElementById('sleepTimerMenu');
+    if (menu) {
+        menu.style.display = 'none';
+    }
+    document.removeEventListener('click', closeSleepTimerMenuOutside);
+    
+    // 更新菜单选中状态
+    updateSleepTimerMenuState();
+}
+
+function updateSleepTimerDisplay() {
+    const text = document.getElementById('sleepTimerText');
+    if (!text) return;
+    
+    const remaining = Math.max(0, sleepTimerEndTime - Date.now());
+    const minutes = Math.floor(remaining / 60000);
+    const seconds = Math.floor((remaining % 60000) / 1000);
+    
+    if (minutes > 0) {
+        text.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    } else {
+        text.textContent = `${seconds}s`;
+    }
+}
+
+function updateSleepTimerMenuState() {
+    const options = document.querySelectorAll('.sleep-timer-option');
+    const times = [10, 20, 30, 60, 90, 0];
+    options.forEach((option, index) => {
+        if (times[index] === sleepTimerMinutes) {
+            option.classList.add('active');
+        } else {
+            option.classList.remove('active');
+        }
+    });
 }
 
 // 下载当前播放的歌曲
@@ -1425,13 +1774,18 @@ function renderPlaylist() {
         }
         
         // 生成来源标签
-        const sourceBadge = track.isOnline 
-            ? `<span class="playlist-item-source online" title="${track.sourceName || '在线音乐'}">
-                <i class="fas fa-globe"></i> ${track.sourceName || '在线'}
-               </span>`
-            : `<span class="playlist-item-source local" title="本地音乐">
+        let sourceBadge;
+        if (track.isOnline) {
+            const sourceColor = getSourceColor(track.source);
+            const sourceName = track.sourceName || getSourceName(track.source) || '在线';
+            sourceBadge = `<span class="song-source-badge online" style="background-color: ${sourceColor}20; color: ${sourceColor};" title="${sourceName}音乐">
+                <i class="fas fa-globe"></i> ${sourceName}
+               </span>`;
+        } else {
+            sourceBadge = `<span class="song-source-badge local" title="本地音乐">
                 <i class="fas fa-hard-drive"></i> 本地
                </span>`;
+        }
         
         item.innerHTML = `
             <div class="playlist-item-checkbox">
@@ -1744,9 +2098,19 @@ async function playTrackClient(index) {
     // 设置音频源
     clientAudio.src = `/api/stream/${index}`;
     
+    // 设置播放速度
+    clientAudio.playbackRate = currentPlaySpeed;
+    
     // 更新 UI
     updateNowPlaying(track);
     renderPlaylist();
+    
+    // 调用后端接口记录播放历史和同步状态
+    try {
+        await apiRequest(`/api/play/${index}`);
+    } catch (e) {
+        console.warn('同步播放状态失败:', e);
+    }
     
     // 开始播放
     try {
@@ -1975,12 +2339,17 @@ async function refreshCacheList() {
                 return;
             }
             
-            cacheListEl.innerHTML = result.cacheList.map(item => `
+            cacheListEl.innerHTML = result.cacheList.map(item => {
+                const sourceColor = getSourceColor(item.source);
+                const sourceName = getSourceName(item.source);
+                return `
                 <div class="cache-item">
                     <div class="cache-item-info">
                         <div class="cache-item-title">${escapeHtml(item.title || '未知歌曲')}</div>
                         <div class="cache-item-meta">
-                            <span class="cache-item-source">${getSourceName(item.source)}</span>
+                            <span class="song-source-badge online" style="background-color: ${sourceColor}20; color: ${sourceColor};" title="${sourceName}音乐">
+                                <i class="fas fa-globe"></i> ${sourceName}
+                            </span>
                             <span>${escapeHtml(item.artist || '未知艺术家')}</span>
                             <span>${formatFileSize(item.size || 0)}</span>
                             <span>${formatCacheDate(item.cachedAt)}</span>
@@ -1990,7 +2359,8 @@ async function refreshCacheList() {
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
-            `).join('');
+            `;
+            }).join('');
         }
     } catch (error) {
         console.error('刷新缓存列表失败:', error);
@@ -4192,6 +4562,329 @@ function switchView(viewName) {
     if (viewName === 'mysonglist') {
         loadUserSonglists();
     }
+    
+    // 如果切换到播放历史视图，加载历史记录
+    if (viewName === 'history') {
+        loadPlayHistory();
+    }
+}
+
+// ========== 播放历史相关功能 ==========
+let playHistoryList = [];
+
+async function loadPlayHistory() {
+    const listEl = document.getElementById('historyList');
+    const countEl = document.getElementById('historyCount');
+    
+    if (listEl) {
+        listEl.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-spinner fa-spin" style="font-size: 32px; color: #4f46e5; margin-bottom: 16px;"></i>
+                <p>加载中...</p>
+            </div>
+        `;
+    }
+    
+    try {
+        const response = await fetch('/api/play-history?limit=100');
+        const result = await response.json();
+        
+        if (result.success) {
+            playHistoryList = result.history || [];
+            renderPlayHistory();
+        } else {
+            if (listEl) {
+                listEl.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 32px; color: #f59e0b; margin-bottom: 16px;"></i>
+                        <p>加载失败: ${result.error || '未知错误'}</p>
+                    </div>
+                `;
+            }
+        }
+    } catch (error) {
+        console.error('加载播放历史失败:', error);
+        if (listEl && listEl.innerHTML.includes('加载中')) {
+            listEl.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 32px; color: #ef4444; margin-bottom: 16px;"></i>
+                    <p>加载失败: ${error.message}</p>
+                </div>
+            `;
+        }
+    }
+}
+
+function renderPlayHistory() {
+    const listEl = document.getElementById('historyList');
+    const countEl = document.getElementById('historyCount');
+    
+    if (!listEl) return;
+    
+    if (countEl) {
+        countEl.textContent = `共 ${playHistoryList.length} 首`;
+    }
+    
+    if (!playHistoryList || playHistoryList.length === 0) {
+        listEl.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-history" style="font-size: 48px; color: #d1d5db; margin-bottom: 16px;"></i>
+                <p>暂无播放历史</p>
+            </div>
+        `;
+        return;
+    }
+    
+    listEl.innerHTML = playHistoryList.map((song, index) => {
+        const playTime = formatPlayTime(song.playedAt);
+        const isOnline = song.isOnline || song.path?.startsWith('online://');
+        const sourceName = isOnline ? (song.sourceName || getSourceName(song.source)) : '本地';
+        const sourceIcon = isOnline ? 'fa-globe' : 'fa-hard-drive';
+        const sourceColor = isOnline ? getSourceColor(song.source) : null;
+        const sourceStyle = isOnline && sourceColor 
+            ? `style="background-color: ${sourceColor}20; color: ${sourceColor};"` 
+            : '';
+        
+        return `
+            <div class="history-song-item" ondblclick="playHistorySong(${index})">
+                <div class="history-song-index">${index + 1}</div>
+                <div class="history-song-info">
+                    <div class="history-song-title">
+                        ${escapeHtml(song.title || '未知歌曲')}
+                        <span class="song-source-badge ${isOnline ? 'online' : 'local'}" ${sourceStyle} title="${isOnline ? sourceName + '音乐' : '本地音乐'}">
+                            <i class="fas ${sourceIcon}"></i> ${sourceName}
+                        </span>
+                    </div>
+                    <div class="history-song-artist">${escapeHtml(song.artist || '未知歌手')}</div>
+                </div>
+                <div class="history-song-time">${playTime}</div>
+                <div class="history-song-actions">
+                    <button title="播放" onclick="event.stopPropagation();playHistorySong(${index})">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <button title="添加到播放列表" onclick="event.stopPropagation();addHistorySongToPlaylist(${index})">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function formatPlayTime(timestamp) {
+    if (!timestamp) return '';
+    
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now - date;
+    
+    if (diff < 60000) {
+        return '刚刚';
+    } else if (diff < 3600000) {
+        return `${Math.floor(diff / 60000)} 分钟前`;
+    } else if (diff < 86400000) {
+        return `${Math.floor(diff / 3600000)} 小时前`;
+    } else if (diff < 604800000) {
+        return `${Math.floor(diff / 86400000)} 天前`;
+    } else {
+        const month = date.getMonth() + 1;
+        const day = date.getDate();
+        return `${month}-${day}`;
+    }
+}
+
+async function playHistorySong(index) {
+    const song = playHistoryList[index];
+    if (!song) return;
+    
+    if (song.isOnline || song.path?.startsWith('online://')) {
+        const songId = song.id || (song.path ? song.path.split('/')[2] : null);
+        if (song.source && songId) {
+            try {
+                const response = await apiRequest('/api/play-online', 'POST', {
+                    source: song.source,
+                    songId: songId,
+                    name: song.title,
+                    singer: song.artist,
+                    albumName: song.album,
+                    picUrl: song.cover,
+                    interval: song.duration,
+                    songInfo: song.songInfo
+                });
+                
+                if (response.success) {
+                    currentPlaylist = response.playlist || currentPlaylist;
+                    currentIndex = response.currentIndex ?? currentIndex;
+                    isPlaying = true;
+                    updateNowPlaying(response.current);
+                    updatePlayPauseButton();
+                    renderPlaylist();
+                    startProgressUpdate();
+                    
+                    if (playOutput === 'client') {
+                        playClientTrack(response.current);
+                    }
+                }
+            } catch (error) {
+                console.error('播放在线音乐失败:', error);
+                showNotification({ type: 'error', message: '播放失败: ' + error.message });
+            }
+        }
+    } else if (song.path) {
+        try {
+            await apiRequest('/api/add-to-playlist', 'POST', { path: song.path });
+            
+            const playlistResult = await apiRequest('/api/playlist');
+            if (playlistResult.playlist) {
+                currentPlaylist = playlistResult.playlist;
+                renderPlaylist();
+            }
+            
+            const trackIndex = currentPlaylist.findIndex(t => 
+                t.path === song.path || 
+                t.path.endsWith(song.path) ||
+                (t.title === song.title && t.artist === song.artist)
+            );
+            if (trackIndex >= 0) {
+                playTrack(trackIndex);
+            }
+        } catch (error) {
+            console.error('播放历史歌曲失败:', error);
+            showNotification({ type: 'error', message: '播放失败: ' + error.message });
+        }
+    }
+}
+
+async function addHistorySongToPlaylist(index) {
+    const song = playHistoryList[index];
+    if (!song) return;
+    
+    if (song.isOnline || song.path?.startsWith('online://')) {
+        const songId = song.id || (song.path ? song.path.split('/')[2] : null);
+        if (song.source && songId) {
+            try {
+                const result = await apiRequest('/api/add-online-to-playlist', 'POST', {
+                    source: song.source,
+                    songId: songId,
+                    name: song.title,
+                    singer: song.artist,
+                    albumName: song.album,
+                    picUrl: song.cover,
+                    interval: song.duration,
+                    songInfo: song.songInfo
+                });
+                
+                if (result.success) {
+                    const playlistResult = await apiRequest('/api/playlist');
+                    if (playlistResult.playlist) {
+                        currentPlaylist = playlistResult.playlist;
+                        renderPlaylist();
+                    }
+                    showNotification({ type: 'success', message: '已添加到播放列表' });
+                }
+            } catch (error) {
+                console.error('添加到播放列表失败:', error);
+                showNotification({ type: 'error', message: '添加失败: ' + error.message });
+            }
+        }
+    } else if (song.path) {
+        try {
+            await apiRequest('/api/add-to-playlist', 'POST', { path: song.path });
+            
+            const playlistResult = await apiRequest('/api/playlist');
+            if (playlistResult.playlist) {
+                currentPlaylist = playlistResult.playlist;
+                renderPlaylist();
+            }
+            showNotification({ type: 'success', message: '已添加到播放列表' });
+        } catch (error) {
+            console.error('添加到播放列表失败:', error);
+            showNotification({ type: 'error', message: '添加失败: ' + error.message });
+        }
+    }
+}
+
+async function playAllHistory() {
+    if (!playHistoryList || playHistoryList.length === 0) {
+        showNotification({ type: 'warning', message: '播放历史为空' });
+        return;
+    }
+    
+    try {
+        await apiRequest('/api/clear-playlist', 'POST');
+        
+        for (let i = 0; i < playHistoryList.length; i++) {
+            const song = playHistoryList[i];
+            if (song.isOnline || song.path?.startsWith('online://')) {
+                const songId = song.id || (song.path ? song.path.split('/')[2] : null);
+                if (song.source && songId) {
+                    await apiRequest('/api/add-online-to-playlist', 'POST', {
+                        source: song.source,
+                        songId: songId,
+                        name: song.title,
+                        singer: song.artist,
+                        albumName: song.album,
+                        picUrl: song.cover,
+                        interval: song.duration,
+                        songInfo: song.songInfo
+                    });
+                }
+            } else if (song.path) {
+                await apiRequest('/api/add-to-playlist', 'POST', { path: song.path });
+            }
+        }
+        
+        const playlistResult = await apiRequest('/api/playlist');
+        if (playlistResult.playlist) {
+            currentPlaylist = playlistResult.playlist;
+            renderPlaylist();
+        }
+        
+        if (currentPlaylist.length > 0) {
+            playTrack(0);
+        }
+        
+        showNotification({ type: 'success', message: `已添加 ${playHistoryList.length} 首歌曲到播放列表` });
+    } catch (error) {
+        console.error('播放全部历史失败:', error);
+        showNotification({ type: 'error', message: '操作失败: ' + error.message });
+    }
+}
+
+async function clearPlayHistory() {
+    openClearPlayHistoryModal();
+}
+
+function openClearPlayHistoryModal() {
+    const modal = document.getElementById('clearPlayHistoryModal');
+    if (modal) {
+        modal.classList.add('show');
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeClearPlayHistoryModal() {
+    const modal = document.getElementById('clearPlayHistoryModal');
+    if (modal) {
+        modal.classList.remove('show');
+        document.body.style.overflow = '';
+    }
+}
+
+async function confirmClearPlayHistory() {
+    try {
+        const result = await apiRequest('/api/play-history', 'DELETE');
+        
+        if (result.success) {
+            playHistoryList = [];
+            renderPlayHistory();
+            showNotification({ type: 'success', message: '播放历史已清空' });
+            closeClearPlayHistoryModal();
+        }
+    } catch (error) {
+        console.error('清空播放历史失败:', error);
+        showNotification({ type: 'error', message: '操作失败: ' + error.message });
+    }
 }
 
 // ========== 我的歌单相关功能 ==========
@@ -4362,10 +5055,24 @@ function renderUserSonglistDetail(songlist) {
         return;
     }
     
-    songsEl.innerHTML = songlist.songs.map((song, index) => `
+    songsEl.innerHTML = songlist.songs.map((song, index) => {
+        const isOnline = song.isOnline || song.path?.startsWith('online://');
+        const sourceName = isOnline ? (song.sourceName || getSourceName(song.source)) : '本地';
+        const sourceIcon = isOnline ? 'fa-globe' : 'fa-hard-drive';
+        const sourceColor = isOnline ? getSourceColor(song.source) : null;
+        const sourceStyle = isOnline && sourceColor 
+            ? `style="background-color: ${sourceColor}20; color: ${sourceColor};"` 
+            : '';
+        
+        return `
         <div class="mysonglist-song-item" ondblclick="playMySonglistSong(${index})">
             <div class="mysonglist-song-index">${index + 1}</div>
-            <div class="mysonglist-song-title">${escapeHtml(song.title || song.name || '未知歌曲')}</div>
+            <div class="mysonglist-song-title">
+                ${escapeHtml(song.title || song.name || '未知歌曲')}
+                <span class="song-source-badge ${isOnline ? 'online' : 'local'}" ${sourceStyle} title="${isOnline ? sourceName + '音乐' : '本地音乐'}">
+                    <i class="fas ${sourceIcon}"></i> ${sourceName}
+                </span>
+            </div>
             <div class="mysonglist-song-artist">${escapeHtml(song.artist || '未知歌手')}</div>
             <div class="mysonglist-song-album">${escapeHtml(song.album || '')}</div>
             <div class="mysonglist-song-duration">${formatTime(song.duration)}</div>
@@ -4384,7 +5091,8 @@ function renderUserSonglistDetail(songlist) {
                 </button>
             </div>
         </div>
-    `).join('');
+    `;
+    }).join('');
 }
 
 // 播放歌单中的歌曲
@@ -5665,6 +6373,125 @@ function initProgressDrag() {
     document.addEventListener('touchend', endDrag);
 }
 
+// ========== 快捷键支持 ==========
+function initKeyboardShortcuts() {
+    document.addEventListener('keydown', (e) => {
+        // 如果是在输入框、文本域或可编辑元素中，不触发快捷键
+        const activeEl = document.activeElement;
+        if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
+            return;
+        }
+        
+        // 如果有模态框打开，不触发播放控制快捷键（除了ESC关闭模态框）
+        const openModals = document.querySelectorAll('.modal.show');
+        if (openModals.length > 0 && e.key !== 'Escape') {
+            return;
+        }
+        
+        switch (e.code) {
+            case 'Space':
+                // 空格 - 播放/暂停
+                e.preventDefault();
+                togglePlay();
+                break;
+                
+            case 'ArrowRight':
+                // 右箭头 - 快进 5 秒
+                e.preventDefault();
+                seekForward();
+                break;
+                
+            case 'ArrowLeft':
+                // 左箭头 - 快退 5 秒
+                e.preventDefault();
+                seekBackward();
+                break;
+                
+            case 'ArrowUp':
+                // 上箭头 - 音量+
+                e.preventDefault();
+                volumeUp();
+                break;
+                
+            case 'ArrowDown':
+                // 下箭头 - 音量-
+                e.preventDefault();
+                volumeDown();
+                break;
+                
+            case 'KeyN':
+                // N - 下一首
+                e.preventDefault();
+                nextTrack();
+                break;
+                
+            case 'KeyP':
+                // P - 上一首
+                e.preventDefault();
+                prevTrack();
+                break;
+                
+            case 'KeyM':
+                // M - 静音/取消静音
+                e.preventDefault();
+                toggleMute();
+                break;
+                
+            case 'KeyL':
+                // L - 收藏/取消收藏
+                e.preventDefault();
+                toggleFavorite();
+                break;
+                
+            case 'KeyF':
+                // F - 全屏大播放界面
+                e.preventDefault();
+                if (e.ctrlKey || e.metaKey) {
+                    // Ctrl+F 留给浏览器搜索
+                    return;
+                }
+                toggleFullPlayer();
+                break;
+                
+            case 'Escape':
+                // ESC - 关闭大播放界面
+                const fullPlayer = document.getElementById('fullPlayer');
+                if (fullPlayer && fullPlayer.classList.contains('show')) {
+                    closeFullPlayer();
+                }
+                break;
+        }
+    });
+}
+
+function seekForward() {
+    if (playOutput === 'client' && clientAudio) {
+        clientAudio.currentTime = Math.min(clientAudio.duration || 0, clientAudio.currentTime + 5);
+    } else {
+        // 服务端模式：通过API
+        apiRequest('/api/seek', 'POST', { offset: 5 }).catch(() => {});
+    }
+}
+
+function seekBackward() {
+    if (playOutput === 'client' && clientAudio) {
+        clientAudio.currentTime = Math.max(0, clientAudio.currentTime - 5);
+    } else {
+        // 服务端模式：通过API
+        apiRequest('/api/seek', 'POST', { offset: -5 }).catch(() => {});
+    }
+}
+
+function volumeUp() {
+    const newVolume = Math.min(100, currentVolume + 5);
+    changeVolume(newVolume);
+}
+
+function volumeDown() {
+    const newVolume = Math.max(0, currentVolume - 5);
+    changeVolume(newVolume);
+}
+
 function startDrag(e) {
     if (currentIndex < 0) return;
     
@@ -5765,6 +6592,12 @@ window.onload = async () => {
     
     // 初始化封面预览浮层
     initCoverPreview();
+    
+    // 初始化播放速度
+    initPlaySpeed();
+    
+    // 初始化快捷键支持
+    initKeyboardShortcuts();
     
     // 后台异步加载播放列表和文件管理数据
     Promise.all([
@@ -7017,7 +7850,12 @@ function createFileItemHTML(track, index, searchKeyword = '') {
                 <i class="fas fa-music"></i>
             </div>
             <div class="folder-music-info">
-                <div class="folder-music-title">${highlightedTitle}</div>
+                <div class="folder-music-title">
+                    ${highlightedTitle}
+                    <span class="song-source-badge local" title="本地音乐">
+                        <i class="fas fa-hard-drive"></i> 本地
+                    </span>
+                </div>
                 <div class="folder-music-artist">${highlightedArtist}</div>
             </div>
             <div class="folder-music-duration">${formatDuration(track.duration)}</div>
@@ -9528,7 +10366,9 @@ function renderRankResults() {
                 <div class="online-item-info">
                     <div class="online-item-title-row">
                         <div class="online-item-title">${song.name}</div>
-                        <span class="online-source-tag" style="background-color: ${sourceColor}">${sourceName}</span>
+                        <span class="song-source-badge online" style="background-color: ${sourceColor}20; color: ${sourceColor};" title="${sourceName}音乐">
+                            <i class="fas fa-globe"></i> ${sourceName}
+                        </span>
                     </div>
                     <div class="online-item-artist">${song.singer}</div>
                     <div class="online-item-album">${song.albumName || ''}</div>
@@ -9687,7 +10527,9 @@ function renderOnlineResults() {
                 <div class="online-item-info">
                     <div class="online-item-title-row">
                         <div class="online-item-title">${song.name}</div>
-                        <span class="online-source-tag" style="background-color: ${sourceColor}">${sourceName}</span>
+                        <span class="song-source-badge online" style="background-color: ${sourceColor}20; color: ${sourceColor};" title="${sourceName}音乐">
+                            <i class="fas fa-globe"></i> ${sourceName}
+                        </span>
                     </div>
                     <div class="online-item-artist">${song.singer}</div>
                     <div class="online-item-album">${song.albumName || ''}</div>
@@ -11286,12 +12128,19 @@ async function openSonglistDetail(id) {
 function renderSonglistSongs(songs) {
     const resultsDiv = document.getElementById('songlistDetailResults');
     const source = document.getElementById('onlineSourceSelect').value;
+    const sourceName = getSourceName(source);
+    const sourceColor = getSourceColor(source);
     
     resultsDiv.innerHTML = songs.map((song, index) => `
         <div class="online-music-item" data-index="${index}" data-source="${source}" data-songid="${song.songmid || song.id || index}" data-name="${song.name || '未知歌曲'}" data-singer="${song.singer || ''}" data-album="${song.albumName || ''}" data-pic="${song.img || ''}" data-interval="${song.interval || '0'}">
             <div class="online-music-index">${index + 1}</div>
             <div class="online-music-info">
-                <div class="online-music-title">${song.name || '未知歌曲'}</div>
+                <div class="online-music-title">
+                    ${song.name || '未知歌曲'}
+                    <span class="song-source-badge online" style="background-color: ${sourceColor}20; color: ${sourceColor};" title="${sourceName}音乐">
+                        <i class="fas fa-globe"></i> ${sourceName}
+                    </span>
+                </div>
                 <div class="online-music-artist">${song.singer || '-'}</div>
             </div>
             <div class="online-music-album">${song.albumName || '-'}</div>

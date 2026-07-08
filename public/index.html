@@ -40,6 +40,10 @@
                     <i class="fas fa-globe nav-icon"></i>
                     <span>在线音乐</span>
                 </div>
+                <div class="nav-item" data-view="history">
+                    <i class="fas fa-history nav-icon"></i>
+                    <span>播放历史</span>
+                </div>
                 <div class="nav-item" data-view="mysonglist" id="navMySonglist" style="display: none;">
                     <i class="fas fa-heart nav-icon"></i>
                     <span>我的歌单</span>
@@ -776,6 +780,32 @@
                 </div>
             </div>
 
+            <!-- 播放历史视图 -->
+            <div id="view-history" class="view">
+                <div class="content-area history-view">
+                    <div class="history-container">
+                        <div class="section-header">
+                            <h2><i class="fas fa-history"></i> 播放历史</h2>
+                            <div style="display: flex; gap: 10px;">
+                                <span class="history-count" id="historyCount">共 0 首</span>
+                                <button class="btn btn-secondary" onclick="playAllHistory()">
+                                    <i class="fas fa-play"></i> 播放全部
+                                </button>
+                                <button class="btn btn-danger" onclick="clearPlayHistory()">
+                                    <i class="fas fa-trash"></i> 清空历史
+                                </button>
+                            </div>
+                        </div>
+                        <div id="historyList" class="history-list">
+                            <div class="empty-state">
+                                <i class="fas fa-history" style="font-size: 48px; color: #d1d5db; margin-bottom: 16px;"></i>
+                                <p>暂无播放历史</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
                         <!-- FAQ视图 -->
             <div id="view-faq" class="view">
                 <div class="content-area faq-view">
@@ -1174,6 +1204,9 @@
                     <div class="track-title" id="trackTitle">未播放</div>
                     <div class="track-artist" id="trackArtist">-</div>
                 </div>
+                <button id="favoriteBtn" class="favorite-btn" onclick="toggleFavorite()" title="收藏" style="display: none;">
+                    <i class="far fa-heart"></i>
+                </button>
             </div>
 
             <!-- 播放控制 -->
@@ -1227,6 +1260,38 @@
                         <i class="fas fa-server" id="outputSwitchIcon"></i>
                         <span id="outputSwitchText">服务器</span>
                     </button>
+                </div>
+                
+                <!-- 播放速度 -->
+                <div class="player-speed-control">
+                    <button class="speed-btn" id="speedBtn" onclick="toggleSpeedMenu()" title="播放速度">
+                        <span id="speedText">1.0x</span>
+                    </button>
+                    <div class="speed-menu" id="speedMenu" style="display: none;">
+                        <div class="speed-option" onclick="setPlaySpeed(0.5)">0.5x</div>
+                        <div class="speed-option" onclick="setPlaySpeed(0.75)">0.75x</div>
+                        <div class="speed-option active" onclick="setPlaySpeed(1)">1.0x 正常</div>
+                        <div class="speed-option" onclick="setPlaySpeed(1.25)">1.25x</div>
+                        <div class="speed-option" onclick="setPlaySpeed(1.5)">1.5x</div>
+                        <div class="speed-option" onclick="setPlaySpeed(2)">2.0x</div>
+                    </div>
+                </div>
+                
+                <!-- 睡眠定时器 -->
+                <div class="sleep-timer-control">
+                    <button class="sleep-timer-btn" id="sleepTimerBtn" onclick="toggleSleepTimerMenu()" title="睡眠定时">
+                        <i class="fas fa-moon"></i>
+                        <span id="sleepTimerText" style="display: none; margin-left: 4px; font-size: 11px;"></span>
+                    </button>
+                    <div class="sleep-timer-menu" id="sleepTimerMenu" style="display: none;">
+                        <div class="sleep-timer-title">睡眠定时</div>
+                        <div class="sleep-timer-option" onclick="setSleepTimer(10)">10 分钟</div>
+                        <div class="sleep-timer-option" onclick="setSleepTimer(20)">20 分钟</div>
+                        <div class="sleep-timer-option" onclick="setSleepTimer(30)">30 分钟</div>
+                        <div class="sleep-timer-option" onclick="setSleepTimer(60)">60 分钟</div>
+                        <div class="sleep-timer-option" onclick="setSleepTimer(90)">90 分钟</div>
+                        <div class="sleep-timer-option" onclick="setSleepTimer(0)">不开启</div>
+                    </div>
                 </div>
             </div>
         </footer>
@@ -2196,6 +2261,32 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="closeClearCacheModal()">取消</button>
                 <button type="button" id="btnConfirmClearCache" class="btn btn-danger" onclick="confirmClearCache()">
+                    <i class="fas fa-trash"></i> 确认清空
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 清空播放历史确认对话框 -->
+    <div id="clearPlayHistoryModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-exclamation-triangle"
+                        style="font-size: 24px; color: #ef4444; vertical-align: middle; margin-right: 8px;"></i>
+                    确认清空
+                </h3>
+                <button onclick="closeClearPlayHistoryModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="delete-confirm-content">
+                    <p>确定要清空所有播放历史吗？</p>
+                    <p class="delete-warning">此操作将删除所有播放历史记录，不可恢复。</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeClearPlayHistoryModal()">取消</button>
+                <button type="button" id="btnConfirmClearPlayHistory" class="btn btn-danger" onclick="confirmClearPlayHistory()">
                     <i class="fas fa-trash"></i> 确认清空
                 </button>
             </div>

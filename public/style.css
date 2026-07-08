@@ -1862,6 +1862,37 @@ body {
     color: #666;
 }
 
+.favorite-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    color: #9ca3af;
+    transition: all 0.3s;
+    padding: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.favorite-btn:hover {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.favorite-btn.active {
+    color: #ef4444;
+}
+
+.favorite-btn.active i {
+    animation: heartBeat 0.3s ease;
+}
+
+@keyframes heartBeat {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.3); }
+    100% { transform: scale(1); }
+}
+
 .player-controls {
     flex: 1;
     display: flex;
@@ -2105,6 +2136,154 @@ body {
     background: #f0fdf4;
     border-color: #22c55e;
     color: #22c55e;
+}
+
+.player-speed-control {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.speed-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 50px;
+    padding: 6px 10px;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    color: #666;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.speed-btn:hover {
+    background: #e5e7eb;
+    color: #3b82f6;
+    border-color: #3b82f6;
+}
+
+.speed-menu {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    margin-bottom: 8px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    z-index: 1000;
+    min-width: 120px;
+}
+
+.speed-option {
+    padding: 10px 16px;
+    font-size: 13px;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+
+.speed-option:hover {
+    background: #f3f4f6;
+    color: #4f46e5;
+}
+
+.speed-option.active {
+    background: #eef2ff;
+    color: #4f46e5;
+    font-weight: 600;
+}
+
+/* 睡眠定时器 */
+.sleep-timer-control {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.sleep-timer-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    color: #666;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.sleep-timer-btn:hover {
+    background: #e5e7eb;
+    color: #8b5cf6;
+    border-color: #8b5cf6;
+}
+
+.sleep-timer-btn.active {
+    background: #f3e8ff;
+    border-color: #8b5cf6;
+    color: #8b5cf6;
+}
+
+.sleep-timer-btn i {
+    font-size: 14px;
+}
+
+.sleep-timer-menu {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    margin-bottom: 8px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    z-index: 1000;
+    min-width: 130px;
+}
+
+.sleep-timer-title {
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    border-bottom: 1px solid #f3f4f6;
+    text-align: center;
+}
+
+.sleep-timer-option {
+    padding: 10px 16px;
+    font-size: 13px;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+
+.sleep-timer-option:hover {
+    background: #f3f4f6;
+    color: #8b5cf6;
+}
+
+.sleep-timer-option.active {
+    background: #f5f3ff;
+    color: #8b5cf6;
+    font-weight: 600;
 }
 
 /* 播放列表 */
@@ -2553,24 +2732,28 @@ font-size: 72px;
     gap: 6px;
 }
 
-.playlist-item-source {
-    flex-shrink: 0;
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: 10px;
-    display: flex;
+/* 通用歌曲来源标签 */
+.song-source-badge {
+    display: inline-flex;
     align-items: center;
     gap: 4px;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    flex-shrink: 0;
+    margin-left: 6px;
+    vertical-align: middle;
+    font-weight: 500;
 }
 
-.playlist-item-source.local {
-    background-color: #e8f5e9;
-    color: #2e7d32;
+.song-source-badge.local {
+    background-color: #ecfdf5;
+    color: #059669;
 }
 
-.playlist-item-source.online {
-    background-color: #e3f2fd;
-    color: #1976d2;
+.song-source-badge.online {
+    background-color: #eff6ff;
+    color: #2563eb;
 }
 
 .playlist-item-artist {
@@ -3636,15 +3819,6 @@ font-size: 72px;
     margin-top: 2px;
     display: flex;
     gap: 10px;
-}
-
-.cache-item-source {
-    display: inline-block;
-    padding: 1px 6px;
-    background: #e0e7ff;
-    color: #4338ca;
-    border-radius: 4px;
-    font-size: 11px;
 }
 
 .cache-item-delete {
@@ -8593,15 +8767,6 @@ font-size: 72px;
 }
 
 /* 平台标签 */
-.online-source-tag {
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 500;
-    color: white;
-    white-space: nowrap;
-}
-
 .online-item-title-row {
     display: flex;
     align-items: center;
@@ -10171,6 +10336,135 @@ font-size: 72px;
 }
 
 .mysonglist-song-actions button:hover {
+    background: rgba(79, 70, 229, 0.1);
+    color: #4f46e5;
+}
+
+/* 播放历史 */
+.history-view {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden !important;
+    padding-bottom: 100px;
+    box-sizing: border-box;
+}
+
+.history-container {
+    padding: 0px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.history-container .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    padding: 16px 20px;
+    background: white;
+    border-bottom: 1px solid #f3f4f6;
+    margin: 0;
+}
+
+.history-container .section-header h2 {
+    margin: 0;
+    font-size: 18px;
+    color: #1f2937;
+}
+
+.history-container .section-header .btn {
+    padding: 8px 16px;
+    font-size: 13px;
+}
+
+.history-count {
+    font-size: 13px;
+    color: #9ca3af;
+    margin-right: 10px;
+    display: flex;
+    align-items: center;
+}
+
+.history-list {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    background: white;
+}
+
+.history-song-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid #f3f4f6;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.history-song-item:last-child {
+    border-bottom: none;
+}
+
+.history-song-item:hover {
+    background: #f9fafb;
+}
+
+.history-song-index {
+    width: 30px;
+    text-align: center;
+    color: #9ca3af;
+    font-size: 13px;
+}
+
+.history-song-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.history-song-title {
+    font-size: 14px;
+    color: #1f2937;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.history-song-artist {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.history-song-time {
+    width: 100px;
+    text-align: right;
+    font-size: 12px;
+    color: #9ca3af;
+    margin-right: 10px;
+}
+
+.history-song-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.history-song-actions button {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: #9ca3af;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.history-song-actions button:hover {
     background: rgba(79, 70, 229, 0.1);
     color: #4f46e5;
 }

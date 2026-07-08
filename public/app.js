@@ -1929,11 +1929,17 @@ function initClientAudio() {
             syncClientPlaybackState('paused', clientAudio.currentTime, clientAudio.duration);
         });
         
-        clientAudio.addEventListener('ended', () => {
+        clientAudio.addEventListener('ended', async () => {
             isPlaying = false;
             updatePlayPauseButton();
             stopProgressUpdate();
             syncClientPlaybackState('ended', 0, clientAudio.duration);
+            
+            // 如果开启了淡入淡出，先淡出再切歌
+            if (crossfadeEnabled) {
+                await fadeOutAudio(clientAudio, crossfadeDuration / 2);
+            }
+            
             // 触发自动播放下一首
             handleClientPlaybackEnded();
         });
@@ -2114,10 +2120,24 @@ async function playTrackClient(index) {
     
     // 开始播放
     try {
+        const targetVolume = currentVolume / 100;
+        if (crossfadeEnabled) {
+            clientAudio.volume = 0;
+        } else {
+            clientAudio.volume = targetVolume;
+        }
         await clientAudio.play();
         isPlaying = true;
         updatePlayPauseButton();
         startProgressUpdate();
+        
+        // 设置均衡器
+        setupAudioContext();
+        
+        // 淡入效果
+        if (crossfadeEnabled) {
+            fadeInAudio(clientAudio, crossfadeDuration, targetVolume);
+        }
     } catch (error) {
         console.error('客户端播放失败:', error);
         showError('播放失败');
@@ -4567,6 +4587,11 @@ function switchView(viewName) {
     if (viewName === 'history') {
         loadPlayHistory();
     }
+    
+    // 如果切换到听歌统计视图，加载统计数据
+    if (viewName === 'stats') {
+        loadStats(currentStatsPeriod);
+    }
 }
 
 // ========== 播放历史相关功能 ==========
@@ -6464,6 +6489,536 @@ function initKeyboardShortcuts() {
     });
 }
 
+// ========== 主题切换相关函数 ==========
+let currentTheme = 'light';
+
+function initTheme() {
+    const savedTheme = localStorage.getItem('musicPlayerTheme') || 'light';
+    setTheme(savedTheme, false);
+    
+    // 监听系统主题变化（仅在 auto 模式下生效）
+    if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            if (currentTheme === 'auto') {
+                applyTheme(e.matches ? 'dark' : 'light');
+            }
+        });
+    }
+}
+
+function setTheme(theme, save = true) {
+    currentTheme = theme;
+    
+    if (save) {
+        localStorage.setItem('musicPlayerTheme', theme);
+    }
+    
+    let actualTheme = theme;
+    if (theme === 'auto') {
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            actualTheme = 'dark';
+        } else {
+            actualTheme = 'light';
+        }
+    }
+    
+    applyTheme(actualTheme);
+    updateThemeRadio(theme);
+}
+
+function applyTheme(theme) {
+    if (theme === 'dark') {
+        document.body.classList.add('dark-theme');
+    } else {
+        document.body.classList.remove('dark-theme');
+    }
+}
+
+function updateThemeRadio(theme) {
+    const lightRadio = document.getElementById('themeLight');
+    const darkRadio = document.getElementById('themeDark');
+    const autoRadio = document.getElementById('themeAuto');
+    
+    if (lightRadio) lightRadio.checked = theme === 'light';
+    if (darkRadio) darkRadio.checked = theme === 'dark';
+    if (autoRadio) autoRadio.checked = theme === 'auto';
+}
+
+// ========== 淡入淡出相关函数 ==========
+let crossfadeEnabled = false;
+let crossfadeDuration = 3;
+let fadeInProgress = false;
+let fadeOutProgress = false;
+let fadeInterval = null;
+
+function initCrossfade() {
+    const saved = localStorage.getItem('crossfadeEnabled');
+    const savedDuration = localStorage.getItem('crossfadeDuration');
+    
+    crossfadeEnabled = saved === 'true';
+    crossfadeDuration = savedDuration ? parseInt(savedDuration) : 3;
+    
+    const toggle = document.getElementById('crossfadeToggle');
+    const durationItem = document.getElementById('crossfadeDurationItem');
+    const slider = document.getElementById('crossfadeDurationSlider');
+    const valueDisplay = document.getElementById('crossfadeDurationValue');
+    
+    if (toggle) toggle.checked = crossfadeEnabled;
+    if (durationItem) durationItem.style.display = crossfadeEnabled ? '' : 'none';
+    if (slider) slider.value = crossfadeDuration;
+    if (valueDisplay) valueDisplay.textContent = crossfadeDuration + ' 秒';
+}
+
+function toggleCrossfade() {
+    const toggle = document.getElementById('crossfadeToggle');
+    const durationItem = document.getElementById('crossfadeDurationItem');
+    
+    crossfadeEnabled = toggle.checked;
+    localStorage.setItem('crossfadeEnabled', crossfadeEnabled);
+    
+    if (durationItem) {
+        durationItem.style.display = crossfadeEnabled ? '' : 'none';
+    }
+}
+
+function updateCrossfadeDurationDisplay() {
+    const slider = document.getElementById('crossfadeDurationSlider');
+    const valueDisplay = document.getElementById('crossfadeDurationValue');
+    
+    if (slider && valueDisplay) {
+        valueDisplay.textContent = slider.value + ' 秒';
+    }
+}
+
+function saveCrossfadeDuration() {
+    const slider = document.getElementById('crossfadeDurationSlider');
+    
+    if (slider) {
+        crossfadeDuration = parseInt(slider.value);
+        localStorage.setItem('crossfadeDuration', crossfadeDuration);
+    }
+}
+
+// 淡入效果
+function fadeInAudio(audio, duration, targetVolume) {
+    if (!audio || !crossfadeEnabled) return Promise.resolve();
+    
+    return new Promise((resolve) => {
+        if (fadeInterval) {
+            clearInterval(fadeInterval);
+            fadeInterval = null;
+        }
+        
+        const steps = duration * 20;
+        const stepSize = targetVolume / steps;
+        let currentStep = 0;
+        
+        audio.volume = 0;
+        fadeInProgress = true;
+        
+        fadeInterval = setInterval(() => {
+            currentStep++;
+            audio.volume = Math.min(targetVolume, stepSize * currentStep);
+            
+            if (currentStep >= steps) {
+                clearInterval(fadeInterval);
+                fadeInterval = null;
+                audio.volume = targetVolume;
+                fadeInProgress = false;
+                resolve();
+            }
+        }, 50);
+    });
+}
+
+// 淡出效果
+function fadeOutAudio(audio, duration) {
+    if (!audio || !crossfadeEnabled) return Promise.resolve();
+    
+    return new Promise((resolve) => {
+        if (fadeInterval) {
+            clearInterval(fadeInterval);
+            fadeInterval = null;
+        }
+        
+        const startVolume = audio.volume;
+        const steps = duration * 20;
+        const stepSize = startVolume / steps;
+        let currentStep = 0;
+        
+        fadeOutProgress = true;
+        
+        fadeInterval = setInterval(() => {
+            currentStep++;
+            audio.volume = Math.max(0, startVolume - stepSize * currentStep);
+            
+            if (currentStep >= steps) {
+                clearInterval(fadeInterval);
+                fadeInterval = null;
+                audio.volume = 0;
+                fadeOutProgress = false;
+                resolve();
+            }
+        }, 50);
+    });
+}
+
+// ========== 听歌统计相关函数 ==========
+let currentStatsPeriod = 'day';
+
+async function loadStats(period) {
+    currentStatsPeriod = period || currentStatsPeriod;
+    
+    // 更新 Tab 激活状态
+    document.querySelectorAll('.stats-period-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.period === currentStatsPeriod);
+    });
+    
+    try {
+        const response = await fetch(`/api/play-stats?period=${currentStatsPeriod}`);
+        const result = await response.json();
+        
+        if (result.success) {
+            renderStats(result.stats);
+        }
+    } catch (error) {
+        console.error('加载统计数据失败:', error);
+    }
+}
+
+function renderStats(stats) {
+    // 更新概览数据
+    document.getElementById('statTotalPlays').textContent = stats.totalPlays;
+    
+    // 格式化时长
+    const hours = Math.floor(stats.totalDuration / 3600);
+    const minutes = Math.floor((stats.totalDuration % 3600) / 60);
+    let durationText;
+    if (hours > 0) {
+        durationText = `${hours} 小时 ${minutes} 分`;
+    } else {
+        durationText = `${minutes} 分钟`;
+    }
+    document.getElementById('statTotalDuration').textContent = durationText;
+    
+    // 最爱歌曲
+    if (stats.topSongs && stats.topSongs.length > 0) {
+        document.getElementById('statTopSong').textContent = stats.topSongs[0].title;
+        document.getElementById('statTopSong').title = stats.topSongs[0].title;
+    } else {
+        document.getElementById('statTopSong').textContent = '暂无';
+        document.getElementById('statTopSong').title = '';
+    }
+    
+    // 最爱歌手
+    if (stats.topArtists && stats.topArtists.length > 0) {
+        document.getElementById('statTopArtist').textContent = stats.topArtists[0].artist;
+        document.getElementById('statTopArtist').title = stats.topArtists[0].artist;
+    } else {
+        document.getElementById('statTopArtist').textContent = '暂无';
+        document.getElementById('statTopArtist').title = '';
+    }
+    
+    // 常听歌曲列表
+    const topSongsEl = document.getElementById('topSongsList');
+    if (stats.topSongs && stats.topSongs.length > 0) {
+        topSongsEl.innerHTML = stats.topSongs.map((song, index) => `
+            <div class="top-song-item">
+                <div class="top-song-rank">${index + 1}</div>
+                <img class="top-song-cover" src="${song.cover ? '/api/cover?path=' + encodeURIComponent(song.cover) + '&size=small' : ''}" 
+                     onerror="this.style.display='none'" alt="">
+                <div class="top-song-info">
+                    <div class="top-song-title">${escapeHtml(song.title || '未知歌曲')}</div>
+                    <div class="top-song-artist">${escapeHtml(song.artist || '未知歌手')}</div>
+                </div>
+                <div class="top-song-count">${song.count} 次</div>
+            </div>
+        `).join('');
+    } else {
+        topSongsEl.innerHTML = `
+            <div class="empty-state">
+                <p>暂无数据</p>
+            </div>
+        `;
+    }
+    
+    // 常听歌手列表
+    const topArtistsEl = document.getElementById('topArtistsList');
+    if (stats.topArtists && stats.topArtists.length > 0) {
+        topArtistsEl.innerHTML = stats.topArtists.map((artist, index) => {
+            const initial = artist.artist ? artist.artist.charAt(0).toUpperCase() : '?';
+            return `
+            <div class="top-artist-item">
+                <div class="top-artist-rank">${index + 1}</div>
+                <div class="top-artist-avatar">${initial}</div>
+                <div class="top-artist-info">
+                    <div class="top-artist-name">${escapeHtml(artist.artist || '未知歌手')}</div>
+                    <div class="top-artist-count">播放 ${artist.count} 次</div>
+                </div>
+            </div>
+        `}).join('');
+    } else {
+        topArtistsEl.innerHTML = `
+            <div class="empty-state">
+                <p>暂无数据</p>
+            </div>
+        `;
+    }
+}
+
+// ========== 均衡器相关函数 ==========
+let audioContext = null;
+let sourceNode = null;
+let eqFilters = [];
+let eqEnabled = false;
+let currentEqPreset = 'flat';
+
+const EQ_BANDS = [
+    { freq: 32, label: '32Hz' },
+    { freq: 64, label: '64Hz' },
+    { freq: 125, label: '125Hz' },
+    { freq: 250, label: '250Hz' },
+    { freq: 500, label: '500Hz' },
+    { freq: 1000, label: '1kHz' },
+    { freq: 2000, label: '2kHz' },
+    { freq: 4000, label: '4kHz' },
+    { freq: 8000, label: '8kHz' },
+    { freq: 16000, label: '16kHz' }
+];
+
+const EQ_PRESETS = {
+    flat: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    pop: [-1, 2, 4, 4, 2, 0, -1, -1, 0, 2],
+    rock: [5, 4, 3, 1, -1, -1, 1, 3, 4, 5],
+    classical: [3, 2, 1, 0, -1, -1, 0, 1, 2, 3],
+    jazz: [3, 2, 1, 2, -1, -1, 0, 1, 2, 3],
+    vocal: [-2, -1, 0, 2, 4, 4, 3, 2, 1, 0],
+    bass: [6, 5, 4, 2, 0, -1, -1, -1, 0, 0],
+    treble: [0, 0, 0, 0, 0, 1, 2, 4, 5, 6]
+};
+
+const PRESET_NAMES = {
+    flat: '原声',
+    pop: '流行',
+    rock: '摇滚',
+    classical: '古典',
+    jazz: '爵士',
+    vocal: '人声',
+    bass: '重低音',
+    treble: '高音增强'
+};
+
+function initEqualizer() {
+    const savedEnabled = localStorage.getItem('eqEnabled');
+    const savedPreset = localStorage.getItem('eqPreset');
+    const savedGains = localStorage.getItem('eqGains');
+    
+    eqEnabled = savedEnabled === 'true';
+    currentEqPreset = savedPreset || 'flat';
+    
+    const toggle = document.getElementById('eqEnabledToggle');
+    if (toggle) toggle.checked = eqEnabled;
+    
+    // 生成均衡器滑块
+    renderEqBands();
+    updateEqPresetButtons();
+}
+
+function renderEqBands() {
+    const bandsEl = document.getElementById('eqBands');
+    if (!bandsEl) return;
+    
+    const savedGains = localStorage.getItem('eqGains');
+    let gains = savedGains ? JSON.parse(savedGains) : EQ_PRESETS[currentEqPreset];
+    
+    bandsEl.innerHTML = EQ_BANDS.map((band, index) => {
+        const gain = gains[index] !== undefined ? gains[index] : 0;
+        return `
+            <div class="eq-band">
+                <div class="eq-band-gain" id="eqGain${index}">${gain > 0 ? '+' : ''}${gain}dB</div>
+                <input type="range" class="eq-band-slider" 
+                       id="eqSlider${index}"
+                       min="-12" max="12" step="1" value="${gain}"
+                       oninput="updateEqBand(${index}, this.value)"
+                       onchange="saveEqSettings()">
+                <div class="eq-band-label">${band.label}</div>
+            </div>
+        `;
+    }).join('');
+}
+
+function updateEqBand(index, value) {
+    const gain = parseInt(value);
+    const gainEl = document.getElementById(`eqGain${index}`);
+    if (gainEl) {
+        gainEl.textContent = `${gain > 0 ? '+' : ''}${gain}dB`;
+    }
+    
+    // 实时应用到滤波器
+    if (eqEnabled && eqFilters[index]) {
+        eqFilters[index].gain.value = gain;
+    }
+    
+    // 标记为自定义
+    currentEqPreset = 'custom';
+    updatePresetLabel();
+    updateEqPresetButtons();
+}
+
+function setEqPreset(preset) {
+    currentEqPreset = preset;
+    const gains = EQ_PRESETS[preset];
+    
+    if (!gains) return;
+    
+    // 更新滑块
+    EQ_BANDS.forEach((band, index) => {
+        const slider = document.getElementById(`eqSlider${index}`);
+        const gainEl = document.getElementById(`eqGain${index}`);
+        if (slider) slider.value = gains[index];
+        if (gainEl) gainEl.textContent = `${gains[index] > 0 ? '+' : ''}${gains[index]}dB`;
+    });
+    
+    // 应用到滤波器
+    if (eqEnabled && eqFilters.length > 0) {
+        eqFilters.forEach((filter, index) => {
+            if (gains[index] !== undefined) {
+                filter.gain.value = gains[index];
+            }
+        });
+    }
+    
+    updatePresetLabel();
+    updateEqPresetButtons();
+    saveEqSettings();
+}
+
+function updateEqPresetButtons() {
+    document.querySelectorAll('.eq-preset-btn').forEach(btn => {
+        const preset = btn.getAttribute('onclick').match(/'([^']+)'/);
+        if (preset && preset[1] === currentEqPreset) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+}
+
+function updatePresetLabel() {
+    const labelEl = document.getElementById('currentEqPreset');
+    if (labelEl) {
+        const name = PRESET_NAMES[currentEqPreset] || '自定义';
+        labelEl.textContent = `当前：${name}`;
+    }
+}
+
+function toggleEqualizer() {
+    const toggle = document.getElementById('eqEnabledToggle');
+    eqEnabled = toggle.checked;
+    localStorage.setItem('eqEnabled', eqEnabled);
+    
+    // 如果正在播放，重新连接音频链
+    if (clientAudio && isPlaying) {
+        setupAudioContext();
+    }
+}
+
+function resetEqualizer() {
+    setEqPreset('flat');
+}
+
+function saveEqSettings() {
+    localStorage.setItem('eqPreset', currentEqPreset);
+    
+    // 保存当前各频段增益
+    const gains = EQ_BANDS.map((band, index) => {
+        const slider = document.getElementById(`eqSlider${index}`);
+        return slider ? parseInt(slider.value) : 0;
+    });
+    localStorage.setItem('eqGains', JSON.stringify(gains));
+}
+
+function setupAudioContext() {
+    if (playOutput !== 'client' || !clientAudio) return;
+    
+    try {
+        if (!audioContext) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        
+        // 如果已有 source，先断开
+        if (sourceNode) {
+            try {
+                sourceNode.disconnect();
+            } catch (e) {}
+        }
+        
+        // 断开旧的滤波器
+        eqFilters.forEach(filter => {
+            try {
+                filter.disconnect();
+            } catch (e) {}
+        });
+        
+        if (!eqEnabled) {
+            // 不启用均衡器，直接连接到 destination
+            return;
+        }
+        
+        // 创建 source
+        sourceNode = audioContext.createMediaElementSource(clientAudio);
+        
+        // 创建 10 段均衡滤波器
+        eqFilters = EQ_BANDS.map((band, index) => {
+            const filter = audioContext.createBiquadFilter();
+            filter.type = index === 0 ? 'lowshelf' : (index === EQ_BANDS.length - 1 ? 'highshelf' : 'peaking');
+            filter.frequency.value = band.freq;
+            filter.Q.value = 1;
+            
+            // 读取保存的增益值
+            const savedGains = localStorage.getItem('eqGains');
+            const gains = savedGains ? JSON.parse(savedGains) : EQ_PRESETS[currentEqPreset];
+            filter.gain.value = gains[index] || 0;
+            
+            return filter;
+        });
+        
+        // 串联滤波器
+        let prevNode = sourceNode;
+        eqFilters.forEach(filter => {
+            prevNode.connect(filter);
+            prevNode = filter;
+        });
+        
+        // 连接到输出
+        prevNode.connect(audioContext.destination);
+        
+        // 恢复 AudioContext（浏览器自动暂停策略）
+        if (audioContext.state === 'suspended') {
+            audioContext.resume();
+        }
+    } catch (error) {
+        console.error('初始化均衡器失败:', error);
+    }
+}
+
+function openEqualizerModal() {
+    const modal = document.getElementById('equalizerModal');
+    if (modal) {
+        modal.classList.add('show');
+        document.body.style.overflow = 'hidden';
+        initEqualizer();
+    }
+}
+
+function closeEqualizerModal() {
+    const modal = document.getElementById('equalizerModal');
+    if (modal) {
+        modal.classList.remove('show');
+        document.body.style.overflow = '';
+    }
+}
+
 function seekForward() {
     if (playOutput === 'client' && clientAudio) {
         clientAudio.currentTime = Math.min(clientAudio.duration || 0, clientAudio.currentTime + 5);
@@ -6598,6 +7153,12 @@ window.onload = async () => {
     
     // 初始化快捷键支持
     initKeyboardShortcuts();
+    
+    // 初始化主题
+    initTheme();
+    
+    // 初始化淡入淡出设置
+    initCrossfade();
     
     // 后台异步加载播放列表和文件管理数据
     Promise.all([

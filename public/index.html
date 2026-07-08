@@ -44,6 +44,10 @@
                     <i class="fas fa-history nav-icon"></i>
                     <span>播放历史</span>
                 </div>
+                <div class="nav-item" data-view="stats">
+                    <i class="fas fa-chart-bar nav-icon"></i>
+                    <span>听歌统计</span>
+                </div>
                 <div class="nav-item" data-view="mysonglist" id="navMySonglist" style="display: none;">
                     <i class="fas fa-heart nav-icon"></i>
                     <span>我的歌单</span>
@@ -362,6 +366,10 @@
                                 <i class="fas fa-sliders-h"></i>
                                 <span>搜索设置</span>
                             </a>
+                            <a href="#setting-appearance" class="settings-subnav-item" data-target="setting-appearance">
+                                <i class="fas fa-palette"></i>
+                                <span>界面设置</span>
+                            </a>
                         </div>
                     </div>
 
@@ -505,6 +513,67 @@
                                         <option value="50">50 首</option>
                                         <option value="100">100 首</option>
                                     </select>
+                                </div>
+                            </div>
+                            
+                            <!-- 界面设置 -->
+                            <div class="online-setting-card" id="setting-appearance">
+                                <h4><i class="fas fa-palette"></i> 界面外观</h4>
+                                <div class="setting-item">
+                                    <label class="setting-label">主题模式</label>
+                                    <div class="theme-options">
+                                        <label class="theme-option" onclick="setTheme('light')">
+                                            <input type="radio" name="themeMode" value="light" id="themeLight">
+                                            <div class="theme-option-card light-theme-card">
+                                                <i class="fas fa-sun"></i>
+                                                <span>浅色模式</span>
+                                            </div>
+                                        </label>
+                                        <label class="theme-option" onclick="setTheme('dark')">
+                                            <input type="radio" name="themeMode" value="dark" id="themeDark">
+                                            <div class="theme-option-card dark-theme-card">
+                                                <i class="fas fa-moon"></i>
+                                                <span>深色模式</span>
+                                            </div>
+                                        </label>
+                                        <label class="theme-option" onclick="setTheme('auto')">
+                                            <input type="radio" name="themeMode" value="auto" id="themeAuto">
+                                            <div class="theme-option-card auto-theme-card">
+                                                <i class="fas fa-adjust"></i>
+                                                <span>跟随系统</span>
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 播放效果设置 -->
+                            <div class="online-setting-card" id="setting-play-effects">
+                                <h4><i class="fas fa-magic"></i> 播放效果</h4>
+                                <div class="setting-item">
+                                    <label class="setting-label">
+                                        歌曲间淡入淡出
+                                        <label class="toggle-switch" style="margin-left: 12px;">
+                                            <input type="checkbox" id="crossfadeToggle" onchange="toggleCrossfade()">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </label>
+                                    <p class="setting-description" style="margin-top: 8px;">开启后，歌曲切换时音量平滑过渡（仅客户端模式有效）</p>
+                                </div>
+                                <div class="setting-item" id="crossfadeDurationItem" style="display: none;">
+                                    <label class="setting-label">淡入淡出时长</label>
+                                    <div class="setting-value-with-slider">
+                                        <input type="range" id="crossfadeDurationSlider" min="1" max="10" value="3" 
+                                               oninput="updateCrossfadeDurationDisplay()" onchange="saveCrossfadeDuration()">
+                                        <span id="crossfadeDurationValue" style="margin-left: 12px; min-width: 50px; text-align: right;">3 秒</span>
+                                    </div>
+                                </div>
+                                <div class="setting-item">
+                                    <label class="setting-label">均衡器</label>
+                                    <button class="btn btn-secondary" onclick="openEqualizerModal()">
+                                        <i class="fas fa-sliders-h"></i> 打开均衡器
+                                    </button>
+                                    <p class="setting-description" style="margin-top: 8px;">调节音效，支持预设和自定义（仅客户端模式有效）</p>
                                 </div>
                             </div>
                         </section>
@@ -800,6 +869,84 @@
                             <div class="empty-state">
                                 <i class="fas fa-history" style="font-size: 48px; color: #d1d5db; margin-bottom: 16px;"></i>
                                 <p>暂无播放历史</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 听歌统计视图 -->
+            <div id="view-stats" class="view">
+                <div class="content-area stats-view">
+                    <div class="stats-container">
+                        <div class="section-header">
+                            <h2><i class="fas fa-chart-bar"></i> 听歌统计</h2>
+                            <div class="stats-period-tabs">
+                                <button class="stats-period-btn active" data-period="day" onclick="loadStats('day')">今日</button>
+                                <button class="stats-period-btn" data-period="week" onclick="loadStats('week')">本周</button>
+                                <button class="stats-period-btn" data-period="month" onclick="loadStats('month')">本月</button>
+                                <button class="stats-period-btn" data-period="all" onclick="loadStats('all')">全部</button>
+                            </div>
+                        </div>
+                        
+                        <div class="stats-content">
+                            <div class="stats-overview">
+                                <div class="stat-card">
+                                    <div class="stat-card-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                                        <i class="fas fa-play-circle"></i>
+                                    </div>
+                                    <div class="stat-card-info">
+                                        <div class="stat-card-value" id="statTotalPlays">0</div>
+                                        <div class="stat-card-label">播放次数</div>
+                                    </div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-card-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                                        <i class="fas fa-clock"></i>
+                                    </div>
+                                    <div class="stat-card-info">
+                                        <div class="stat-card-value" id="statTotalDuration">0 分钟</div>
+                                        <div class="stat-card-label">听歌时长</div>
+                                    </div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-card-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                                        <i class="fas fa-music"></i>
+                                    </div>
+                                    <div class="stat-card-info">
+                                        <div class="stat-card-value" id="statTopSong">暂无</div>
+                                        <div class="stat-card-label">最爱歌曲</div>
+                                    </div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-card-icon" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                                        <i class="fas fa-user"></i>
+                                    </div>
+                                    <div class="stat-card-info">
+                                        <div class="stat-card-value" id="statTopArtist">暂无</div>
+                                        <div class="stat-card-label">最爱歌手</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="stats-sections">
+                                <div class="stats-section-card">
+                                    <h3><i class="fas fa-music"></i> 常听歌曲 Top 10</h3>
+                                    <div id="topSongsList" class="top-songs-list">
+                                        <div class="empty-state">
+                                            <p>暂无数据</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="stats-section-card">
+                                    <h3><i class="fas fa-user"></i> 常听歌手 Top 10</h3>
+                                    <div id="topArtistsList" class="top-artists-list">
+                                        <div class="empty-state">
+                                            <p>暂无数据</p>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1769,6 +1916,60 @@
     </div>
 
     <!-- 编辑音乐属性对话框 -->
+    <!-- 均衡器模态框 -->
+    <div id="equalizerModal" class="modal">
+        <div class="modal-content" style="width: 600px;">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-sliders-h"
+                        style="font-size: 24px; color: #3b82f6; vertical-align: middle; margin-right: 8px;"></i>
+                    均衡器
+                </h3>
+                <button onclick="closeEqualizerModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #374151;">预设音效</label>
+                    <div class="eq-presets">
+                        <button class="eq-preset-btn" onclick="setEqPreset('flat')">原声</button>
+                        <button class="eq-preset-btn" onclick="setEqPreset('pop')">流行</button>
+                        <button class="eq-preset-btn" onclick="setEqPreset('rock')">摇滚</button>
+                        <button class="eq-preset-btn" onclick="setEqPreset('classical')">古典</button>
+                        <button class="eq-preset-btn" onclick="setEqPreset('jazz')">爵士</button>
+                        <button class="eq-preset-btn" onclick="setEqPreset('vocal')">人声</button>
+                        <button class="eq-preset-btn" onclick="setEqPreset('bass')">重低音</button>
+                        <button class="eq-preset-btn" onclick="setEqPreset('treble')">高音增强</button>
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;">
+                    <label style="font-weight: 500; color: #374151;">10 段均衡器</label>
+                    <span id="currentEqPreset" style="font-size: 13px; color: #6b7280;">当前：原声</span>
+                </div>
+                
+                <div class="eq-bands" id="eqBands">
+                    <!-- 均衡器频段滑块将通过JS生成 -->
+                </div>
+                
+                <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #e5e7eb; display: flex; gap: 12px; align-items: center;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="eqEnabledToggle" onchange="toggleEqualizer()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span style="font-size: 14px; color: #374151;">启用均衡器</span>
+                    <span style="flex: 1;"></span>
+                    <button class="btn btn-secondary" onclick="resetEqualizer()">
+                        <i class="fas fa-redo"></i> 重置
+                    </button>
+                </div>
+                
+                <p style="margin-top: 12px; font-size: 12px; color: #9ca3af;">
+                    <i class="fas fa-info-circle"></i> 均衡器仅在客户端播放模式下生效
+                </p>
+            </div>
+        </div>
+    </div>
+
     <div id="editMetadataModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">

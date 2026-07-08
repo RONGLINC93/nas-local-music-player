@@ -1098,6 +1098,120 @@ app.delete('/api/play-history', requireAuth, (req, res) => {
     res.json({ success: true });
 });
 
+// 听歌统计
+app.get('/api/play-stats', (req, res) => {
+    const period = req.query.period || 'all'; // day, week, month, all
+    
+    let now = Date.now();
+    let startTime = 0;
+    
+    switch (period) {
+        case 'day':
+            startTime = new Date();
+            startTime.setHours(0, 0, 0, 0);
+            startTime = startTime.getTime();
+            break;
+        case 'week':
+            startTime = new Date();
+            startTime.setDate(startTime.getDate() - 7);
+            startTime.setHours(0, 0, 0, 0);
+            startTime = startTime.getTime();
+            break;
+        case 'month':
+            startTime = new Date();
+            startTime.setMonth(startTime.getMonth() - 1);
+            startTime.setHours(0, 0, 0, 0);
+            startTime = startTime.getTime();
+            break;
+        case 'all':
+        default:
+            startTime = 0;
+            break;
+    }
+    
+    // 筛选时间范围内的播放记录
+    const filteredHistory = playHistory.filter(item => item.playedAt >= startTime);
+    
+    // 统计播放次数
+    const totalPlays = filteredHistory.length;
+    
+    // 统计总播放时长（估算：用歌曲duration，没有的按3分钟算）
+    let totalDuration = 0;
+    for (const item of filteredHistory) {
+        totalDuration += item.duration || 180;
+    }
+    
+    // 统计最常听的歌曲
+    const songCountMap = {};
+    for (const item of filteredHistory) {
+        const key = item.path || item.id || item.title;
+        if (!songCountMap[key]) {
+            songCountMap[key] = {
+                song: item,
+                count: 0,
+                duration: 0
+            };
+        }
+        songCountMap[key].count++;
+        songCountMap[key].duration += item.duration || 180;
+    }
+    
+    const topSongs = Object.values(songCountMap)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10)
+        .map(item => ({
+            title: item.song.title,
+            artist: item.song.artist,
+            album: item.song.album,
+            cover: item.song.cover,
+            count: item.count,
+            duration: item.duration,
+            isOnline: item.song.isOnline,
+            source: item.song.source
+        }));
+    
+    // 统计最常听的歌手
+    const artistCountMap = {};
+    for (const item of filteredHistory) {
+        const artist = item.artist || '未知歌手';
+        if (!artistCountMap[artist]) {
+            artistCountMap[artist] = { artist, count: 0, duration: 0 };
+        }
+        artistCountMap[artist].count++;
+        artistCountMap[artist].duration += item.duration || 180;
+    }
+    
+    const topArtists = Object.values(artistCountMap)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+    
+    // 按日期统计播放数量
+    const dailyStats = {};
+    for (const item of filteredHistory) {
+        const date = new Date(item.playedAt);
+        const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        if (!dailyStats[dateStr]) {
+            dailyStats[dateStr] = { date: dateStr, plays: 0, duration: 0 };
+        }
+        dailyStats[dateStr].plays++;
+        dailyStats[dateStr].duration += item.duration || 180;
+    }
+    
+    const dailyStatsArray = Object.values(dailyStats).sort((a, b) => a.date.localeCompare(b.date));
+    
+    res.json({
+        success: true,
+        stats: {
+            totalPlays,
+            totalDuration,
+            topSongs,
+            topArtists,
+            dailyStats: dailyStatsArray,
+            period
+        }
+    });
+});
+
 // 添加歌曲到歌单
 app.post('/api/user/songlists/:id/songs', requireAuth, (req, res) => {
     const { songs } = req.body;

@@ -12,6 +12,7 @@ let lastClickedPlaylistIndex = -1; // 上次点击的播放列表索引（用于
 let taskListPollInterval = null; // 任务列表轮询定时器
 let playOutput = 'server'; // 播放输出方式：server(服务器声卡), client(客户端浏览器)
 let clientAudio = null; // 客户端 Audio 元素
+let lastSavePlaybackTime = 0; // 上次保存播放位置的时间
 let isStoppingClient = false; // 是否正在主动停止客户端播放
 
 // 用户认证
@@ -1588,6 +1589,12 @@ function initClientAudio() {
                 // 使用客户端实际进度更新 UI
                 updateProgressUI(clientAudio.currentTime, clientAudio.duration);
             }
+            // 每5秒保存一次播放位置
+            const now = Date.now();
+            if (now - lastSavePlaybackTime > 5000) {
+                saveClientPlaybackState();
+                lastSavePlaybackTime = now;
+            }
         });
         
         // 缓冲进度更新
@@ -1608,6 +1615,7 @@ function initClientAudio() {
 
 // 同步客户端播放状态到服务器
 async function syncClientPlaybackState(state, currentTime, duration) {
+    saveClientPlaybackState();
     try {
         await apiRequest('/api/client-playback-state', 'POST', {
             state,
@@ -1616,6 +1624,80 @@ async function syncClientPlaybackState(state, currentTime, duration) {
         });
     } catch (error) {
         console.error('同步播放状态失败:', error);
+    }
+}
+
+// 保存客户端播放状态到 localStorage
+function saveClientPlaybackState() {
+    if (playOutput !== 'client') return;
+    try {
+        const state = {
+            currentIndex: currentIndex,
+            isPlaying: isPlaying,
+            currentTime: clientAudio ? clientAudio.currentTime : 0,
+            playMode: currentPlayMode,
+            timestamp: Date.now()
+        };
+        localStorage.setItem('clientPlaybackState', JSON.stringify(state));
+    } catch (e) {
+        console.warn('保存播放状态失败:', e);
+    }
+}
+
+// 从 localStorage 恢复客户端播放状态
+async function restoreClientPlaybackState() {
+    if (playOutput !== 'client') return;
+    try {
+        const saved = localStorage.getItem('clientPlaybackState');
+        if (!saved) return;
+        
+        const state = JSON.parse(saved);
+        if (state.timestamp && Date.now() - state.timestamp > 24 * 60 * 60 * 1000) {
+            localStorage.removeItem('clientPlaybackState');
+            return;
+        }
+        
+        if (state.currentIndex < 0 || state.currentIndex >= currentPlaylist.length) {
+            return;
+        }
+        
+        currentIndex = state.currentIndex;
+        currentPlayMode = state.playMode || 'sequence';
+        updatePlayModeButton();
+        
+        const song = currentPlaylist[currentIndex];
+        if (song) {
+            updateNowPlaying(song);
+            updatePlayPauseButton();
+            renderPlaylist();
+            
+            if (state.isPlaying) {
+                await playTrackClient(currentIndex);
+                if (clientAudio && state.currentTime > 0) {
+                    const seekTo = state.currentTime;
+                    clientAudio.addEventListener('loadedmetadata', function onLoaded() {
+                        clientAudio.currentTime = Math.min(seekTo, clientAudio.duration || 0);
+                        clientAudio.play().catch(() => {});
+                        clientAudio.removeEventListener('loadedmetadata', onLoaded);
+                    });
+                }
+            } else {
+                if (clientAudio && state.currentTime > 0) {
+                    const seekTo = state.currentTime;
+                    clientAudio.addEventListener('loadedmetadata', function onLoaded() {
+                        clientAudio.currentTime = Math.min(seekTo, clientAudio.duration || 0);
+                        updateProgressUI(seekTo, clientAudio.duration || seekTo);
+                        clientAudio.removeEventListener('loadedmetadata', onLoaded);
+                    });
+                    if (!clientAudio.src || clientAudio.src === '') {
+                        clientAudio.src = `/api/stream/${currentIndex}`;
+                        clientAudio.load();
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('恢复播放状态失败:', e);
     }
 }
 
@@ -1708,6 +1790,7 @@ function stopClient() {
     updatePlayPauseButton();
     renderPlaylist();
     stopProgressUpdate();
+    localStorage.removeItem('clientPlaybackState');
 }
 
 // 客户端音量控制
@@ -5680,12 +5763,19 @@ window.onload = async () => {
     initProgressDrag();
     startStatusSync();
     
+    // 初始化封面预览浮层
+    initCoverPreview();
+    
     // 后台异步加载播放列表和文件管理数据
     Promise.all([
         loadPlaylistData(),
         loadFolders()
     ]).then(() => {
         console.log('所有数据加载完成');
+        // 恢复客户端播放状态（播放列表加载完成后）
+        if (playOutput === 'client') {
+            restoreClientPlaybackState();
+        }
     }).catch(error => {
         console.error('后台加载失败:', error);
     });
@@ -11411,6 +11501,107 @@ async function playAllSonglistSongs() {
         console.error('播放全部失败:', error);
         showNotification({ type: 'error', message: '播放失败' });
     }
+}
+
+// ========== 封面预览浮层 ==========
+let coverPreviewTimer = null;
+const COVER_PREVIEW_DELAY = 300;
+
+function initCoverPreview() {
+    document.addEventListener('mouseover', handleCoverMouseOver);
+    document.addEventListener('mouseout', handleCoverMouseOut);
+    document.addEventListener('mousemove', handleCoverMouseMove);
+}
+
+function getCoverImgSrc(target) {
+    const coverSelectors = [
+        '.now-playing-cover img',
+        '.songlist-card-cover img',
+        '.songlist-detail-cover img',
+        '.songlist-card-img',
+        '.online-song-cover img',
+        '.search-result-cover img',
+        '.folder-item-cover img',
+        '.playlist-item-cover img'
+    ];
+    
+    for (const selector of coverSelectors) {
+        const el = target.closest(selector);
+        if (el && el.src) return el.src;
+        
+        const parent = target.closest(selector.replace(' img', ''));
+        if (parent) {
+            const img = parent.querySelector('img');
+            if (img && img.src) return img.src;
+        }
+    }
+    
+    return null;
+}
+
+function handleCoverMouseOver(e) {
+    const src = getCoverImgSrc(e.target);
+    if (!src) return;
+    
+    clearTimeout(coverPreviewTimer);
+    coverPreviewTimer = setTimeout(() => {
+        showCoverPreview(src, e);
+    }, COVER_PREVIEW_DELAY);
+}
+
+function handleCoverMouseOut(e) {
+    const src = getCoverImgSrc(e.target);
+    if (!src) return;
+    
+    clearTimeout(coverPreviewTimer);
+    hideCoverPreview();
+}
+
+function handleCoverMouseMove(e) {
+    const popup = document.getElementById('coverPreviewPopup');
+    if (!popup || !popup.classList.contains('show')) return;
+    
+    positionCoverPreview(e);
+}
+
+function showCoverPreview(src, e) {
+    const popup = document.getElementById('coverPreviewPopup');
+    const img = document.getElementById('coverPreviewImg');
+    if (!popup || !img) return;
+    
+    img.src = src;
+    popup.classList.add('show');
+    positionCoverPreview(e);
+}
+
+function hideCoverPreview() {
+    const popup = document.getElementById('coverPreviewPopup');
+    if (popup) {
+        popup.classList.remove('show');
+    }
+}
+
+function positionCoverPreview(e) {
+    const popup = document.getElementById('coverPreviewPopup');
+    if (!popup) return;
+    
+    const popupWidth = 300;
+    const popupHeight = 300;
+    const offset = 15;
+    
+    let left = e.clientX + offset;
+    let top = e.clientY + offset;
+    
+    if (left + popupWidth > window.innerWidth) {
+        left = e.clientX - popupWidth - offset;
+    }
+    
+    if (top + popupHeight > window.innerHeight) {
+        top = e.clientY - popupHeight - offset;
+    }
+    
+    popup.style.left = left + 'px';
+    popup.style.top = top + 'px';
 }
 
 

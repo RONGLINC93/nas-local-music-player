@@ -23,7 +23,6 @@ console.log('');
 console.log('======================================');
 
 let countdown = 10;
-console.log(`${countdown}秒后自动退出，按任意键立即退出...`);
 
 const timer = setInterval(() => {
     countdown--;

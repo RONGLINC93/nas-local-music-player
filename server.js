@@ -120,6 +120,7 @@ let pausedElapsed = 0; // 暂停时的已播放秒数
 
 // 用户认证
 const USER_CONFIG_FILE = path.join(__dirname, 'data', 'user.json');
+const AUTH_TOKENS_FILE = path.join(__dirname, 'data', 'auth_tokens.json');
 let userConfig = {
     username: 'admin',
     passwordHash: null,
@@ -149,6 +150,28 @@ function saveUserConfig() {
         fs.writeFileSync(USER_CONFIG_FILE, JSON.stringify(userConfig, null, 4), 'utf8');
     } catch (err) {
         console.error('保存用户配置失败:', err.message);
+    }
+}
+
+function loadAuthTokens() {
+    try {
+        if (fs.existsSync(AUTH_TOKENS_FILE)) {
+            const data = fs.readFileSync(AUTH_TOKENS_FILE, 'utf8');
+            const tokens = JSON.parse(data);
+            authTokens = new Map(Object.entries(tokens));
+            console.log(`🔑 已加载 ${authTokens.size} 个登录令牌`);
+        }
+    } catch (err) {
+        console.error('加载登录令牌失败:', err.message);
+    }
+}
+
+function saveAuthTokens() {
+    try {
+        const tokens = Object.fromEntries(authTokens);
+        fs.writeFileSync(AUTH_TOKENS_FILE, JSON.stringify(tokens, null, 4), 'utf8');
+    } catch (err) {
+        console.error('保存登录令牌失败:', err.message);
     }
 }
 
@@ -640,6 +663,7 @@ async function scanMusicLibrary() {
 
 loadConfig();
 loadUserConfig();
+loadAuthTokens();
 ensureCacheDir();
 loadCacheMetadata();
 loadMusicLibrary();
@@ -684,7 +708,8 @@ app.post('/api/user/login', (req, res) => {
         username: userConfig.username,
         loginAt: Date.now()
     });
-    
+    saveAuthTokens();
+
     res.json({
         success: true,
         token,
@@ -700,6 +725,7 @@ app.post('/api/user/logout', (req, res) => {
     const token = req.headers['authorization']?.replace('Bearer ', '');
     if (token && authTokens.has(token)) {
         authTokens.delete(token);
+        saveAuthTokens();
     }
     res.json({ success: true, message: '已退出登录' });
 });

@@ -10786,9 +10786,12 @@ function initSettingsSubnav() {
             const targetId = this.getAttribute('data-target');
             const targetEl = document.getElementById(targetId);
             if (targetEl) {
-                targetEl.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'start'
+                const containerRect = scrollContainer.getBoundingClientRect();
+                const targetRect = targetEl.getBoundingClientRect();
+                const offset = targetRect.top - containerRect.top + scrollContainer.scrollTop - 10;
+                scrollContainer.scrollTo({
+                    top: offset,
+                    behavior: 'smooth'
                 });
             }
         });

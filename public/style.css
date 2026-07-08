@@ -2910,8 +2910,8 @@ font-size: 72px;
 
 #loginModal .close-btn {
     position: absolute;
-    top: 15px;
-    right: 15px;
+    top: 10px;
+    right: 10px;
     z-index: 10;
 }
 
@@ -3174,26 +3174,32 @@ font-size: 72px;
     color: #333;
 }
 
-.close-btn {
+.close-btn,
+.modal-close {
     width: 35px;
     height: 35px;
     border-radius: 50%;
     border: none;
     background: #f5f5f5;
-    font-size: 24px;
+    font-size: 20px;
     cursor: pointer;
     transition: all 0.3s;
     display: flex;
     align-items: center;
     justify-content: center;
-    line-height: 1;
     padding: 0;
+    line-height: 1;
+    color: #666;
 }
 
-.close-btn:hover {
+.modal-close i {
+    font-size: 16px;
+}
+
+.close-btn:hover,
+.modal-close:hover {
     background: #3b82f6;
     color: white;
-    transform: rotate(90deg);
 }
 
 .modal-body {

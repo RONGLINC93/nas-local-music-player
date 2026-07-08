@@ -1341,6 +1341,349 @@ app.delete('/api/user/songlists/:id/clean-missing', requireAuth, (req, res) => {
     }
 });
 
+// 搜索匹配丢失的歌曲
+app.post('/api/user/songlists/:id/find-matches', requireAuth, async (req, res) => {
+    try {
+        const songlist = userSonglists.find(l => l.id === req.params.id);
+        if (!songlist) {
+            return res.status(404).json({ success: false, error: '歌单不存在' });
+        }
+
+        const { songIndex } = req.body;
+        const song = songlist.songs[songIndex];
+        if (!song) {
+            return res.status(404).json({ success: false, error: '歌曲不存在' });
+        }
+
+        const allFiles = await getAllMusicFilesWithMetadata();
+        
+        const matches = allFiles.map(file => {
+            let score = 0;
+            const fileTitle = (file.title || '').toLowerCase();
+            const fileArtist = (file.artist || '').toLowerCase();
+            const fileAlbum = (file.album || '').toLowerCase();
+            const songTitle = (song.title || song.name || '').toLowerCase();
+            const songArtist = (song.artist || song.singer || '').toLowerCase();
+            const songAlbum = (song.album || song.albumName || '').toLowerCase();
+            
+            if (fileTitle === songTitle && songTitle) {
+                score += 50;
+            } else if (fileTitle && songTitle && (fileTitle.includes(songTitle) || songTitle.includes(fileTitle))) {
+                score += 25;
+            }
+            
+            if (fileArtist === songArtist && songArtist) {
+                score += 30;
+            } else if (fileArtist && songArtist && (fileArtist.includes(songArtist) || songArtist.includes(fileArtist))) {
+                score += 15;
+            }
+            
+            if (fileAlbum === songAlbum && songAlbum) {
+                score += 15;
+            } else if (fileAlbum && songAlbum && (fileAlbum.includes(songAlbum) || songAlbum.includes(fileAlbum))) {
+                score += 7;
+            }
+            
+            if (song.duration && file.duration) {
+                const diff = Math.abs(song.duration - file.duration);
+                if (diff <= 2) {
+                    score += 10;
+                } else if (diff <= 5) {
+                    score += 5;
+                }
+            }
+            
+            return { ...file, score };
+        }).filter(f => f.score > 20)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 10);
+        
+        res.json({ success: true, matches });
+    } catch (error) {
+        console.error('搜索匹配歌曲失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 自动匹配所有丢失歌曲
+app.post('/api/user/songlists/:id/auto-match', requireAuth, async (req, res) => {
+    try {
+        const songlist = userSonglists.find(l => l.id === req.params.id);
+        if (!songlist) {
+            return res.status(404).json({ success: false, error: '歌单不存在' });
+        }
+
+        const allFiles = await getAllMusicFilesWithMetadata();
+        let matchedCount = 0;
+        
+        for (let i = 0; i < songlist.songs.length; i++) {
+            const song = songlist.songs[i];
+            
+            if (!song.path || song.isOnline) continue;
+            if (fs.existsSync(song.path)) continue;
+            
+            let bestMatch = null;
+            let bestScore = 0;
+            
+            const songTitle = (song.title || song.name || '').toLowerCase();
+            const songArtist = (song.artist || song.singer || '').toLowerCase();
+            const songAlbum = (song.album || song.albumName || '').toLowerCase();
+            
+            for (const file of allFiles) {
+                let score = 0;
+                const fileTitle = (file.title || '').toLowerCase();
+                const fileArtist = (file.artist || '').toLowerCase();
+                const fileAlbum = (file.album || '').toLowerCase();
+                
+                if (fileTitle === songTitle && songTitle) {
+                    score += 50;
+                } else if (fileTitle && songTitle && (fileTitle.includes(songTitle) || songTitle.includes(fileTitle))) {
+                    score += 25;
+                }
+                
+                if (fileArtist === songArtist && songArtist) {
+                    score += 30;
+                } else if (fileArtist && songArtist && (fileArtist.includes(songArtist) || songArtist.includes(fileArtist))) {
+                    score += 15;
+                }
+                
+                if (fileAlbum === songAlbum && songAlbum) {
+                    score += 15;
+                } else if (fileAlbum && songAlbum && (fileAlbum.includes(songAlbum) || songAlbum.includes(fileAlbum))) {
+                    score += 7;
+                }
+                
+                if (song.duration && file.duration) {
+                    const diff = Math.abs(song.duration - file.duration);
+                    if (diff <= 2) {
+                        score += 10;
+                    } else if (diff <= 5) {
+                        score += 5;
+                    }
+                }
+                
+                if (score > bestScore && score >= 60) {
+                    bestScore = score;
+                    bestMatch = file;
+                }
+            }
+            
+            if (bestMatch) {
+                const usedPaths = songlist.songs.map(s => s.path);
+                if (!usedPaths.includes(bestMatch.path)) {
+                    songlist.songs[i] = {
+                        ...song,
+                        path: bestMatch.path,
+                        title: bestMatch.title || song.title,
+                        artist: bestMatch.artist || song.artist,
+                        album: bestMatch.album || song.album,
+                        duration: bestMatch.duration || song.duration,
+                        cover: bestMatch.cover || song.cover,
+                        exists: true
+                    };
+                    matchedCount++;
+                }
+            }
+        }
+        
+        if (matchedCount > 0) {
+            songlist.updatedAt = Date.now();
+            saveUserSonglists();
+        }
+        
+        res.json({ 
+            success: true, 
+            matchedCount, 
+            totalCount: songlist.songs.length 
+        });
+    } catch (error) {
+        console.error('自动匹配失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 替换歌单歌曲路径
+app.put('/api/user/songlists/:id/songs/:songIndex/path', requireAuth, async (req, res) => {
+    try {
+        const songlist = userSonglists.find(l => l.id === req.params.id);
+        if (!songlist) {
+            return res.status(404).json({ success: false, error: '歌单不存在' });
+        }
+
+        const songIndex = parseInt(req.params.songIndex);
+        if (isNaN(songIndex) || songIndex < 0 || songIndex >= songlist.songs.length) {
+            return res.status(400).json({ success: false, error: '无效的歌曲索引' });
+        }
+
+        const { newPath } = req.body;
+        if (!newPath || !fs.existsSync(newPath)) {
+            return res.status(400).json({ success: false, error: '文件不存在' });
+        }
+
+        if (!newPath.startsWith(MUSIC_DIR)) {
+            return res.status(400).json({ success: false, error: '文件不在音乐目录中' });
+        }
+
+        let metadata = null;
+        try {
+            metadata = await mm.parseFile(newPath);
+        } catch (e) {
+            // 忽略元数据解析错误
+        }
+
+        const song = songlist.songs[songIndex];
+        const newSong = {
+            ...song,
+            path: newPath,
+            exists: true
+        };
+
+        if (metadata) {
+            const common = metadata.common;
+            if (common.title) newSong.title = common.title;
+            if (common.artists && common.artists.length > 0) newSong.artist = common.artists[0];
+            else if (common.artist) newSong.artist = common.artist;
+            if (common.album) newSong.album = common.album;
+            if (metadata.format.duration) newSong.duration = Math.round(metadata.format.duration);
+            
+            if (common.picture && common.picture.length > 0) {
+                const pic = common.picture[0];
+                const picPath = path.join(path.dirname(newPath), 'cover.jpg');
+                try {
+                    fs.writeFileSync(picPath, pic.data);
+                    newSong.cover = picPath;
+                } catch (e) {}
+            }
+        }
+
+        songlist.songs[songIndex] = newSong;
+        songlist.updatedAt = Date.now();
+        saveUserSonglists();
+        
+        res.json({ 
+            success: true, 
+            song: newSong,
+            totalCount: songlist.songs.length 
+        });
+    } catch (error) {
+        console.error('替换歌曲路径失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 获取所有音乐文件及元数据（带缓存）
+async function getAllMusicFilesWithMetadata() {
+    const cacheKey = 'browse_artist';
+    const musicDirStat = fs.statSync(MUSIC_DIR);
+    const cached = browseCache.get(cacheKey);
+    
+    if (cached && cached.lastModified >= musicDirStat.mtimeMs) {
+        return cached.files;
+    }
+    
+    const filePaths = [];
+    const scanDir = (dir) => {
+        if (!fs.existsSync(dir)) return;
+        const items = fs.readdirSync(dir, { withFileTypes: true });
+        for (const item of items) {
+            const fullPath = path.join(dir, item.name);
+            if (item.isDirectory()) {
+                scanDir(fullPath);
+            } else if (MUSIC_EXTENSIONS.includes(path.extname(item.name).toLowerCase())) {
+                filePaths.push(fullPath);
+            }
+        }
+    };
+    scanDir(MUSIC_DIR);
+
+    const allFiles = [];
+    const batchSize = 20;
+    for (let i = 0; i < filePaths.length; i += batchSize) {
+        const batch = filePaths.slice(i, i + batchSize);
+        const promises = batch.map(async (filePath) => {
+            try {
+                const metadata = await mm.parseFile(filePath);
+                const common = metadata.common;
+                let artist = '未知艺术家';
+                let album = '未知专辑';
+                let genre = '未知流派';
+                let year = '未知年份';
+
+                if (common.artists && common.artists.length > 0 && common.artists[0].trim()) {
+                    artist = common.artists[0].trim();
+                } else if (common.artist && common.artist.trim()) {
+                    artist = common.artist.trim();
+                }
+
+                if (common.album && common.album.trim()) {
+                    album = common.album.trim();
+                }
+
+                if (common.genres && common.genres.length > 0 && common.genres[0].trim()) {
+                    genre = common.genres[0].trim();
+                }
+
+                if (common.date) {
+                    const yearStr = String(common.date).substring(0, 4);
+                    if (yearStr && /^\d{4}$/.test(yearStr)) {
+                        year = yearStr;
+                    }
+                }
+
+                let cover = null;
+                if (common.picture && common.picture.length > 0) {
+                    cover = 'embedded';
+                } else {
+                    const folder = path.dirname(filePath);
+                    const coverFiles = ['cover.jpg', 'cover.jpeg', 'cover.png', 'folder.jpg', 'folder.jpeg', 'folder.png'];
+                    for (const cf of coverFiles) {
+                        const coverPath = path.join(folder, cf);
+                        if (fs.existsSync(coverPath)) {
+                            cover = coverPath;
+                            break;
+                        }
+                    }
+                }
+
+                return {
+                    path: filePath,
+                    filename: path.basename(filePath),
+                    title: common.title || path.basename(filePath, path.extname(filePath)),
+                    artist: artist,
+                    album: album,
+                    genre: genre,
+                    year: year,
+                    duration: metadata.format.duration ? Math.round(metadata.format.duration) : 0,
+                    cover: cover,
+                    size: fs.existsSync(filePath) ? fs.statSync(filePath).size : 0
+                };
+            } catch (err) {
+                return {
+                    path: filePath,
+                    filename: path.basename(filePath),
+                    title: path.basename(filePath, path.extname(filePath)),
+                    artist: '未知艺术家',
+                    album: '未知专辑',
+                    genre: '未知流派',
+                    year: '未知年份',
+                    duration: 0,
+                    cover: null,
+                    size: fs.existsSync(filePath) ? fs.statSync(filePath).size : 0
+                };
+            }
+        });
+        const results = await Promise.all(promises);
+        allFiles.push(...results);
+    }
+
+    browseCache.set(cacheKey, {
+        lastModified: musicDirStat.mtimeMs,
+        files: allFiles
+    });
+
+    return allFiles;
+}
+
 // 导出歌单
 app.get('/api/user/songlists/:id/export', requireAuth, (req, res) => {
     try {

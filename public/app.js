@@ -5094,6 +5094,7 @@ function renderUserSonglistDetail(songlist) {
     const songsEl = document.getElementById('mysonglistSongs');
     const coverEl = document.getElementById('userSonglistDetailCover');
     const cleanBtn = document.getElementById('cleanMissingBtn');
+    const autoMatchBtn = document.getElementById('autoMatchBtn');
     
     if (nameEl) nameEl.textContent = songlist.name;
     
@@ -5108,6 +5109,10 @@ function renderUserSonglistDetail(songlist) {
     
     if (cleanBtn) {
         cleanBtn.style.display = missingCount > 0 ? 'inline-flex' : 'none';
+    }
+    
+    if (autoMatchBtn) {
+        autoMatchBtn.style.display = missingCount > 0 ? 'inline-flex' : 'none';
     }
     
     if (coverEl) {
@@ -5188,6 +5193,9 @@ function renderUserSonglistDetail(songlist) {
                 <button title="下载" onclick="event.stopPropagation();${isMissing ? `showNotification({type:'warning',message:'文件不存在'})` : `downloadUserSonglistSong(${index})`}" ${isMissing ? 'disabled style="opacity:0.4;cursor:not-allowed;"' : ''}>
                     <i class="fas fa-download"></i>
                 </button>
+                ${isMissing ? `<button title="重新匹配" onclick="event.stopPropagation();findMatchForSong(${index})">
+                    <i class="fas fa-search"></i>
+                </button>` : ''}
                 <button title="移除" onclick="event.stopPropagation();removeSongFromSonglist(${index})">
                     <i class="fas fa-trash"></i>
                 </button>
@@ -5494,6 +5502,187 @@ async function confirmCleanMissing() {
     } catch (error) {
         console.error('清理丢失歌曲失败:', error);
         showNotification({ type: 'error', message: '清理失败: ' + error.message });
+    }
+}
+
+// 查找歌曲匹配
+let currentMatchSongIndex = -1;
+
+async function findMatchForSong(index) {
+    if (!currentSonglist) return;
+    
+    currentMatchSongIndex = index;
+    const song = currentSonglist.songs[index];
+    if (!song) return;
+    
+    const nameEl = document.getElementById('matchSongName');
+    if (nameEl) nameEl.textContent = song.title || song.name || '未知歌曲';
+    
+    const listEl = document.getElementById('matchResultList');
+    if (listEl) {
+        listEl.innerHTML = `
+            <div style="padding: 40px 20px; text-align: center; color: #9ca3af;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 8px;"></i>
+                <p>正在搜索匹配歌曲...</p>
+            </div>
+        `;
+    }
+    
+    const modal = document.getElementById('matchSongModal');
+    if (modal) modal.classList.add('show');
+    
+    try {
+        const result = await apiRequest(`/api/user/songlists/${currentSonglist.id}/find-matches`, 'POST', { songIndex: index });
+        
+        if (result.success && result.matches && result.matches.length > 0) {
+            renderMatchResults(result.matches);
+        } else {
+            if (listEl) {
+                listEl.innerHTML = `
+                    <div style="padding: 40px 20px; text-align: center; color: #9ca3af;">
+                        <i class="fas fa-search" style="font-size: 24px; margin-bottom: 8px;"></i>
+                        <p>未找到匹配的歌曲</p>
+                    </div>
+                `;
+            }
+        }
+    } catch (error) {
+        console.error('查找匹配失败:', error);
+        if (listEl) {
+            listEl.innerHTML = `
+                <div style="padding: 40px 20px; text-align: center; color: #ef4444;">
+                    <i class="fas fa-exclamation-circle" style="font-size: 24px; margin-bottom: 8px;"></i>
+                    <p>搜索失败: ${error.message}</p>
+                </div>
+            `;
+        }
+    }
+}
+
+function renderMatchResults(matches) {
+    const listEl = document.getElementById('matchResultList');
+    if (!listEl) return;
+    
+    let html = '';
+    matches.forEach((match, idx) => {
+        const coverHtml = match.cover 
+            ? `<img class="match-cover" src="/api/cover?path=${encodeURIComponent(match.cover)}&size=small" alt="" onerror="this.outerHTML='<div class=\\'match-cover match-cover-placeholder\\'><i class=\\'fas fa-music\\'></i></div>'">`
+            : `<div class="match-cover match-cover-placeholder"><i class="fas fa-music"></i></div>`;
+        
+        html += `
+            <div class="match-result-item" onclick="selectMatchSong(${idx}, '${match.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')">
+                ${coverHtml}
+                <div class="match-info">
+                    <div class="match-title">${escapeHtml(match.title || '未知歌曲')}</div>
+                    <div class="match-artist">${escapeHtml(match.artist || '未知歌手')}</div>
+                    <div class="match-album">${escapeHtml(match.album || '')}</div>
+                </div>
+                <div class="match-score" title="匹配度">
+                    ${match.score}分
+                </div>
+            </div>
+        `;
+    });
+    
+    listEl.innerHTML = html;
+}
+
+async function selectMatchSong(matchIndex, newPath) {
+    if (!currentSonglist || currentMatchSongIndex < 0) return;
+    
+    try {
+        const result = await apiRequest(
+            `/api/user/songlists/${currentSonglist.id}/songs/${currentMatchSongIndex}/path`, 
+            'PUT', 
+            { newPath }
+        );
+        
+        if (result.success) {
+            showNotification({ type: 'success', message: '匹配成功，歌曲已更新' });
+            closeMatchSongModal();
+            
+            const detailResult = await apiRequest(`/api/user/songlists/${currentSonglist.id}`, 'GET');
+            if (detailResult.success) {
+                currentSonglist = detailResult.songlist;
+                renderUserSonglistDetail(detailResult.songlist);
+            }
+            
+            loadUserSonglists();
+        } else {
+            showNotification({ type: 'error', message: '匹配失败: ' + (result.error || '未知错误') });
+        }
+    } catch (error) {
+        console.error('选择匹配歌曲失败:', error);
+        showNotification({ type: 'error', message: '匹配失败: ' + error.message });
+    }
+}
+
+function closeMatchSongModal() {
+    const modal = document.getElementById('matchSongModal');
+    if (modal) modal.classList.remove('show');
+    currentMatchSongIndex = -1;
+}
+
+// 自动匹配所有丢失歌曲
+async function autoMatchAllSongs() {
+    if (!currentSonglist) return;
+    
+    const missingCount = currentSonglist.songs.filter(s => s.exists === false).length;
+    if (missingCount === 0) {
+        showNotification({ type: 'info', message: '没有丢失的歌曲' });
+        return;
+    }
+    
+    showConfirmModalAutoMatch(missingCount);
+}
+
+function showConfirmModalAutoMatch(count) {
+    const modal = document.getElementById('autoMatchConfirmModal');
+    if (!modal) {
+        doAutoMatch();
+        return;
+    }
+    
+    const countEl = document.getElementById('autoMatchCount');
+    if (countEl) countEl.textContent = count;
+    
+    modal.classList.add('show');
+}
+
+function closeAutoMatchModal() {
+    const modal = document.getElementById('autoMatchConfirmModal');
+    if (modal) modal.classList.remove('show');
+}
+
+async function doAutoMatch() {
+    if (!currentSonglist) return;
+    
+    closeAutoMatchModal();
+    showNotification({ type: 'info', message: '正在自动匹配...' });
+    
+    try {
+        const result = await apiRequest(`/api/user/songlists/${currentSonglist.id}/auto-match`, 'POST');
+        
+        if (result.success) {
+            if (result.matchedCount > 0) {
+                showNotification({ type: 'success', message: `成功匹配 ${result.matchedCount} 首歌曲` });
+            } else {
+                showNotification({ type: 'warning', message: '没有找到合适的匹配' });
+            }
+            
+            const detailResult = await apiRequest(`/api/user/songlists/${currentSonglist.id}`, 'GET');
+            if (detailResult.success) {
+                currentSonglist = detailResult.songlist;
+                renderUserSonglistDetail(detailResult.songlist);
+            }
+            
+            loadUserSonglists();
+        } else {
+            showNotification({ type: 'error', message: '匹配失败: ' + (result.error || '未知错误') });
+        }
+    } catch (error) {
+        console.error('自动匹配失败:', error);
+        showNotification({ type: 'error', message: '匹配失败: ' + error.message });
     }
 }
 

@@ -429,7 +429,9 @@ body {
     font-size: 15px;
     color: #333;
     font-weight: 500;
-    padding: 8px 16px;
+    padding: 12px 20px;
+    background: white;
+    border-bottom: 1px solid #e5e7eb;
     transition: all 0.3s ease;
 }
 
@@ -566,13 +568,15 @@ body {
     }
 }
 
-/* 移动端隐藏上传、扫描、刷新、整理按钮，只显示更多菜单 */
+/* 移动端隐藏上传、扫描、刷新、整理、重复检测、封面管理按钮，只显示更多菜单 */
 @media (max-width: 768px) {
     .folder-upload-btn,
     .folder-scan-btn,
     .folder-refresh-btn,
     .folder-organize-btn,
-    .folder-scrape-btn-desktop {
+    .folder-scrape-btn-desktop,
+    .folder-duplicate-btn,
+    .folder-cover-btn {
         display: none !important;
     }
     
@@ -673,8 +677,7 @@ body {
 
 /* 文件夹视图容器 */
 .folder-view {
-    min-height: calc(100vh - 290px);
-    max-height: calc(100vh - 290px);
+    max-height: calc(100vh - 385px);
     overflow-y: auto;
 }
 
@@ -1247,6 +1250,12 @@ body {
     min-width: 0;
 }
 
+.browse-tabs-wrapper {
+    background: white;
+    padding: 10px 20px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
 .browse-tabs {
     display: flex;
     gap: 4px;
@@ -1763,6 +1772,84 @@ body {
 
 .song-missing:hover {
     opacity: 0.7;
+}
+
+/* 匹配结果列表 */
+.match-result-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.match-result-item:last-child {
+    border-bottom: none;
+}
+
+.match-result-item:hover {
+    background: #f9fafb;
+}
+
+.match-cover {
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.match-cover-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-size: 18px;
+}
+
+.match-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.match-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: #111827;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.match-artist {
+    font-size: 12px;
+    color: #6b7280;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.match-album {
+    font-size: 11px;
+    color: #9ca3af;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.match-score {
+    font-size: 13px;
+    font-weight: 600;
+    color: #3b82f6;
+    background: #eff6ff;
+    padding: 4px 10px;
+    border-radius: 12px;
+    flex-shrink: 0;
 }
 
 /* 封面管理 */
@@ -2297,8 +2384,7 @@ body {
         font-size: 16px;
     }
     .folder-view {
-        min-height: calc(100vh - 300px);
-        max-height: calc(100vh - 300px);
+        max-height: calc(100vh - 425px);
     }
 }
 
@@ -2447,42 +2533,26 @@ body {
         height: 60px;
     }
     
+    .browse-tabs-wrapper {
+        padding: 8px 15px;
+    }
+    
+    .browse-tabs {
+        gap: 4px;
+    }
+    
+    .browse-tab {
+        padding: 6px 12px;
+        font-size: 13px;
+    }
+    
+    .browse-tab i {
+        font-size: 12px;
+    }
+    
     .folder-breadcrumb {
-        font-size: 0px;
-        max-width: 50%;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        padding: 6px 10px;
-    }
-    
-    .folder-breadcrumb i {
         font-size: 14px;
-    }
-    
-    .breadcrumb-separator {
-        margin: 0 2px;
-        font-size: 10px;
-    }
-    
-    .breadcrumb-link {
-        max-width: 60px;
-        display: inline-block;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        vertical-align: bottom;
-        padding: 2px 4px;
-    }
-    
-    .breadcrumb-current {
-        max-width: 80px;
-        display: inline-block;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        vertical-align: bottom;
-        padding: 2px 4px;
+        padding: 10px 15px;
     }
 
     

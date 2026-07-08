@@ -667,27 +667,6 @@
                 <!-- 顶部栏 -->
                 <header class="top-bar">
                     <div class="folder-browse-header">
-                        <div class="folder-breadcrumb" id="folderBreadcrumb">
-                            <i class="fas fa-folder-open"></i>
-                            <span>文件管理</span>
-                        </div>
-                        <div class="browse-tabs" id="browseTabs">
-                            <div class="browse-tab active" data-view="folder" onclick="switchBrowseView('folder')">
-                                <i class="fas fa-folder"></i> 文件夹
-                            </div>
-                            <div class="browse-tab" data-view="artist" onclick="switchBrowseView('artist')">
-                                <i class="fas fa-user-music"></i> 艺术家
-                            </div>
-                            <div class="browse-tab" data-view="album" onclick="switchBrowseView('album')">
-                                <i class="fas fa-compact-disc"></i> 专辑
-                            </div>
-                            <div class="browse-tab" data-view="genre" onclick="switchBrowseView('genre')">
-                                <i class="fas fa-tags"></i> 流派
-                            </div>
-                            <div class="browse-tab" data-view="year" onclick="switchBrowseView('year')">
-                                <i class="fas fa-calendar-alt"></i> 年份
-                            </div>
-                        </div>
                     </div>
                     <div class="top-actions">
                         <div class="folder-search-box">
@@ -717,6 +696,14 @@
                             <i class="fas fa-cloud-download-alt"></i>
                             <span>刮削</span>
                         </button>
+                        <button onclick="openDuplicateModal()" class="folder-action-btn folder-duplicate-btn" title="重复文件检测">
+                            <i class="fas fa-copy"></i>
+                            <span>重复检测</span>
+                        </button>
+                        <button onclick="openCoverManager()" class="folder-action-btn folder-cover-btn" title="封面管理">
+                            <i class="fas fa-images"></i>
+                            <span>封面管理</span>
+                        </button>
                         <div class="folder-more-menu-wrapper">
                             <button onclick="toggleFolderMoreMenu(event)" class="folder-action-btn folder-more-btn" title="更多操作">
                                 <i class="fas fa-ellipsis-v"></i>
@@ -742,11 +729,11 @@
                                     <i class="fas fa-cloud-download-alt"></i>
                                     <span>刮削</span>
                                 </div>
-                                <div class="folder-menu-item" onclick="openDuplicateModal(); closeFolderMoreMenu();">
+                                <div class="folder-menu-item needs-auth" onclick="openDuplicateModal(); closeFolderMoreMenu();">
                                     <i class="fas fa-copy"></i>
                                     <span>重复检测</span>
                                 </div>
-                                <div class="folder-menu-item" onclick="openCoverManager(); closeFolderMoreMenu();">
+                                <div class="folder-menu-item needs-auth" onclick="openCoverManager(); closeFolderMoreMenu();">
                                     <i class="fas fa-images"></i>
                                     <span>封面管理</span>
                                 </div>
@@ -755,6 +742,33 @@
                         <div id="cacheStatus" class="cache-status"></div>
                     </div>
                 </header>
+
+                <!-- 视图切换标签 -->
+                <div class="browse-tabs-wrapper">
+                    <div class="browse-tabs" id="browseTabs">
+                        <div class="browse-tab active" data-view="folder" onclick="switchBrowseView('folder')">
+                            <i class="fas fa-folder"></i> 文件夹
+                        </div>
+                        <div class="browse-tab" data-view="artist" onclick="switchBrowseView('artist')">
+                            <i class="fas fa-user-music"></i> 艺术家
+                        </div>
+                        <div class="browse-tab" data-view="album" onclick="switchBrowseView('album')">
+                            <i class="fas fa-compact-disc"></i> 专辑
+                        </div>
+                        <div class="browse-tab" data-view="genre" onclick="switchBrowseView('genre')">
+                            <i class="fas fa-tags"></i> 流派
+                        </div>
+                        <div class="browse-tab" data-view="year" onclick="switchBrowseView('year')">
+                            <i class="fas fa-calendar-alt"></i> 年份
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 面包屑导航 -->
+                <div class="folder-breadcrumb" id="folderBreadcrumb">
+                    <i class="fas fa-folder-open"></i>
+                    <span>文件管理</span>
+                </div>
 
                 <!-- 批量操作栏 -->
                 <div id="batchActionsBar" class="batch-actions-bar">
@@ -877,6 +891,9 @@
                                 </button>
                                 <button class="btn btn-secondary" id="cleanMissingBtn" onclick="cleanMissingSongs()" style="display: none;">
                                     <i class="fas fa-broom"></i> 清理丢失
+                                </button>
+                                <button class="btn btn-secondary" id="autoMatchBtn" onclick="autoMatchAllSongs()" style="display: none;">
+                                    <i class="fas fa-magic"></i> 自动匹配
                                 </button>
                                 <button class="btn btn-danger" onclick="deleteCurrentSonglist()">
                                     <i class="fas fa-trash"></i> 删除歌单
@@ -2693,6 +2710,65 @@
                 <button type="button" class="btn btn-secondary" onclick="closeRemoveFromSonglistModal()">取消</button>
                 <button type="button" class="btn btn-danger" onclick="confirmRemoveFromSonglist()">
                     <i class="fas fa-trash"></i> 确认移除
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 匹配丢失歌曲模态框 -->
+    <div id="matchSongModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-search"
+                        style="font-size: 24px; color: #3b82f6; vertical-align: middle; margin-right: 8px;"></i>
+                    查找匹配歌曲
+                </h3>
+                <button onclick="closeMatchSongModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom: 12px;">
+                    <p style="margin: 0 0 8px 0; color: #6b7280; font-size: 13px;">
+                        为 <span id="matchSongName" style="font-weight: bold; color: #111827;"></span> 查找匹配的歌曲
+                    </p>
+                    <p style="margin: 0; color: #9ca3af; font-size: 12px;">
+                        选择一个匹配结果来替换当前丢失的歌曲
+                    </p>
+                </div>
+                <div id="matchResultList" style="max-height: 400px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px;">
+                    <div style="padding: 40px 20px; text-align: center; color: #9ca3af;">
+                        <i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 8px;"></i>
+                        <p>正在搜索匹配歌曲...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeMatchSongModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 自动匹配确认对话框 -->
+    <div id="autoMatchConfirmModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-magic"
+                        style="font-size: 24px; color: #8b5cf6; vertical-align: middle; margin-right: 8px;"></i>
+                    自动匹配
+                </h3>
+                <button onclick="closeAutoMatchModal()" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="delete-confirm-content">
+                    <p>确定要自动匹配 <span id="autoMatchCount" style="font-weight: bold; color: #8b5cf6;"></span> 首丢失的歌曲吗？</p>
+                    <p class="delete-warning" style="color: #6b7280;">系统将根据歌名、歌手、专辑等信息自动匹配，匹配度高于60分的才会被替换。</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeAutoMatchModal()">取消</button>
+                <button type="button" class="btn btn-primary" onclick="doAutoMatch()">
+                    <i class="fas fa-magic"></i> 开始匹配
                 </button>
             </div>
         </div>

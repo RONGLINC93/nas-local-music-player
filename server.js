@@ -920,12 +920,26 @@ app.get('/api/user/avatar/:filename', (req, res) => {
     }
 });
 
+// 获取歌单封面（优先使用在线音乐封面）
+function getSonglistCover(songlist) {
+    if (songlist.cover) return songlist.cover;
+    
+    const onlineSong = songlist.songs.find(s => 
+        s.isOnline && (s.picUrl || s.cover || s.img)
+    );
+    if (onlineSong) {
+        return onlineSong.picUrl || onlineSong.cover || onlineSong.img;
+    }
+    
+    return null;
+}
+
 // 获取用户歌单列表
 app.get('/api/user/songlists', requireAuth, (req, res) => {
     const lists = userSonglists.map(list => ({
         id: list.id,
         name: list.name,
-        cover: list.cover,
+        cover: getSonglistCover(list),
         count: list.songs.length,
         createdAt: list.createdAt,
         updatedAt: list.updatedAt
@@ -939,7 +953,11 @@ app.get('/api/user/songlists/:id', requireAuth, (req, res) => {
     if (!songlist) {
         return res.status(404).json({ success: false, error: '歌单不存在' });
     }
-    res.json({ success: true, songlist });
+    const result = {
+        ...songlist,
+        cover: getSonglistCover(songlist)
+    };
+    res.json({ success: true, songlist: result });
 });
 
 // 创建歌单

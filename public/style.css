@@ -1026,30 +1026,25 @@ body {
     cursor: pointer;
     font-size: 14px;
     background: transparent;
-    color: #3b82f6;
+    color: #6b7280;
     transition: all 0.2s;
 }
 
 .batch-action-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-    transform: scale(1.1);
+    background: #f3f4f6;
+    color: #374151;
+    transform: scale(1.05);
 }
 
 .batch-action-btn:disabled {
-    opacity: 0.5;
+    opacity: 0.4;
     cursor: not-allowed;
     transform: none !important;
+    color: #9ca3af;
+    background: transparent;
 }
 
 
-
-.batch-convert-btn {
-    color: #10b981;
-}
-
-.batch-convert-btn:hover {
-    background: rgba(16, 185, 129, 0.1);
-}
 
 /* 文件复选框 */
 .folder-music-checkbox {
@@ -1091,82 +1086,11 @@ body {
 }
 
 .folder-icon-btn:hover {
-    transform: scale(1.1);
+    background: #f3f4f6;
+    color: #374151;
+    transform: scale(1.05);
 }
 
-.folder-play-btn {
-    color: #3b82f6;
-}
-
-.folder-play-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-}
-
-.folder-add-btn {
-    color: #3b82f6;
-}
-
-.folder-add-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-}
-
-.folder-add-songlist-btn {
-    color: #3b82f6;
-}
-
-.folder-add-songlist-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-}
-
-.folder-move-btn {
-    color: #3b82f6;
-}
-
-.folder-move-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-}
-
-.folder-rename-btn {
-    color: #8b5cf6;
-}
-
-.folder-rename-btn:hover {
-    background: rgba(139, 92, 246, 0.1);
-}
-
-.folder-download-btn {
-    color: #3b82f6;
-}
-
-.folder-download-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-}
-
-.folder-convert-btn {
-    color: #10b981;
-}
-
-.folder-convert-btn:hover {
-    background: rgba(16, 185, 129, 0.1);
-}
-
-.folder-dissolve-btn {
-    color: #f59e0b;
-}
-
-.folder-dissolve-btn:hover {
-    background: rgba(245, 158, 11, 0.1);
-}
-
-.folder-delete-btn {
-    color: #ef4444;
-}
-
-.folder-delete-btn:hover {
-    background: rgba(239, 68, 68, 0.1);
-}
-
-/* 文件夹卡片菜单按钮 */
 .folder-card-menu-btn {
     display: none; /* 大屏幕默认隐藏 */
     background-color: #f3f4f6;
@@ -2149,88 +2073,14 @@ body {
     justify-content: center;
     font-size: 14px;
     background: transparent;
+    color: #6b7280;
     margin-right: 4px;
 }
 
-.folder-music-play-btn {
-    color: #3b82f6;
-}
-
-.folder-music-play-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-    transform: scale(1.1);
-}
-
-.folder-music-add-btn {
-    color: #3b82f6;
-}
-
-.folder-music-add-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-    transform: scale(1.1);
-}
-
-.folder-music-add-songlist-btn {
-    color: #3b82f6;
-}
-
-.folder-music-add-songlist-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-    transform: scale(1.1);
-}
-
-.folder-music-move-btn {
-    color: #3b82f6;
-}
-
-.folder-music-move-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-    transform: scale(1.1);
-}
-
-.folder-music-rename-btn {
-    color: #8b5cf6;
-}
-
-.folder-music-rename-btn:hover {
-    background: rgba(139, 92, 246, 0.1);
-    transform: scale(1.1);
-}
-
-.folder-music-download-btn {
-    color: #3b82f6;
-}
-
-.folder-music-download-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-    transform: scale(1.1);
-}
-
-.folder-music-edit-btn {
-    color: #8b5cf6;
-}
-
-.folder-music-edit-btn:hover {
-    background: rgba(139, 92, 246, 0.1);
-    transform: scale(1.1);
-}
-
-.folder-music-convert-btn {
-    color: #10b981;
-}
-
-.folder-music-convert-btn:hover {
-    background: rgba(16, 185, 129, 0.1);
-    transform: scale(1.1);
-}
-
-.folder-music-delete-btn {
-    color: #3b82f6;
-}
-
-.folder-music-delete-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-    transform: scale(1.1);
+.folder-music-action-btn:hover {
+    background: #f3f4f6;
+    color: #374151;
+    transform: scale(1.05);
 }
 
 /* 文件夹空状态 */
@@ -3280,12 +3130,13 @@ body {
     justify-content: center;
     font-size: 14px;
     background: transparent;
-    color: #3b82f6;
+    color: #6b7280;
 }
 
 .playlist-batch-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-    transform: scale(1.1);
+    background: #f3f4f6;
+    color: #374151;
+    transform: scale(1.05);
 }
 
 .playlist-batch-btn:disabled {
@@ -3712,57 +3563,26 @@ font-size: 72px;
     align-items: center;
     justify-content: center;
     font-size: 14px;
-}
-
-.playlist-play-btn {
     background: transparent;
-    color: #3b82f6;
+    color: #6b7280;
 }
 
-.playlist-play-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-    transform: scale(1.1);
-}
-
-.playlist-delete-btn {
-    background: transparent;
-    color: #3b82f6;
-}
-
-.playlist-delete-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-    transform: scale(1.1);
-}
-
-.playlist-download-btn {
-    background: transparent;
-    color: #3b82f6;
-}
-
-.playlist-download-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-    transform: scale(1.1);
-}
-
-.playlist-add-songlist-btn {
-    background: transparent;
-    color: #3b82f6;
-}
-
-.playlist-add-songlist-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-    transform: scale(1.1);
+.playlist-action-btn:hover {
+    background: #f3f4f6;
+    color: #374151;
+    transform: scale(1.05);
 }
 
 .playlist-menu-btn {
     background: transparent;
-    color: #666;
+    color: #6b7280;
     display: none;
 }
 
 .playlist-menu-btn:hover {
-    background: rgba(0, 0, 0, 0.1);
-    transform: scale(1.1);
+    background: #f3f4f6;
+    color: #374151;
+    transform: scale(1.05);
 }
 
 .playlist-context-menu {
@@ -4746,19 +4566,25 @@ font-size: 72px;
 }
 
 .cache-item-delete {
-    background: none;
+    width: 32px;
+    height: 32px;
+    background: transparent;
     border: none;
-    color: #9ca3af;
+    color: #6b7280;
     cursor: pointer;
-    padding: 6px;
     border-radius: 6px;
     transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
     flex-shrink: 0;
 }
 
 .cache-item-delete:hover {
-    background: #fee2e2;
-    color: #dc2626;
+    background: #f3f4f6;
+    color: #374151;
+    transform: scale(1.05);
 }
 
 /* 缓存大小限制设置 */
@@ -7710,30 +7536,25 @@ font-size: 72px;
 }
 
 .task-action {
-    width: 32px;
+       width: 32px;
     height: 32px;
-    border-radius: 6px;
-    border: none;
     background: transparent;
+    border: none;
     color: #6b7280;
     cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 14px;
-    transition: all 0.2s;
+    flex-shrink: 0;
 }
 
 .task-action:hover {
-    transform: scale(1.1);
-}
-
-.task-action.delete {
-    color: #ef4444;
-}
-
-.task-action.delete:hover {
-    background: rgba(239, 68, 68, 0.1);
+        background: #f3f4f6;
+    color: #374151;
+    transform: scale(1.05);
 }
 
 /* 任务列表空状态 */
@@ -9799,7 +9620,8 @@ font-size: 72px;
 
 .online-play-btn,
 .online-download-btn,
-.online-add-btn {
+.online-add-btn,
+.online-add-songlist-btn {
     width: 32px;
     height: 32px;
     border: none;
@@ -9815,52 +9637,13 @@ font-size: 72px;
     margin-right: 4px;
 }
 
-.online-play-btn {
-    color: #3b82f6;
-}
-
-.online-play-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-    transform: scale(1.1);
-}
-
-.online-add-btn {
-    color: #3b82f6;
-}
-
-.online-add-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-    transform: scale(1.1);
-}
-
-.online-download-btn {
-    color: #3b82f6;
-}
-
-.online-download-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-    transform: scale(1.1);
-}
-
-.online-add-songlist-btn {
-    width: 32px;
-    height: 32px;
-    border: none;
-    border-radius: 6px;
-    background: transparent;
-    color: #3b82f6;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    transition: all 0.2s;
-    margin-right: 4px;
-}
-
+.online-play-btn:hover,
+.online-add-btn:hover,
+.online-download-btn:hover,
 .online-add-songlist-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-    transform: scale(1.1);
+    background: #f3f4f6;
+    color: #374151;
+    transform: scale(1.05);
 }
 
 /* 歌单详情歌曲列表样式 */
@@ -9967,71 +9750,16 @@ font-size: 72px;
     flex-shrink: 0;
 }
 
-.online-music-add-btn {
-    width: 32px;
-    height: 32px;
-    border: none;
-    border-radius: 6px;
-    background: transparent;
-    color: #3b82f6;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
-}
-
-.online-music-add-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-    transform: scale(1.1);
-}
-
-.online-music-download-btn {
-    width: 32px;
-    height: 32px;
-    border: none;
-    border-radius: 6px;
-    background: transparent;
-    color: #3b82f6;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-left: 4px;
-    transition: all 0.2s ease;
-}
-
-.online-music-download-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-    transform: scale(1.1);
-}
-
-.online-music-play-btn {
-    width: 32px;
-    height: 32px;
-    border: none;
-    border-radius: 6px;
-    background: transparent;
-    color: #3b82f6;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
-}
-
-.online-music-play-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-    transform: scale(1.1);
-}
-
+.online-music-add-btn,
+.online-music-download-btn,
+.online-music-play-btn,
 .online-music-add-songlist-btn {
     width: 32px;
     height: 32px;
     border: none;
     border-radius: 6px;
     background: transparent;
-    color: #3b82f6;
+    color: #6b7280;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -10040,9 +9768,13 @@ font-size: 72px;
     transition: all 0.2s;
 }
 
+.online-music-add-btn:hover,
+.online-music-download-btn:hover,
+.online-music-play-btn:hover,
 .online-music-add-songlist-btn:hover {
-    background: rgba(59, 130, 246, 0.1);
-    transform: scale(1.1);
+    background: #f3f4f6;
+    color: #374151;
+    transform: scale(1.05);
 }
 
 /* 移动端在线音乐视图 */
@@ -10443,21 +10175,23 @@ font-size: 72px;
 .source-file-delete-btn {
     width: 32px;
     height: 32px;
-    border: none;
-    border-radius: 6px;
     background: transparent;
-    color: #ef4444;
+    border: none;
+    color: #6b7280;
     cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 14px;
-    transition: all 0.2s;
+    flex-shrink: 0;
 }
 
 .source-file-delete-btn:hover {
-    background: rgba(239, 68, 68, 0.1);
-    transform: scale(1.1);
+    background: #f3f4f6;
+    color: #374151;
+    transform: scale(1.05);
 }
 
 .source-file-actions {
@@ -11281,19 +11015,24 @@ font-size: 72px;
 }
 
 .mysonglist-song-actions button {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     border: none;
     background: transparent;
-    color: #9ca3af;
+    color: #6b7280;
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: 6px;
     transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
 }
 
 .mysonglist-song-actions button:hover {
-    background: rgba(79, 70, 229, 0.1);
-    color: #4f46e5;
+    background: #f3f4f6;
+    color: #374151;
+    transform: scale(1.05);
 }
 
 /* 播放历史 */
@@ -11452,8 +11191,9 @@ font-size: 72px;
 }
 
 .history-song-actions button:hover {
-    background: rgba(59, 130, 246, 0.1);
-    color: #3b82f6;
+    background: #f3f4f6;
+    color: #374151;
+    transform: scale(1.05);
 }
 
 /* 添加到歌单选择列表 */
@@ -12362,6 +12102,50 @@ body.dark-theme .browse-tab.active {
     background: var(--bg-card, #1f2937);
     color: var(--primary-color, #818cf8);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+body.dark-theme .batch-action-btn,
+body.dark-theme .folder-music-action-btn,
+body.dark-theme .playlist-action-btn,
+body.dark-theme .playlist-batch-btn,
+body.dark-theme .playlist-menu-btn,
+body.dark-theme .history-song-actions button,
+body.dark-theme .cache-item-delete,
+body.dark-theme .online-play-btn,
+body.dark-theme .online-add-btn,
+body.dark-theme .online-download-btn,
+body.dark-theme .online-add-songlist-btn,
+body.dark-theme .online-music-add-btn,
+body.dark-theme .online-music-download-btn,
+body.dark-theme .online-music-play-btn,
+body.dark-theme .online-music-add-songlist-btn,
+body.dark-theme .mysonglist-song-actions button {
+    color: #9ca3af;
+}
+
+body.dark-theme .batch-action-btn:hover,
+body.dark-theme .folder-music-action-btn:hover,
+body.dark-theme .playlist-action-btn:hover,
+body.dark-theme .playlist-batch-btn:hover,
+body.dark-theme .playlist-menu-btn:hover,
+body.dark-theme .history-song-actions button:hover,
+body.dark-theme .online-play-btn:hover,
+body.dark-theme .online-add-btn:hover,
+body.dark-theme .online-download-btn:hover,
+body.dark-theme .online-add-songlist-btn:hover,
+body.dark-theme .online-music-add-btn:hover,
+body.dark-theme .online-music-download-btn:hover,
+body.dark-theme .online-music-play-btn:hover,
+body.dark-theme .online-music-add-songlist-btn:hover,
+body.dark-theme .mysonglist-song-actions button:hover {
+    background: #374151;
+    color: #e5e7eb;
+}
+
+body.dark-theme .batch-action-btn:disabled {
+    color: #6b7280;
+    opacity: 0.4;
+    background: transparent;
 }
 
 body.dark-theme .now-playing-bar {

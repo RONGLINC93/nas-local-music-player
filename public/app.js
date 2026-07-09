@@ -626,6 +626,13 @@ async function doLogout() {
     authToken = null;
     localStorage.removeItem('authToken');
     currentUser = null;
+    
+    // 检查当前是否在需要登录的视图，如果是则切换到音乐页面
+    const activeView = document.querySelector('.view.active');
+    if (activeView && activeView.id === 'view-mysonglist') {
+        switchView('music');
+    }
+    
     updateUserCardUI();
     renderPlaylist();
     refreshAllMusicViews();

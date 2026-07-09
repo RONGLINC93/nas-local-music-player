@@ -667,8 +667,6 @@
                 <!-- 顶部栏 -->
                 <header class="top-bar">
                     <div class="folder-browse-header">
-                    </div>
-                    <div class="top-actions">
                         <div class="folder-search-box">
                             <i class="fas fa-search folder-search-icon"></i>
                             <input type="text" id="folderSearchInput" class="folder-search-input" placeholder="搜索音乐文件..." oninput="handleFolderSearch()" />
@@ -676,6 +674,8 @@
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
+                    </div>
+                    <div class="top-actions">
                         <button onclick="openUploadModal()" class="folder-action-btn folder-upload-btn needs-auth" title="上传音乐">
                             <i class="fas fa-upload"></i>
                             <span>上传</span>
@@ -764,69 +764,19 @@
                     </div>
                 </div>
 
-                <!-- 面包屑导航 -->
-                <div class="folder-breadcrumb" id="folderBreadcrumb">
-                    <i class="fas fa-folder-open"></i>
-                    <span>文件管理</span>
-                </div>
+                <!-- 文件管理头部 -->
+                <div class="folder-header">
+                    <!-- 面包屑导航 -->
+                    <div class="folder-breadcrumb" id="folderBreadcrumb">
+                        <i class="fas fa-folder-open"></i>
+                        <span>文件管理</span>
+                    </div>
 
-                <!-- 批量操作栏 -->
-                <div id="batchActionsBar" class="batch-actions-bar">
-                    <label class="batch-select-all">
-                        <input type="checkbox" id="selectAllBtn" onchange="toggleSelectAll()">
-                        <span>全选</span>
-                    </label>
-                    <div class="batch-divider"></div>
-                    <div class="batch-actions-right">
+                    <!-- 头部操作按钮 -->
+                    <div class="header-actions">
                         <button onclick="createNewFolder()" class="batch-action-btn batch-new-folder-btn needs-auth" title="新建文件夹">
                             <i class="fas fa-folder-plus"></i>
                         </button>
-                        <button onclick="batchAddToPlaylist()" class="batch-action-btn batch-add-btn" title="加入播放列表" disabled>
-                            <i class="fas fa-plus"></i>
-                        </button>
-                        <button onclick="batchMoveFiles()" class="batch-action-btn batch-move-btn needs-auth" title="移动" disabled>
-                            <i class="fas fa-arrows-alt"></i>
-                        </button>
-                        <button onclick="batchDeleteFiles()" class="batch-action-btn batch-delete-btn needs-auth" title="删除" disabled>
-                            <i class="fas fa-trash"></i>
-                        </button>
-                        <button onclick="batchDownloadFiles()" class="batch-action-btn batch-download-btn" title="下载" disabled>
-                            <i class="fas fa-download"></i>
-                        </button>
-                        <button onclick="batchConvertToMp3()" class="batch-action-btn batch-convert-btn needs-auth" title="转MP3" disabled>
-                            <i class="fas fa-exchange-alt"></i>
-                        </button>
-                        <div class="batch-more-menu-wrapper">
-                            <button onclick="toggleBatchMoreMenu(event)" class="batch-action-btn batch-more-btn" title="更多操作">
-                                <i class="fas fa-ellipsis-v"></i>
-                            </button>
-                            <div id="batchMoreMenu" class="batch-more-menu" style="display: none;">
-                                <div class="batch-menu-item needs-auth" onclick="createNewFolder(); closeBatchMoreMenu();">
-                                    <i class="fas fa-folder-plus"></i>
-                                    <span>新建文件夹</span>
-                                </div>
-                                <div class="batch-menu-item" onclick="batchAddToPlaylist(); closeBatchMoreMenu();" id="batchMenuAdd">
-                                    <i class="fas fa-plus"></i>
-                                    <span>加入播放列表</span>
-                                </div>
-                                <div class="batch-menu-item needs-auth" onclick="batchMoveFiles(); closeBatchMoreMenu();" id="batchMenuMove">
-                                    <i class="fas fa-arrows-alt"></i>
-                                    <span>移动</span>
-                                </div>
-                                <div class="batch-menu-item" onclick="batchDownloadFiles(); closeBatchMoreMenu();" id="batchMenuDownload">
-                                    <i class="fas fa-download"></i>
-                                    <span>下载</span>
-                                </div>
-                                <div class="batch-menu-item needs-auth" onclick="batchConvertToMp3(); closeBatchMoreMenu();" id="batchMenuConvert">
-                                    <i class="fas fa-exchange-alt"></i>
-                                    <span>转MP3</span>
-                                </div>
-                                <div class="batch-menu-item batch-menu-item-danger needs-auth" onclick="batchDeleteFiles(); closeBatchMoreMenu();" id="batchMenuDelete">
-                                    <i class="fas fa-trash"></i>
-                                    <span>删除</span>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
 

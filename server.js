@@ -1880,19 +1880,26 @@ app.post('/api/user/songlists/import', requireAuth, async (req, res) => {
 });
 
 // 封面管理 - 获取音乐文件嵌入封面
-app.get('/api/cover/embedded', requireAuth, async (req, res) => {
+app.get('/api/cover/embedded', async (req, res) => {
     try {
         const filePath = decodeURIComponent(req.query.path || '');
         
-        if (!filePath || !filePath.startsWith(MUSIC_DIR)) {
+        if (!filePath) {
             return res.status(400).json({ success: false, error: '无效的文件路径' });
         }
 
-        if (!fs.existsSync(filePath)) {
+        const resolvedPath = path.resolve(filePath);
+        const resolvedMusicDir = path.resolve(MUSIC_DIR);
+        
+        if (!resolvedPath.startsWith(resolvedMusicDir)) {
+            return res.status(400).json({ success: false, error: '无效的文件路径' });
+        }
+
+        if (!fs.existsSync(resolvedPath)) {
             return res.status(404).json({ success: false, error: '文件不存在' });
         }
 
-        const metadata = await mm.parseFile(filePath);
+        const metadata = await mm.parseFile(resolvedPath);
         
         if (metadata.common.picture && metadata.common.picture.length > 0) {
             const pic = metadata.common.picture[0];
@@ -1909,22 +1916,29 @@ app.get('/api/cover/embedded', requireAuth, async (req, res) => {
 });
 
 // 封面管理 - 获取文件夹封面
-app.get('/api/cover/folder', requireAuth, (req, res) => {
+app.get('/api/cover/folder', (req, res) => {
     try {
         const folderPath = decodeURIComponent(req.query.path || '');
         
-        if (!folderPath || !folderPath.startsWith(MUSIC_DIR)) {
+        if (!folderPath) {
             return res.status(400).json({ success: false, error: '无效的文件夹路径' });
         }
 
-        if (!fs.existsSync(folderPath) || !fs.statSync(folderPath).isDirectory()) {
+        const resolvedPath = path.resolve(folderPath);
+        const resolvedMusicDir = path.resolve(MUSIC_DIR);
+        
+        if (!resolvedPath.startsWith(resolvedMusicDir)) {
+            return res.status(400).json({ success: false, error: '无效的文件夹路径' });
+        }
+
+        if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isDirectory()) {
             return res.status(404).json({ success: false, error: '文件夹不存在' });
         }
 
         const coverNames = ['cover.jpg', 'cover.jpeg', 'cover.png', 'folder.jpg', 'folder.jpeg', 'folder.png', 'Cover.jpg', 'Cover.jpeg', 'album.jpg', 'album.jpeg'];
         
         for (const name of coverNames) {
-            const coverPath = path.join(folderPath, name);
+            const coverPath = path.join(resolvedPath, name);
             if (fs.existsSync(coverPath)) {
                 const ext = path.extname(name).toLowerCase();
                 const contentType = ext === '.png' ? 'image/png' : 'image/jpeg';
@@ -1941,21 +1955,29 @@ app.get('/api/cover/folder', requireAuth, (req, res) => {
     }
 });
 
-// 封面管理 - 获取最佳封面（先嵌入，后文件夹）
-app.get('/api/cover/best', requireAuth, async (req, res) => {
+// 封面管理 - 获取音乐文件封面（默认使用最佳封面策略）
+app.get('/api/cover', async (req, res) => {
     try {
         const filePath = decodeURIComponent(req.query.path || '');
+        const size = req.query.size || 'small';
         
-        if (!filePath || !filePath.startsWith(MUSIC_DIR)) {
+        if (!filePath) {
             return res.status(400).json({ success: false, error: '无效的文件路径' });
         }
 
-        if (!fs.existsSync(filePath)) {
+        const resolvedPath = path.resolve(filePath);
+        const resolvedMusicDir = path.resolve(MUSIC_DIR);
+        
+        if (!resolvedPath.startsWith(resolvedMusicDir)) {
+            return res.status(400).json({ success: false, error: '无效的文件路径' });
+        }
+
+        if (!fs.existsSync(resolvedPath)) {
             return res.status(404).json({ success: false, error: '文件不存在' });
         }
 
         try {
-            const metadata = await mm.parseFile(filePath);
+            const metadata = await mm.parseFile(resolvedPath);
             if (metadata.common.picture && metadata.common.picture.length > 0) {
                 const pic = metadata.common.picture[0];
                 res.setHeader('Content-Type', pic.format || 'image/jpeg');
@@ -1966,7 +1988,73 @@ app.get('/api/cover/best', requireAuth, async (req, res) => {
             // 忽略元数据解析错误，继续尝试文件夹封面
         }
 
-        const folderPath = path.dirname(filePath);
+        const folderPath = path.dirname(resolvedPath);
+        const coverNames = ['cover.jpg', 'cover.jpeg', 'cover.png', 'folder.jpg', 'folder.jpeg', 'folder.png', 'Cover.jpg', 'Cover.jpeg', 'album.jpg', 'album.jpeg'];
+        
+        for (const name of coverNames) {
+            const coverPath = path.join(folderPath, name);
+            if (fs.existsSync(coverPath)) {
+                const ext = path.extname(name).toLowerCase();
+                const contentType = ext === '.png' ? 'image/png' : 'image/jpeg';
+                res.setHeader('Content-Type', contentType);
+                res.setHeader('Cache-Control', 'public, max-age=86400');
+                return res.sendFile(coverPath);
+            }
+        }
+
+        res.status(200);
+        res.setHeader('Content-Type', 'image/svg+xml');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+            <defs>
+                <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+                </linearGradient>
+            </defs>
+            <rect width="200" height="200" fill="url(#g)"/>
+            <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="80" font-family="Arial, sans-serif" opacity="0.8">&#9835;</text>
+        </svg>`;
+        return res.send(svg);
+    } catch (error) {
+        console.error('获取封面失败:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 封面管理 - 获取最佳封面（先嵌入，后文件夹）
+app.get('/api/cover/best', async (req, res) => {
+    try {
+        const filePath = decodeURIComponent(req.query.path || '');
+        
+        if (!filePath) {
+            return res.status(400).json({ success: false, error: '无效的文件路径' });
+        }
+
+        const resolvedPath = path.resolve(filePath);
+        const resolvedMusicDir = path.resolve(MUSIC_DIR);
+        
+        if (!resolvedPath.startsWith(resolvedMusicDir)) {
+            return res.status(400).json({ success: false, error: '无效的文件路径' });
+        }
+
+        if (!fs.existsSync(resolvedPath)) {
+            return res.status(404).json({ success: false, error: '文件不存在' });
+        }
+
+        try {
+            const metadata = await mm.parseFile(resolvedPath);
+            if (metadata.common.picture && metadata.common.picture.length > 0) {
+                const pic = metadata.common.picture[0];
+                res.setHeader('Content-Type', pic.format || 'image/jpeg');
+                res.setHeader('Cache-Control', 'public, max-age=86400');
+                return res.send(pic.data);
+            }
+        } catch (e) {
+            // 忽略元数据解析错误，继续尝试文件夹封面
+        }
+
+        const folderPath = path.dirname(resolvedPath);
         const coverNames = ['cover.jpg', 'cover.jpeg', 'cover.png', 'folder.jpg', 'folder.jpeg', 'folder.png', 'Cover.jpg', 'Cover.jpeg', 'album.jpg', 'album.jpeg'];
         
         for (const name of coverNames) {
@@ -3647,7 +3735,8 @@ app.get('/api/browse', async (req, res) => {
                 .map(([name, files]) => ({
                     name,
                     count: files.length,
-                    duration: files.reduce((sum, f) => sum + (f.duration || 0), 0)
+                    duration: files.reduce((sum, f) => sum + (f.duration || 0), 0),
+                    coverPath: files[0]?.path || ''
                 }))
                 .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 

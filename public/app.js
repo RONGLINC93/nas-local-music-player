@@ -8833,15 +8833,10 @@ function switchBrowseView(viewType) {
         tab.classList.toggle('active', tab.dataset.view === viewType);
     });
 
-    const breadcrumb = document.getElementById('folderBreadcrumb');
-    const batchBar = document.getElementById('batchActionsBar');
-
     if (viewType === 'folder') {
-        batchBar.style.display = 'flex';
         renderBreadcrumb(currentFolderPath);
         renderFolderSections();
     } else {
-        batchBar.style.display = 'none';
         currentBrowseType = viewType;
         loadBrowseGroups();
     }
@@ -8932,10 +8927,14 @@ function renderBrowseGroups() {
 
     browseGroups.forEach(group => {
         const escapedName = group.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        const coverUrl = group.coverPath ? `/api/cover?path=${encodeURIComponent(group.coverPath)}&size=small` : '';
         html += `
             <div class="browse-group-card" onclick="openBrowseGroup('${escapedName}')">
-                <div class="browse-group-icon">
-                    <i class="fas ${getBrowseTypeIcon(currentBrowseType)}"></i>
+                <div class="browse-group-cover">
+                    ${coverUrl 
+                        ? `<img src="${coverUrl}" alt="${group.name}" onerror="this.outerHTML='<div class=\\'browse-group-cover browse-group-cover-placeholder\\'><i class=\\'fas ${getBrowseTypeIcon(currentBrowseType)}\\'></i></div>'">`
+                        : `<div class="browse-group-cover browse-group-cover-placeholder"><i class="fas ${getBrowseTypeIcon(currentBrowseType)}"></i></div>`
+                    }
                 </div>
                 <div class="browse-group-info">
                     <div class="browse-group-name" title="${group.name}">${group.name}</div>
@@ -9454,11 +9453,64 @@ function renderFolderSections() {
     
     if (currentFiles.length > 0) {
         html += '<div class="folder-section" id="fileSection">';
-        if (folderSearchKeyword) {
-            html += `<h3 class="folder-section-title"><i class="fas fa-music"></i> 搜索结果</h3>`;
-        } else {
-            html += '<h3 class="folder-section-title"><i class="fas fa-music"></i> 音乐文件</h3>';
-        }
+        const titleText = folderSearchKeyword ? '搜索结果' : '音乐文件';
+        html += `
+            <div class="file-section-header">
+                <h3 class="folder-section-title">
+                    <label class="title-select-all">
+                        <input type="checkbox" id="selectAllBtn" onchange="toggleSelectAll()">
+                    </label>
+                    <i class="fas fa-music"></i> ${titleText}
+                </h3>
+                <div class="title-actions">
+                    <button onclick="batchAddToPlaylist()" class="batch-action-btn batch-add-btn" title="加入播放列表" disabled>
+                        <i class="fas fa-plus"></i>
+                    </button>
+                    <button onclick="batchMoveFiles()" class="batch-action-btn batch-move-btn needs-auth" title="移动" disabled>
+                        <i class="fas fa-arrows-alt"></i>
+                    </button>
+                    <button onclick="batchDeleteFiles()" class="batch-action-btn batch-delete-btn needs-auth" title="删除" disabled>
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    <button onclick="batchDownloadFiles()" class="batch-action-btn batch-download-btn" title="下载" disabled>
+                        <i class="fas fa-download"></i>
+                    </button>
+                    <button onclick="batchConvertToMp3()" class="batch-action-btn batch-convert-btn needs-auth" title="转MP3" disabled>
+                        <i class="fas fa-exchange-alt"></i>
+                    </button>
+                    <div class="batch-more-menu-wrapper">
+                        <button onclick="toggleBatchMoreMenu(event)" class="batch-action-btn batch-more-btn" title="更多操作">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <div id="batchMoreMenu" class="batch-more-menu" style="display: none;">
+                            <div class="batch-menu-item needs-auth" onclick="createNewFolder(); closeBatchMoreMenu();">
+                                <i class="fas fa-folder-plus"></i>
+                                <span>新建文件夹</span>
+                            </div>
+                            <div class="batch-menu-item" onclick="batchAddToPlaylist(); closeBatchMoreMenu();" id="batchMenuAdd">
+                                <i class="fas fa-plus"></i>
+                                <span>加入播放列表</span>
+                            </div>
+                            <div class="batch-menu-item needs-auth" onclick="batchMoveFiles(); closeBatchMoreMenu();" id="batchMenuMove">
+                                <i class="fas fa-arrows-alt"></i>
+                                <span>移动</span>
+                            </div>
+                            <div class="batch-menu-item" onclick="batchDownloadFiles(); closeBatchMoreMenu();" id="batchMenuDownload">
+                                <i class="fas fa-download"></i>
+                                <span>下载</span>
+                            </div>
+                            <div class="batch-menu-item needs-auth" onclick="batchConvertToMp3(); closeBatchMoreMenu();" id="batchMenuConvert">
+                                <i class="fas fa-exchange-alt"></i>
+                                <span>转MP3</span>
+                            </div>
+                            <div class="batch-menu-item batch-menu-item-danger needs-auth" onclick="batchDeleteFiles(); closeBatchMoreMenu();" id="batchMenuDelete">
+                                <i class="fas fa-trash"></i>
+                                <span>删除</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
         html += '<div class="folder-music-list" id="folderMusicList">';
         
         currentFiles.forEach((track, index) => {
@@ -10505,20 +10557,15 @@ function toggleSelectAll() {
 
 // 更新批量操作按钮状态
 function updateBatchActions() {
-    const batchBar = document.getElementById('batchActionsBar');
     const selectAllBtn = document.getElementById('selectAllBtn');
-    const batchActionBtns = document.querySelectorAll('.batch-action-btn');
+    const batchActionBtns = document.querySelectorAll('.title-actions .batch-action-btn');
     
-    if (batchBar && selectAllBtn) {
+    if (selectAllBtn) {
         const checkboxes = document.querySelectorAll('.folder-music-checkbox');
         selectAllBtn.checked = selectedMusicFiles.size === checkboxes.length && checkboxes.length > 0;
         
         const hasSelection = selectedMusicFiles.size > 0;
         batchActionBtns.forEach(btn => {
-            // 新建文件夹按钮不受选择状态影响
-            if (btn.classList.contains('batch-new-folder-btn')) {
-                return;
-            }
             btn.disabled = !hasSelection;
         });
         

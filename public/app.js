@@ -13431,11 +13431,10 @@ async function loadOnlineSettings() {
             ONLINE_PAGE_SIZE = parsedPageSize;  // 同步在线音乐分页设置
             
             // 保存激活的音源ID列表（不带.js）
-            if (activeSources && activeSources.length > 0) {
-                window.activeSources = activeSources;
-                // 转换为带.js的文件名，用于前端选中状态
-                window.selectedSourceFiles = activeSources.map(id => id.endsWith('.js') ? id : id + '.js');
-            }
+            // 无论是否为空都要设置，否则未登录时无法显示已激活的音源
+            window.activeSources = activeSources || [];
+            // 转换为带.js的文件名，用于前端选中状态
+            window.selectedSourceFiles = (activeSources || []).map(id => id.endsWith('.js') ? id : id + '.js');
         }
     } catch (error) {
         console.error('获取在线设置失败:', error);

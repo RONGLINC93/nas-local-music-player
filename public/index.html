@@ -404,7 +404,7 @@
                             <div class="online-setting-card" id="setting-audio-device">
                                 <div class="setting-card-header">
                                     <h4><i class="fas fa-volume-up"></i> 服务端已识别声卡设备</h4>
-                                    <button onclick="testAudioDevice()" class="device-test-btn" title="测试声卡">
+                                    <button onclick="testAudioDevice()" class="device-test-btn needs-auth" title="测试声卡">
                                         <i class="fas fa-play-circle"></i>
                                         测试播放
                                     </button>
@@ -489,13 +489,13 @@
                                 </div>
                                 
                                 <div class="source-file-actions">
-                                    <button onclick="openUploadSourceModal()" class="source-upload-btn">
+                                    <button onclick="openUploadSourceModal()" class="source-upload-btn needs-auth">
                                         <i class="fas fa-upload"></i> 上传音源文件
                                     </button>
                                     <button onclick="refreshSourceFiles()" class="source-refresh-btn">
                                         <i class="fas fa-sync-alt"></i> 刷新列表
                                     </button>
-                                    <button onclick="applySelectedSources()" class="source-apply-btn">
+                                    <button onclick="applySelectedSources()" class="source-apply-btn needs-auth">
                                         <i class="fas fa-check"></i> 应用选中
                                     </button>
                                 </div>
@@ -594,11 +594,11 @@
                             <i class="fas fa-sync-alt"></i>
                             <span>刷新</span>
                         </button>
-                        <button onclick="openWorkerConfigModal()" class="task-action-btn task-config-btn" title="线程数量设置">
+                        <button onclick="openWorkerConfigModal()" class="task-action-btn task-config-btn needs-auth" title="线程数量设置">
                             <i class="fas fa-cog"></i>
                             <span>设置</span>
                         </button>
-                        <button onclick="clearCompletedTasks()" class="task-action-btn task-clear-btn" title="清除已完成任务">
+                        <button onclick="clearCompletedTasks()" class="task-action-btn task-clear-btn needs-auth" title="清除已完成任务">
                             <i class="fas fa-trash"></i>
                             <span>清除</span>
                         </button>
@@ -696,11 +696,11 @@
                             <i class="fas fa-cloud-download-alt"></i>
                             <span>刮削</span>
                         </button>
-                        <button onclick="openDuplicateModal()" class="folder-action-btn folder-duplicate-btn" title="重复文件检测">
+                        <button onclick="openDuplicateModal()" class="folder-action-btn folder-duplicate-btn needs-auth" title="重复文件检测">
                             <i class="fas fa-copy"></i>
                             <span>重复检测</span>
                         </button>
-                        <button onclick="openCoverManager()" class="folder-action-btn folder-cover-btn" title="封面管理">
+                        <button onclick="openCoverManager()" class="folder-action-btn folder-cover-btn needs-auth" title="封面管理">
                             <i class="fas fa-images"></i>
                             <span>封面管理</span>
                         </button>
@@ -925,7 +925,7 @@
                                 <button class="btn btn-secondary" onclick="playAllHistory()">
                                     <i class="fas fa-play"></i> 播放全部
                                 </button>
-                                <button class="btn btn-danger" onclick="clearPlayHistory()">
+                                <button class="btn btn-danger needs-auth" onclick="clearPlayHistory()">
                                     <i class="fas fa-trash"></i> 清空历史
                                 </button>
                             </div>

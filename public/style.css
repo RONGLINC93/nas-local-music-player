@@ -2793,6 +2793,7 @@ body {
 }
 
 .mute-btn {
+    color: var(--text-primary, #000);
     background: none;
     border: none;
     cursor: pointer;
@@ -6206,7 +6207,7 @@ font-size: 72px;
 
 /* 更新模态框样式 */
 .update-info {
-    background: #f8fafc;
+    background: var(--bg-active, #ffffff);
     border-radius: 10px;
     padding: 15px;
     margin-bottom: 20px;
@@ -6215,7 +6216,7 @@ font-size: 72px;
 .update-info-title {
     font-size: 15px;
     font-weight: 600;
-    color: #333;
+    color: var(--text-secondary, #333);
     margin-bottom: 12px;
     display: flex;
     align-items: center;
@@ -6230,7 +6231,7 @@ font-size: 72px;
 
 .update-info-list li {
     font-size: 13px;
-    color: #666;
+    color: var(--text-secondary, #666);
     padding: 6px 0;
     padding-left: 20px;
     position: relative;
@@ -6263,10 +6264,10 @@ font-size: 72px;
 
 .update-file-name {
     font-size: 13px;
-    color: #333;
+    color: var(--text-secondary, #333);
     margin-top: 10px;
     padding: 10px;
-    background: #f8fafc;
+    background: var(--bg-active, #ffffff);
     border-radius: 8px;
     word-break: break-all;
 }
@@ -6295,9 +6296,9 @@ font-size: 72px;
     display: none;
     margin-bottom: 15px;
     padding: 15px;
-    background: #f8fafc;
+    background: var(--bg-active, #ffffff);
     border-radius: 10px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color, #e2e8f0);
 }
 
 .upload-progress-item {
@@ -6435,7 +6436,7 @@ font-size: 72px;
 
 .delete-confirm-content p {
     margin-bottom: 15px;
-    color: #333;
+    color: var(--text-secondary, #333);
 }
 
 .delete-track-name {
@@ -6879,7 +6880,7 @@ font-size: 72px;
 
 /* 转MP3对话框样式 */
 .convert-info {
-    background: #f8fafc;
+    background: var(--bg-active, #ffffff);
     border-radius: 12px;
     padding: 16px;
     margin-bottom: 20px;
@@ -6891,7 +6892,7 @@ font-size: 72px;
     gap: 10px;
     padding: 8px 0;
     font-size: 14px;
-    color: #333;
+    color: var(--text-secondary, #333);
 }
 
 .convert-info .info-item i {
@@ -6907,7 +6908,7 @@ font-size: 72px;
     align-items: center;
     gap: 16px;
     padding: 20px;
-    background: #fef2f2;
+    background: var(--bg-active, #ffffff);
     border-radius: 12px;
     margin-bottom: 20px;
 }
@@ -6915,7 +6916,7 @@ font-size: 72px;
 .delete-folder-info .folder-name-display {
     font-size: 18px;
     font-weight: 600;
-    color: #1f2937;
+    color: var(--text-primary, #000);
     text-align: center;
 }
 
@@ -6987,7 +6988,7 @@ font-size: 72px;
 .move-folder-info .folder-name-display {
     font-size: 18px;
     font-weight: 600;
-    color: #1f2937;
+    color: var(--text-secondary, #333);
     text-align: center;
 }
 
@@ -6998,7 +6999,7 @@ font-size: 72px;
     align-items: center;
     gap: 16px;
     padding: 20px;
-    background: #fdf2f8;
+    background: var(--bg-active, #ffffff);
     border-radius: 12px;
     margin-bottom: 20px;
 }
@@ -7006,7 +7007,7 @@ font-size: 72px;
 .convert-folder-info .folder-name-display {
     font-size: 18px;
     font-weight: 600;
-    color: #1f2937;
+    color: var(--text-secondary, #333);
     text-align: center;
 }
 
@@ -7033,10 +7034,10 @@ font-size: 72px;
     align-items: center;
     gap: 8px;
     padding: 10px 12px;
-    background: #eff6ff;
+    background: var(--bg-active, #ffffff);
     border-radius: 8px;
     font-size: 13px;
-    color: #1e40af;
+    color: var(--text-secondary, #333);
     margin-top: 8px;
 }
 
@@ -7519,7 +7520,7 @@ font-size: 72px;
 
 .task-filename {
     font-size: 14px;
-    color: #333;
+    color: var(--text-tertiary, #333);
     font-weight: 500;
     margin-bottom: 4px;
     white-space: nowrap;
@@ -8793,7 +8794,7 @@ font-size: 72px;
 .songlist-card-title {
     font-size: 14px;
     font-weight: 500;
-    color: #1f2937;
+    color: var(--text-primary, #000);
     margin-bottom: 6px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -8936,7 +8937,7 @@ font-size: 72px;
     display: flex;
     gap: 20px;
     padding: 20px;
-    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    background: linear-gradient(135deg, var(--bg-active, #ffffff) 0%, var(--bg-tertiary, #f9fafb) 100%);
     border-radius: 12px;
 }
 
@@ -8971,7 +8972,7 @@ font-size: 72px;
 .songlist-info-text h3 {
     font-size: 24px;
     font-weight: 600;
-    color: #1f2937;
+    color: var(--text-primary, #000);
     margin-bottom: 12px;
 }
 
@@ -10764,7 +10765,7 @@ font-size: 72px;
 .mysonglist-container .section-header h2 {
     margin: 0;
     font-size: 18px;
-    color: #1f2937;
+    color: var(--text-primary, #000);
 }
 
 .mysonglist-container .section-header .btn {
@@ -10841,7 +10842,7 @@ font-size: 72px;
 .songlist-card-name {
     font-size: 14px;
     font-weight: 500;
-    color: #1f2937;
+    color: var(--text-primary, #000);
     margin-bottom: 4px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -10924,7 +10925,7 @@ font-size: 72px;
 .songlist-detail-info h2 {
     margin: 0 0 8px;
     font-size: 24px;
-    color: #1f2937;
+    color: var(--text-primary, #000);
 }
 
 .songlist-detail-info p {
@@ -11241,8 +11242,8 @@ font-size: 72px;
 }
 
 .songlist-select-item:hover {
-    background: #f3f4f6;
-}
+    background: var(--bg-active, #ffffff);
+   }
 
 .songlist-select-item-cover {
     width: 40px;
@@ -11264,7 +11265,7 @@ font-size: 72px;
 
 .songlist-select-item-name {
     font-size: 14px;
-    color: #1f2937;
+    color: var(--text-secondary, #333);
     font-weight: 500;
 }
 
@@ -14941,7 +14942,7 @@ body.dark-theme .full-player-btn:hover {
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
-    height: 200px;
+    height: 220px;
     padding: 20px 10px;
     background: var(--bg-tertiary, #f9fafb);
     border-radius: 12px;

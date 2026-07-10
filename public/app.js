@@ -10432,20 +10432,149 @@ async function moveFolder(folderPath, folderName) {
     const pathInput = document.getElementById('moveFolderPath');
     const nameDisplay = document.getElementById('moveFolderNameDisplay');
     const targetInput = document.getElementById('moveFolderTargetInput');
+    const newFolderInput = document.getElementById('moveFolderNewFolderInput');
     const btnConfirm = document.getElementById('btnConfirmMoveFolder');
     
     pathInput.value = folderPath;
     nameDisplay.textContent = folderName;
     targetInput.value = '';
+    newFolderInput.value = '';
     btnConfirm.disabled = true;
     
     modal.classList.add('show');
     document.body.style.overflow = 'hidden';
     
+    // 渲染文件夹树
+    renderMoveFolderTree();
+    
     // 监听输入框变化
-    targetInput.addEventListener('input', function() {
-        btnConfirm.disabled = !this.value.trim();
+    const checkInputs = function() {
+        const hasTarget = targetInput.value.trim();
+        const hasNewFolder = newFolderInput.value.trim();
+        btnConfirm.disabled = !(hasTarget || hasNewFolder);
+    };
+    
+    targetInput.addEventListener('input', checkInputs);
+    newFolderInput.addEventListener('input', checkInputs);
+}
+
+// 渲染移动文件夹的目录树
+function renderMoveFolderTree() {
+    const folderTreeEl = document.getElementById('moveFolderTree');
+    if (!folderTreeEl) return;
+    
+    // 如果还没有加载文件夹数据，先加载
+    if (!folderCacheData) {
+        loadFolderData().then(() => {
+            buildMoveFolderTree(folderTreeEl);
+        });
+        return;
+    }
+    
+    buildMoveFolderTree(folderTreeEl);
+}
+
+function buildMoveFolderTree(container) {
+    container.innerHTML = '';
+    
+    const ul = document.createElement('ul');
+    ul.style.listStyle = 'none';
+    ul.style.padding = '0';
+    ul.style.margin = '0';
+    
+    // 添加根目录
+    const rootLi = document.createElement('li');
+    const rootItem = createMoveFolderItem('主目录', '/music', true);
+    rootLi.appendChild(rootItem);
+    
+    // 如果有子文件夹，嵌套添加
+    if (folderCacheData && folderCacheData.folders && folderCacheData.folders.length > 0) {
+        const subUl = document.createElement('ul');
+        subUl.style.listStyle = 'none';
+        subUl.style.paddingLeft = '20px';
+        subUl.style.margin = '0';
+        addMoveSubfolders(subUl, folderCacheData.folders, '/music');
+        rootLi.appendChild(subUl);
+    }
+    
+    ul.appendChild(rootLi);
+    container.appendChild(ul);
+}
+
+function createMoveFolderItem(name, path, isRoot = false) {
+    const li = document.createElement('li');
+    
+    const item = document.createElement('div');
+    item.className = 'folder-item';
+    item.dataset.path = path;
+    item.style.cssText = 'padding: 6px 10px; cursor: pointer; border-radius: 4px; display: flex; align-items: center; gap: 8px; transition: background 0.2s;';
+    
+    item.innerHTML = `
+        <i class="fas fa-folder" style="color: #8b5cf6;"></i>
+        <span>${isRoot ? '主目录' : name}</span>
+    `;
+    
+    item.addEventListener('click', () => {
+        selectMoveFolderTarget(path, item);
     });
+    
+    item.addEventListener('mouseenter', () => {
+        if (!item.classList.contains('selected')) {
+            item.style.background = 'var(--bg-tertiary, #f3f4f6)';
+        }
+    });
+    
+    item.addEventListener('mouseleave', () => {
+        if (!item.classList.contains('selected')) {
+            item.style.background = 'transparent';
+        }
+    });
+    
+    li.appendChild(item);
+    return li;
+}
+
+function addMoveSubfolders(parent, folders, parentPath) {
+    if (!folders || !Array.isArray(folders)) return;
+    
+    folders.forEach(folder => {
+        const childPath = parentPath === '/' ? `/${folder.name}` : `${parentPath}/${folder.name}`;
+        const li = createMoveFolderItem(folder.name, childPath);
+        parent.appendChild(li);
+        
+        // 如果有子文件夹，递归添加
+        if (folder.folders && folder.folders.length > 0) {
+            const subUl = document.createElement('ul');
+            subUl.style.listStyle = 'none';
+            subUl.style.paddingLeft = '20px';
+            subUl.style.margin = '0';
+            addMoveSubfolders(subUl, folder.folders, childPath);
+            li.appendChild(subUl);
+        }
+    });
+}
+
+function selectMoveFolderTarget(path, element) {
+    // 移除之前选中的样式
+    document.querySelectorAll('#moveFolderTree .folder-item.selected').forEach(el => {
+        el.classList.remove('selected');
+        el.style.background = 'transparent';
+        el.style.fontWeight = 'normal';
+    });
+    
+    // 添加选中样式
+    element.classList.add('selected');
+    element.style.background = 'var(--primary-color, #3b82f6)';
+    element.style.color = 'white';
+    element.style.fontWeight = '500';
+    
+    // 更新输入框
+    const targetInput = document.getElementById('moveFolderTargetInput');
+    targetInput.value = path;
+    
+    // 启用确认按钮
+    const btnConfirm = document.getElementById('btnConfirmMoveFolder');
+    btnConfirm.disabled = false;
 }
 
 function closeMoveFolderModal() {
@@ -10461,9 +10590,15 @@ document.addEventListener('DOMContentLoaded', function() {
         btnConfirmMoveFolder.addEventListener('click', async function() {
             const folderPath = document.getElementById('moveFolderPath').value;
             const targetFolder = document.getElementById('moveFolderTargetInput').value.trim();
+            const newFolderName = document.getElementById('moveFolderNewFolderInput').value.trim();
             
-            if (!folderPath || !targetFolder) {
-                showError('请填写完整信息');
+            if (!folderPath) {
+                showError('文件夹路径无效');
+                return;
+            }
+            
+            if (!targetFolder && !newFolderName) {
+                showError('请选择目标文件夹或输入新文件夹名称');
                 return;
             }
             
@@ -10471,7 +10606,26 @@ document.addEventListener('DOMContentLoaded', function() {
             btnConfirmMoveFolder.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 移动中...';
             
             try {
-                const result = await apiRequest('/api/move-folder', 'POST', { folderPath, targetFolder });
+                let finalTargetFolder = targetFolder;
+                
+                // 如果输入了新文件夹名称，需要在目标路径下创建新文件夹
+                if (newFolderName) {
+                    // 检查非法字符
+                    const invalidChars = /[\\/:*?"<>|]/;
+                    if (invalidChars.test(newFolderName)) {
+                        showError('文件夹名称包含非法字符：\\ / : * ? " < > |');
+                        btnConfirmMoveFolder.disabled = false;
+                        btnConfirmMoveFolder.innerHTML = '<i class="fas fa-arrows-alt"></i> 确认移动';
+                        return;
+                    }
+                    
+                    // 如果选择了目标文件夹，在其下创建新文件夹
+                    // 如果没选择，则在根目录下创建
+                    const baseFolder = targetFolder || '/music';
+                    finalTargetFolder = `${baseFolder}/${newFolderName}`;
+                }
+                
+                const result = await apiRequest('/api/move-folder', 'POST', { folderPath, targetFolder: finalTargetFolder });
                 
                 if (result.success) {
                     showSuccess(result.message);

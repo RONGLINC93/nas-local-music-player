@@ -4452,6 +4452,23 @@ app.post('/api/rename-folder', requireAuth, async (req, res) => {
     }
 });
 
+// 递归复制目录
+function copyDirRecursive(src, dest) {
+    if (!fs.existsSync(dest)) {
+        fs.mkdirSync(dest, { recursive: true });
+    }
+    const entries = fs.readdirSync(src, { withFileTypes: true });
+    for (const entry of entries) {
+        const srcPath = path.join(src, entry.name);
+        const destPath = path.join(dest, entry.name);
+        if (entry.isDirectory()) {
+            copyDirRecursive(srcPath, destPath);
+        } else {
+            fs.copyFileSync(srcPath, destPath);
+        }
+    }
+}
+
 // 移动文件夹
 app.post('/api/move-folder', requireAuth, async (req, res) => {
     try {
@@ -4494,8 +4511,17 @@ app.post('/api/move-folder', requireAuth, async (req, res) => {
             return res.status(400).json({ success: false, error: '目标位置已存在同名文件夹' });
         }
         
-        // 移动文件夹
-        fs.renameSync(oldFullPath, newFullPath);
+        // 移动文件夹（rename 在 Windows 上跨卷或文件被占用时会 EPERM，用递归复制+删除兜底）
+        try {
+            fs.renameSync(oldFullPath, newFullPath);
+        } catch (renameErr) {
+            if (renameErr.code === 'EPERM' || renameErr.code === 'EXDEV') {
+                copyDirRecursive(oldFullPath, newFullPath);
+                fs.rmSync(oldFullPath, { recursive: true, force: true });
+            } else {
+                throw renameErr;
+            }
+        }
         console.log(`📁 移动文件夹: ${oldFullPath} -> ${newFullPath}`);
         
         // 更新播放列表中文件的路径

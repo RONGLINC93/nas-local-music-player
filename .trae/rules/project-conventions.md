@@ -36,8 +36,8 @@
 - 当用户说"更新日志"时，按上述规则处理
 
 ## 项目信息
-- 当前版本：1.2.5
-- 已发布版本：1.2.4
+- 当前版本：1.2.6
+- 已发布版本：1.2.5
 - GitHub仓库：https://github.com/RONGLINC93/nas-local-music-player
 
 ## 经验教训
@@ -49,7 +49,7 @@
 - songInfo 字段标准化：需要将 meta 字段提升到顶层，并映射各平台特有字段
 
 ## 发布流程详解
-1. **版本递增**: 解析 version.json、package-lock.json、package.json、PROJECT_MEMORY.md（已发布版本号、当前版本号），将最后一位版本号 +1
+1. **版本递增**: 解析 version.json、package-lock.json、package.json、project-conventions.md（已发布版本号、当前版本号），将最后一位版本号 +1
 2. **代码提交**: 自动 git add → git commit → git push
 3. **创建Tag**: git tag -a v{版本号} → git push origin {tag}
 4. **读取日志**: 从 CHANGELOG.md 提取 ## [版本号] 对应的内容

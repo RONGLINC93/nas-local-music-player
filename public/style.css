@@ -7130,7 +7130,7 @@ font-size: 72px;
 
 /* 批量转换样式 */
 .batch-convert-info {
-    background: #f8fafc;
+    background: var(--bg-active, #ffffff);
     border-radius: 12px;
     padding: 16px;
     margin-bottom: 20px;
@@ -7142,7 +7142,7 @@ font-size: 72px;
     gap: 10px;
     padding: 8px 0;
     font-size: 14px;
-    color: #333;
+    color: var(--text-secondary, #333);
 }
 
 .batch-convert-info .info-item i {
@@ -14608,10 +14608,54 @@ body.dark-theme .history-song-item.active {
 body.dark-theme .playlist-panel {
     background: var(--bg-card, #1f2937);
     border-color: var(--border-color, #374151);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
 body.dark-theme .playlist-panel-header {
     border-bottom-color: var(--border-color, #374151);
+}
+
+body.dark-theme .playlist-panel-empty {
+    color: var(--text-tertiary, #6b7280);
+}
+
+body.dark-theme .playlist-panel-item {
+    border-bottom-color: var(--border-color, #374151);
+    background: transparent;
+}
+
+body.dark-theme .playlist-panel-item:hover {
+    background: var(--bg-hover, #374151);
+}
+
+body.dark-theme .playlist-panel-item.active {
+    background: linear-gradient(90deg, rgba(96, 165, 250, 0.15) 0%, transparent 100%);
+}
+
+body.dark-theme .playlist-panel-item.active .playlist-panel-item-title {
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .playlist-panel-item-index {
+    background: var(--bg-tertiary, #374151);
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .playlist-panel-item.active .playlist-panel-item-index {
+    background: rgba(96, 165, 250, 0.2);
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .playlist-panel-item-title {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .playlist-panel-item-artist {
+    color: var(--text-secondary, #9ca3af);
+}
+
+body.dark-theme .playlist-panel-item-duration {
+    color: var(--text-tertiary, #6b7280);
 }
 
 body.dark-theme .full-player-progress-fill {

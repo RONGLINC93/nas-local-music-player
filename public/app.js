@@ -10440,9 +10440,9 @@ async function moveFolder(folderPath, folderName) {
     
     pathInput.value = folderPath;
     nameDisplay.textContent = folderName;
-    targetInput.value = '';
+    targetInput.value = '/';
     newFolderInput.value = '';
-    btnConfirm.disabled = true;
+    btnConfirm.disabled = false;
     
     modal.classList.add('show');
     document.body.style.overflow = 'hidden';
@@ -10571,9 +10571,17 @@ function selectMoveFolderTarget(path, element) {
     element.style.color = 'white';
     element.style.fontWeight = '500';
     
-    // 更新输入框
+    // 更新输入框（去掉 /music 前缀，显示相对路径）
     const targetInput = document.getElementById('moveFolderTargetInput');
-    targetInput.value = path;
+    if (targetInput) {
+        let displayPath = path;
+        if (displayPath === '/music') {
+            displayPath = '/';
+        } else if (displayPath.startsWith('/music/')) {
+            displayPath = displayPath.substring('/music'.length);
+        }
+        targetInput.value = displayPath;
+    }
     
     // 启用确认按钮
     const btnConfirm = document.getElementById('btnConfirmMoveFolder');
@@ -10584,6 +10592,12 @@ function closeMoveFolderModal() {
     const modal = document.getElementById('moveFolderModal');
     modal.classList.remove('show');
     document.body.style.overflow = '';
+    
+    // 清空输入框
+    const targetInput = document.getElementById('moveFolderTargetInput');
+    const newFolderInput = document.getElementById('moveFolderNewFolderInput');
+    if (targetInput) targetInput.value = '';
+    if (newFolderInput) newFolderInput.value = '';
 }
 
 // 确认移动文件夹
@@ -10592,12 +10606,30 @@ document.addEventListener('DOMContentLoaded', function() {
     if (btnConfirmMoveFolder) {
         btnConfirmMoveFolder.addEventListener('click', async function() {
             const folderPath = document.getElementById('moveFolderPath').value;
-            const targetFolder = document.getElementById('moveFolderTargetInput').value.trim();
+            let targetFolder = document.getElementById('moveFolderTargetInput').value.trim();
             const newFolderName = document.getElementById('moveFolderNewFolderInput').value.trim();
             
             if (!folderPath) {
                 showError('文件夹路径无效');
                 return;
+            }
+            
+            // 自动补全路径：确保以 /music 开头
+            if (targetFolder) {
+                if (targetFolder === '/' || targetFolder === '') {
+                    targetFolder = '/music';
+                } else if (!targetFolder.startsWith('/music')) {
+                    // 如果不是以 /music 开头，自动加上
+                    if (targetFolder.startsWith('/')) {
+                        targetFolder = '/music' + targetFolder;
+                    } else {
+                        targetFolder = '/music/' + targetFolder;
+                    }
+                }
+                // 规范化：移除末尾的斜杠
+                if (targetFolder.length > 6 && targetFolder.endsWith('/')) {
+                    targetFolder = targetFolder.slice(0, -1);
+                }
             }
             
             if (!targetFolder && !newFolderName) {
@@ -11024,13 +11056,34 @@ async function openMoveModal() {
     }
     const modal = document.getElementById('moveModal');
     const btnConfirm = document.getElementById('btnConfirmMove');
-    btnConfirm.disabled = true;
+    const targetInput = document.getElementById('moveTargetInput');
+    const newFolderInput = document.getElementById('newFolderInMoveInput');
+    
+    btnConfirm.disabled = false;
+    selectedMoveTarget = null;
+    
+    if (targetInput) targetInput.value = '/';
+    if (newFolderInput) newFolderInput.value = '';
     
     // 渲染待移动文件列表
     renderMoveFileList();
     
     // 加载并渲染文件夹树
     renderFolderTree();
+    
+    // 检查确认按钮状态
+    const checkMoveBtnState = function() {
+        const hasTarget = selectedMoveTarget || (targetInput && targetInput.value.trim());
+        const hasNewFolder = newFolderInput && newFolderInput.value.trim();
+        btnConfirm.disabled = !(hasTarget || hasNewFolder);
+    };
+    
+    if (targetInput) {
+        targetInput.addEventListener('input', checkMoveBtnState);
+    }
+    if (newFolderInput) {
+        newFolderInput.addEventListener('input', checkMoveBtnState);
+    }
     
     modal.classList.add('show');
     document.body.style.overflow = 'hidden';
@@ -11073,6 +11126,12 @@ function closeMoveModal() {
     const newFolderInput = document.getElementById('newFolderInMoveInput');
     if (newFolderInput) {
         newFolderInput.value = '';
+    }
+    
+    // 清空手动路径输入框
+    const targetInput = document.getElementById('moveTargetInput');
+    if (targetInput) {
+        targetInput.value = '';
     }
     
     // 清空文件列表显示
@@ -11170,6 +11229,18 @@ function selectMoveTarget(path, element) {
     element.classList.add('selected');
     selectedMoveTarget = path;
     
+    // 同步到手动输入框（去掉 /music 前缀，显示相对路径）
+    const targetInput = document.getElementById('moveTargetInput');
+    if (targetInput) {
+        let displayPath = path;
+        if (displayPath === '/music') {
+            displayPath = '/';
+        } else if (displayPath.startsWith('/music/')) {
+            displayPath = displayPath.substring('/music'.length);
+        }
+        targetInput.value = displayPath;
+    }
+    
     // 启用确认按钮
     const btnConfirm = document.getElementById('btnConfirmMove');
     btnConfirm.disabled = false;
@@ -11180,11 +11251,34 @@ async function confirmMoveFiles() {
     if (selectedMusicFiles.size === 0) return;
     if (btnConfirm && btnConfirm.disabled) return;
     
+    // 检查手动输入的路径
+    const targetInput = document.getElementById('moveTargetInput');
+    let manualTargetPath = targetInput ? targetInput.value.trim() : '';
+    
+    // 自动补全路径：确保以 /music 开头
+    if (manualTargetPath) {
+        if (manualTargetPath === '/' || manualTargetPath === '') {
+            manualTargetPath = '/music';
+        } else if (!manualTargetPath.startsWith('/music')) {
+            // 如果不是以 /music 开头，自动加上
+            if (manualTargetPath.startsWith('/')) {
+                manualTargetPath = '/music' + manualTargetPath;
+            } else {
+                manualTargetPath = '/music/' + manualTargetPath;
+            }
+        }
+        // 规范化：移除末尾的斜杠
+        if (manualTargetPath.length > 6 && manualTargetPath.endsWith('/')) {
+            manualTargetPath = manualTargetPath.slice(0, -1);
+        }
+    }
+    
     // 检查是否有输入新文件夹名称
     const newFolderInput = document.getElementById('newFolderInMoveInput');
     const newFolderName = newFolderInput ? newFolderInput.value.trim() : '';
     
-    let targetFolder = selectedMoveTarget;
+    // 优先使用手动输入的路径，其次使用选择的文件夹
+    let targetFolder = manualTargetPath || selectedMoveTarget;
     
     // 如果输入了新文件夹名称，先创建文件夹
     if (newFolderName) {
@@ -11196,7 +11290,7 @@ async function confirmMoveFiles() {
         }
         
         // 确定父文件夹路径
-        const parentPath = selectedMoveTarget || '/music';
+        const parentPath = targetFolder || '/music';
         
         try {
             const createResponse = await fetch('/api/create-folder', {
@@ -11253,7 +11347,7 @@ async function confirmMoveFiles() {
     }
     
     if (!targetFolder) {
-        showError('请选择目标文件夹或输入新文件夹名称');
+        showError('请选择目标文件夹、输入路径或输入新文件夹名称');
         return;
     }
     
@@ -12860,13 +12954,30 @@ let selectedSaveFolder = null;
 function showSaveFolderModal() {
     const modal = document.getElementById('saveFolderModal');
     const btnConfirm = document.getElementById('btnConfirmSaveFolder');
-    if (btnConfirm) btnConfirm.disabled = true;
+    const targetInput = document.getElementById('saveFolderTargetInput');
+    const newFolderInput = document.getElementById('newFolderInSaveInput');
+    
+    if (btnConfirm) btnConfirm.disabled = false;
     selectedSaveFolder = null;
     
-    const newFolderInput = document.getElementById('newFolderInSaveInput');
+    if (targetInput) targetInput.value = '/';
     if (newFolderInput) newFolderInput.value = '';
     
     renderSaveFolderTree();
+    
+    // 检查确认按钮状态
+    const checkSaveBtnState = function() {
+        const hasTarget = selectedSaveFolder || (targetInput && targetInput.value.trim());
+        const hasNewFolder = newFolderInput && newFolderInput.value.trim();
+        if (btnConfirm) btnConfirm.disabled = !(hasTarget || hasNewFolder);
+    };
+    
+    if (targetInput) {
+        targetInput.addEventListener('input', checkSaveBtnState);
+    }
+    if (newFolderInput) {
+        newFolderInput.addEventListener('input', checkSaveBtnState);
+    }
     
     modal.classList.add('show');
     document.body.style.overflow = 'hidden';
@@ -12877,6 +12988,18 @@ function closeSaveFolderModal() {
     modal.classList.remove('show');
     document.body.style.overflow = '';
     selectedSaveFolder = null;
+    
+    // 清空手动路径输入框
+    const targetInput = document.getElementById('saveFolderTargetInput');
+    if (targetInput) {
+        targetInput.value = '';
+    }
+    
+    // 清空新建文件夹输入框
+    const newFolderInput = document.getElementById('newFolderInSaveInput');
+    if (newFolderInput) {
+        newFolderInput.value = '';
+    }
 }
 
 function renderSaveFolderTree() {
@@ -12963,6 +13086,18 @@ function selectSaveFolder(path, element) {
     element.classList.add('selected');
     selectedSaveFolder = path;
     
+    // 同步到手动输入框（去掉 /music 前缀，显示相对路径）
+    const targetInput = document.getElementById('saveFolderTargetInput');
+    if (targetInput) {
+        let displayPath = path;
+        if (displayPath === '/music') {
+            displayPath = '/';
+        } else if (displayPath.startsWith('/music/')) {
+            displayPath = displayPath.substring('/music'.length);
+        }
+        targetInput.value = displayPath;
+    }
+    
     const btnConfirm = document.getElementById('btnConfirmSaveFolder');
     if (btnConfirm) btnConfirm.disabled = false;
 }
@@ -12971,11 +13106,38 @@ async function confirmSaveFolder() {
     const btnConfirm = document.getElementById('btnConfirmSaveFolder');
     if (btnConfirm && btnConfirm.disabled) return;
     
-    let targetFolder = selectedSaveFolder || '/music';
+    // 检查手动输入的路径
+    const targetInput = document.getElementById('saveFolderTargetInput');
+    let manualTargetPath = targetInput ? targetInput.value.trim() : '';
+    
+    // 自动补全路径：确保以 /music 开头
+    if (manualTargetPath) {
+        if (manualTargetPath === '/' || manualTargetPath === '') {
+            manualTargetPath = '/music';
+        } else if (!manualTargetPath.startsWith('/music')) {
+            if (manualTargetPath.startsWith('/')) {
+                manualTargetPath = '/music' + manualTargetPath;
+            } else {
+                manualTargetPath = '/music/' + manualTargetPath;
+            }
+        }
+        if (manualTargetPath.length > 6 && manualTargetPath.endsWith('/')) {
+            manualTargetPath = manualTargetPath.slice(0, -1);
+        }
+    }
+    
+    // 优先使用手动输入的路径，其次使用选择的文件夹
+    let targetFolder = manualTargetPath || selectedSaveFolder || '/music';
     
     const newFolderInput = document.getElementById('newFolderInSaveInput');
     const newFolderName = newFolderInput ? newFolderInput.value.trim() : '';
     if (newFolderName) {
+        // 检查非法字符
+        const invalidChars = /[\\/:*?"<>|]/;
+        if (invalidChars.test(newFolderName)) {
+            showError('文件夹名称包含非法字符');
+            return;
+        }
         targetFolder = targetFolder === '/music' ? `/music/${newFolderName}` : `${targetFolder}/${newFolderName}`;
     }
     

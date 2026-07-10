@@ -108,14 +108,42 @@ body {
 .logo {
     padding: 0 20px 20px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .logo h1 {
+    flex: 1;
     font-size: 20px;
     font-weight: 600;
     display: flex;
     align-items: center;
     gap: 12px;
+}
+
+#themeToggleBtn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    transition: all 0.3s;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+#themeToggleBtn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+#themeToggleBtn i {
+    font-size: 16px;
 }
 
 .logo-icon {
@@ -4762,7 +4790,7 @@ font-size: 72px;
     display: flex;
     flex-direction: column;
     gap: 12px;
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid var(--border-color, #e5e7eb);
 }
 
 .device-list {
@@ -10051,8 +10079,8 @@ font-size: 72px;
     display: flex;
     flex-direction: column;
     gap: 12px;
-    border-top: 1px solid #e5e7eb;
-    border-bottom: 1px solid #e5e7eb;
+    border-top: 1px solid var(--border-color, #e5e7eb);
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
 }
 
 .source-file-item {
@@ -12164,58 +12192,58 @@ body.dark-theme .playlist-header {
 
 /* 在线音乐列表深色模式 */
 body.dark-theme .online-music-item {
-    background: #1f2937;
-    border-color: #374151;
+    background: #1f2937 !important;
+    border-color: #374151 !important;
 }
 
 body.dark-theme .online-music-item:hover {
-    background: #374151;
-    border-color: #4b5563;
+    background: #374151 !important;
+    border-color: #4b5563 !important;
 }
 
 body.dark-theme .online-music-item.active {
-    background: linear-gradient(90deg, rgba(96, 165, 250, 0.15) 0%, rgba(59, 130, 246, 0.08) 100%);
-    border-color: var(--primary-color, #60a5fa);
+    background: linear-gradient(90deg, rgba(96, 165, 250, 0.15) 0%, rgba(59, 130, 246, 0.08) 100%) !important;
+    border-color: var(--primary-color, #60a5fa) !important;
 }
 
 body.dark-theme .online-music-index {
-    background: #374151;
-    color: #d1d5db;
+    background: #374151 !important;
+    color: #d1d5db !important;
 }
 
 body.dark-theme .online-music-cover {
-    background-color: #374151;
+    background-color: #374151 !important;
 }
 
 body.dark-theme .online-music-title {
-    color: var(--text-primary, #f9fafb);
+    color: var(--text-primary, #f9fafb) !important;
 }
 
 body.dark-theme .online-music-artist {
-    color: var(--text-secondary, #d1d5db);
+    color: var(--text-secondary, #d1d5db) !important;
 }
 
 body.dark-theme .online-music-album {
-    color: var(--text-tertiary, #9ca3af);
+    color: var(--text-tertiary, #9ca3af) !important;
 }
 
 body.dark-theme .online-music-duration {
-    color: var(--text-secondary, #9ca3af);
+    color: var(--text-secondary, #9ca3af) !important;
 }
 
 body.dark-theme .online-music-add-btn,
 body.dark-theme .online-music-download-btn,
 body.dark-theme .online-music-play-btn,
 body.dark-theme .online-music-add-songlist-btn {
-    color: #9ca3af;
+    color: #9ca3af !important;
 }
 
 body.dark-theme .online-music-add-btn:hover,
 body.dark-theme .online-music-download-btn:hover,
 body.dark-theme .online-music-play-btn:hover,
 body.dark-theme .online-music-add-songlist-btn:hover {
-    background: #4b5563;
-    color: var(--text-primary, #f9fafb);
+    background: #4b5563 !important;
+    color: var(--text-primary, #f9fafb) !important;
 }
 
 /* 排行榜歌曲项深色模式 */
@@ -12328,6 +12356,46 @@ body.dark-theme .history-song-duration {
 
 body.dark-theme .history-song-time {
     color: var(--text-tertiary, #9ca3af);
+}
+
+/* 在线音乐排行榜项深色模式 */
+body.dark-theme .online-item {
+    background: #1f2937 !important;
+    border-color: #374151 !important;
+}
+
+body.dark-theme .online-item:hover {
+    background: #374151 !important;
+    border-color: #4b5563 !important;
+}
+
+body.dark-theme .online-item.active {
+    background: linear-gradient(90deg, rgba(96, 165, 250, 0.15) 0%, rgba(59, 130, 246, 0.08) 100%) !important;
+    border-color: var(--primary-color, #60a5fa) !important;
+}
+
+body.dark-theme .online-item-pic {
+    background-color: #374151 !important;
+}
+
+body.dark-theme .online-item-title {
+    color: var(--text-primary, #f9fafb) !important;
+}
+
+body.dark-theme .online-item-artist {
+    color: var(--text-secondary, #9ca3af) !important;
+}
+
+body.dark-theme .online-item-album {
+    color: var(--text-tertiary, #6b7280) !important;
+}
+
+body.dark-theme .online-item-interval {
+    color: var(--text-tertiary, #9ca3af) !important;
+}
+
+body.dark-theme .online-item-title-row {
+    border-bottom-color: #374151;
 }
 
 /* 排行榜徽章深色模式 */
@@ -13035,7 +13103,7 @@ body.dark-theme .folder-music-duration {
 }
 
 body.dark-theme .folder-search-box {
-    background: #1f2937;
+    background: #374151;
     border-color: #374151;
 }
 
@@ -13728,6 +13796,761 @@ body.dark-theme .stats-container .section-header h2 {
     color: var(--text-primary, #f9fafb);
 }
 
+body.dark-theme .playlist-section {
+    background: var(--bg-card, #1f2937);
+}
+
+body.dark-theme .playlist-batch-bar {
+    background: var(--bg-tertiary, #374151);
+    border-color: var(--border-color, #4b5563);
+}
+
+body.dark-theme .playlist-item {
+    background: var(--bg-card, #1f2937);
+    border-color: var(--border-color, #374151);
+}
+
+body.dark-theme .playlist-item:hover {
+    background: var(--bg-hover, #374151);
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .playlist-item.active {
+    background: linear-gradient(90deg, rgba(96, 165, 250, 0.15) 0%, rgba(59, 130, 246, 0.15) 100%);
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .playlist-item.selected {
+    background: linear-gradient(90deg, rgba(14, 165, 233, 0.1) 0%, rgba(2, 132, 199, 0.1) 100%);
+    border-color: #0ea5e9;
+}
+
+body.dark-theme .playlist-context-menu {
+    background: var(--bg-card, #1f2937);
+}
+
+body.dark-theme .playlist-menu-item {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .playlist-menu-item:hover {
+    background: var(--bg-hover, #374151);
+}
+
+body.dark-theme .playlist-menu-item i {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .playlist-menu-item-danger {
+    color: var(--danger-color, #f87171);
+}
+
+body.dark-theme .playlist-menu-item-danger i {
+    color: var(--danger-color, #f87171);
+}
+
+body.dark-theme .playlist-menu-item-danger:hover {
+    background: rgba(248, 113, 113, 0.1);
+}
+
+body.dark-theme .context-menu-item {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .context-menu-item:hover {
+    background: var(--bg-hover, #374151);
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .context-menu-item i {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .context-menu-item:hover i {
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .context-menu-item-danger {
+    color: var(--danger-color, #f87171);
+}
+
+body.dark-theme .context-menu-item-danger i {
+    color: var(--danger-color, #f87171);
+}
+
+body.dark-theme .context-menu-item-danger:hover {
+    background: rgba(248, 113, 113, 0.1);
+}
+
+body.dark-theme .modal-body .form-control {
+    background: var(--bg-tertiary, #374151);
+    border-color: var(--border-color, #4b5563);
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .modal-body .form-control:focus {
+    background: var(--bg-tertiary, #374151);
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .sleep-timer-menu {
+    background: var(--bg-card, #1f2937);
+    border-color: var(--border-color, #374151);
+}
+
+body.dark-theme .sleep-timer-option {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .sleep-timer-option:hover {
+    background: var(--bg-hover, #374151);
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .sleep-timer-option.active {
+    background: var(--primary-light, #1e3a5f);
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .playlist-item-title {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .playlist-item-artist {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .playlist-item-duration {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .about-content .features li {
+    background: var(--bg-card, #1f2937);
+    border-color: var(--border-color, #374151);
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .about-content .features li:hover {
+    background: rgba(96, 165, 250, 0.1);
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .about-content .guide-section li {
+    background: var(--bg-card, #1f2937);
+    border-color: var(--border-color, #374151);
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .about-content .guide-section li:hover {
+    background: rgba(96, 165, 250, 0.1);
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .about-content .guide-section li strong {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .about-content .principle-section li {
+    background: var(--bg-card, #1f2937);
+    border-color: var(--border-color, #374151);
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .about-content .principle-section li:hover {
+    background: rgba(167, 139, 250, 0.1);
+    border-color: #a78bfa;
+}
+
+body.dark-theme .about-content .principle-section li strong {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .about-content .flow-diagram {
+    background: var(--bg-card, #1f2937);
+    border-color: var(--border-color, #374151);
+}
+
+body.dark-theme .about-content .step-content strong {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .about-content .platform-table {
+    background: var(--bg-card, #1f2937);
+    border-color: var(--border-color, #374151);
+}
+
+body.dark-theme .about-content .platform-table th {
+    color: var(--text-primary, #f9fafb);
+    border-bottom-color: var(--border-color, #374151);
+}
+
+body.dark-theme .about-content .platform-table td {
+    color: var(--text-secondary, #d1d5db);
+    border-bottom-color: var(--border-light, #1f2937);
+}
+
+body.dark-theme .about-content .platform-table tbody tr:hover {
+    background: rgba(167, 139, 250, 0.1);
+}
+
+body.dark-theme .about-content .tech-table {
+    background: var(--bg-card, #1f2937);
+    border-color: var(--border-color, #374151);
+}
+
+body.dark-theme .about-content .tech-table td {
+    border-bottom-color: var(--border-light, #1f2937);
+}
+
+body.dark-theme .about-content .tech-table td:first-child {
+    color: var(--text-primary, #f9fafb);
+    background: rgba(96, 165, 250, 0.1);
+}
+
+body.dark-theme .about-content .tech-table td:last-child {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .about-content .tech-table tbody tr:hover {
+    background: rgba(96, 165, 250, 0.05);
+}
+
+body.dark-theme .about-content .faq-item {
+    background: var(--bg-card, #1f2937);
+    border-color: var(--border-color, #374151);
+}
+
+body.dark-theme .about-content .faq-item:hover {
+    border-color: var(--warning-color, #fbbf24);
+}
+
+body.dark-theme .about-content .faq-item p {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .about-content .faq-item li {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .about-content .faq-toc a {
+    background: var(--bg-tertiary, #374151);
+    border-color: var(--border-color, #4b5563);
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .about-content .faq-toc a:hover {
+    background: var(--primary-color, #60a5fa);
+    color: white;
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .batch-download-float-card {
+    background: var(--bg-card, #1f2937);
+    border-color: var(--border-color, #374151);
+}
+
+body.dark-theme .batch-download-float-file {
+    border-bottom-color: var(--border-color, #374151);
+}
+
+body.dark-theme .batch-download-float-file-name {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .batch-download-float-file-size {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .batch-download-float-progress-bar {
+    background: var(--bg-tertiary, #374151);
+}
+
+body.dark-theme .batch-download-float-footer {
+    border-top-color: var(--border-color, #374151);
+}
+
+body.dark-theme .batch-download-float-footer span {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .about-content .disclaimer-content {
+    background: var(--bg-card, #1f2937);
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+body.dark-theme .about-content .disclaimer-content p {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .about-content .disclaimer-content p strong {
+    color: var(--danger-color, #f87171);
+}
+
+body.dark-theme .about-content .lx-info {
+    background: var(--bg-card, #1f2937);
+    border-color: rgba(139, 92, 246, 0.2);
+}
+
+body.dark-theme .about-content .lx-info p {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .about-content .lx-info li {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .about-content .api-group {
+    background: var(--bg-card, #1f2937);
+    border-color: rgba(59, 130, 246, 0.2);
+}
+
+body.dark-theme .about-content .api-list li {
+    color: var(--text-secondary, #d1d5db);
+    background: rgba(96, 165, 250, 0.1);
+}
+
+body.dark-theme .edit-metadata-form .form-group input:focus,
+body.dark-theme .edit-metadata-form .form-group textarea:focus {
+    background: var(--bg-tertiary, #374151);
+}
+
+body.dark-theme .edit-metadata-form .form-group input[readonly] {
+    background: var(--bg-tertiary, #374151);
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .parse-format-select {
+    background: var(--bg-tertiary, #374151);
+    border-color: var(--border-color, #4b5563);
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .dissolve-folder-info {
+    background: rgba(251, 191, 36, 0.1);
+}
+
+body.dark-theme .dissolve-folder-info .folder-name-display {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .dissolve-warning {
+    background: rgba(251, 191, 36, 0.15);
+    color: var(--warning-color, #fbbf24);
+}
+
+body.dark-theme .move-folder-info {
+    background: rgba(167, 139, 250, 0.1);
+}
+
+body.dark-theme .background-convert-panel {
+    background: var(--bg-card, #1f2937);
+}
+
+body.dark-theme .background-convert-panel .panel-header {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .background-convert-panel .queue-info {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .background-convert-panel .convert-item {
+    border-bottom-color: var(--border-color, #374151);
+}
+
+body.dark-theme .background-convert-panel .convert-item-name {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .background-convert-panel .convert-item-progress {
+    background: var(--bg-tertiary, #374151);
+}
+
+body.dark-theme .background-convert-panel .convert-item-percent {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .stat-item {
+    background: var(--bg-card, #1f2937);
+}
+
+body.dark-theme .stat-value {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .stat-label {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .task-list-section {
+    background: var(--bg-card, #1f2937);
+}
+
+body.dark-theme .task-list-section .section-header {
+    border-bottom-color: var(--border-color, #374151);
+}
+
+body.dark-theme .task-list-section .section-header h2 {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .filter-btn {
+    background: var(--bg-tertiary, #374151);
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .filter-btn.active,
+body.dark-theme .filter-btn:hover {
+    background: var(--primary-color, #60a5fa);
+    color: white;
+}
+
+body.dark-theme .faq-view .faq-toc {
+    background: var(--bg-card, #1f2937);
+    border-color: var(--border-color, #374151);
+}
+
+body.dark-theme .faq-view .faq-toc a {
+    background: var(--bg-tertiary, #374151);
+    border-color: var(--border-color, #4b5563);
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .faq-view .faq-toc a:hover {
+    background: var(--primary-color, #60a5fa);
+    color: white;
+}
+
+body.dark-theme .faq-view .faq-item {
+    background: var(--bg-card, #1f2937);
+    border-color: var(--border-color, #374151);
+}
+
+body.dark-theme .faq-view .faq-item:hover {
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .faq-view .faq-item h5 {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .faq-view .faq-item p {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .faq-view .faq-item ul li {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .folder-pagination {
+    background: var(--bg-card, #1f2937);
+    border-top-color: var(--border-color, #374151);
+}
+
+body.dark-theme .pagination-info {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .pagination-btn {
+    background: var(--bg-tertiary, #374151);
+    border-color: var(--border-color, #4b5563);
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .pagination-btn:hover:not(.disabled) {
+    background: var(--bg-active, #4b5563);
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .pagination-btn.active {
+    background: var(--primary-color, #60a5fa);
+    border-color: var(--primary-color, #60a5fa);
+    color: white;
+}
+
+body.dark-theme .pagination-btn.disabled {
+    background: var(--bg-tertiary, #374151);
+    border-color: var(--border-color, #4b5563);
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .pagination-size-select {
+    background: var(--bg-tertiary, #374151);
+    border-color: var(--border-color, #4b5563);
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .songlist-select {
+    background: var(--bg-tertiary, #374151);
+    border-color: var(--border-color, #4b5563);
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .songlist-search-btn,
+body.dark-theme .songlist-refresh-btn {
+    background: var(--bg-tertiary, #374151);
+    border-color: var(--border-color, #4b5563);
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .songlist-search-btn:hover,
+body.dark-theme .songlist-refresh-btn:hover {
+    border-color: var(--primary-color, #60a5fa);
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .songlist-card {
+    background: var(--bg-card, #1f2937);
+}
+
+body.dark-theme .songlist-back-btn {
+    background: var(--bg-tertiary, #374151);
+    border-color: var(--border-color, #4b5563);
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .songlist-back-btn:hover {
+    border-color: var(--primary-color, #60a5fa);
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .songlist-card-info h3 {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .songlist-card-info p {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .online-tab.active {
+    background-color: var(--bg-card, #1f2937);
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .rank-source-select,
+body.dark-theme .rank-type-select {
+    background: var(--bg-tertiary, #374151);
+    border-color: var(--border-color, #4b5563);
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .online-source-select {
+    background: var(--bg-tertiary, #374151);
+    border-color: var(--border-color, #4b5563);
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .online-search-input {
+    background: var(--bg-tertiary, #374151);
+    border-color: var(--border-color, #4b5563);
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .online-pagination-btn {
+    background: var(--bg-tertiary, #374151);
+    border-color: var(--border-color, #4b5563);
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .online-pagination-btn:hover:not(:disabled) {
+    background: var(--primary-color, #60a5fa);
+    color: white;
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .online-source-header {
+    color: var(--text-primary, #f9fafb);
+    border-bottom-color: var(--border-color, #374151);
+}
+
+body.dark-theme .online-music-item {
+    background: var(--bg-card, #1f2937);
+    border-color: var(--border-color, #374151);
+}
+
+body.dark-theme .online-music-item:hover {
+    background: var(--bg-hover, #374151);
+    border-color: var(--border-color, #4b5563);
+}
+
+body.dark-theme .online-music-item.active {
+    background: linear-gradient(90deg, rgba(96, 165, 250, 0.15) 0%, rgba(59, 130, 246, 0.1) 100%);
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .online-music-index {
+    background: var(--bg-tertiary, #374151);
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .online-music-cover {
+    background-color: var(--bg-tertiary, #374151);
+}
+
+body.dark-theme .online-context-menu {
+    background: var(--bg-card, #1f2937);
+}
+
+body.dark-theme .online-context-menu-item {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .online-context-menu-item:hover {
+    background: var(--bg-hover, #374151);
+}
+
+body.dark-theme .online-context-menu-item i {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .setting-select {
+    background: var(--bg-tertiary, #374151);
+    border-color: var(--border-color, #4b5563);
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .upload-source-dropzone {
+    background: var(--bg-tertiary, #374151);
+    border-color: var(--border-color, #4b5563);
+}
+
+body.dark-theme .upload-source-dropzone:hover,
+body.dark-theme .upload-source-dropzone.dragover {
+    border-color: var(--primary-color, #60a5fa);
+    background: var(--primary-light, #1e3a5f);
+}
+
+body.dark-theme .upload-source-dropzone i {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .upload-source-dropzone p {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme #mysonglistListView .section-header {
+    background: var(--bg-card, #1f2937);
+}
+
+body.dark-theme .mysonglist-songs {
+    background: var(--bg-card, #1f2937);
+}
+
+body.dark-theme #mysonglistDetailView .section-header {
+    background: var(--bg-card, #1f2937);
+}
+
+body.dark-theme .mysonglist-song-item {
+    border-bottom-color: var(--border-light, #1f2937);
+}
+
+body.dark-theme .mysonglist-song-item:hover {
+    background: var(--bg-hover, #374151);
+}
+
+body.dark-theme .songlist-detail-info p {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .source-file-item {
+    background: var(--bg-card, #1f2937);
+    border-color: var(--border-color, #374151);
+}
+
+body.dark-theme .source-file-item:hover {
+    background: var(--bg-hover, #374151);
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .source-file-item.selected {
+    background: linear-gradient(90deg, rgba(96, 165, 250, 0.15) 0%, rgba(59, 130, 246, 0.15) 100%);
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .source-file-checkbox {
+    border-color: var(--border-color, #4b5563);
+}
+
+body.dark-theme .source-file-item.selected .source-file-checkbox {
+    background: var(--primary-color, #60a5fa);
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .source-file-status.active {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+}
+
+body.dark-theme .source-file-status.inactive {
+    background: var(--bg-tertiary, #374151);
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .source-file-icon {
+    background: var(--bg-tertiary, #374151);
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .source-file-name {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .source-file-size {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .source-file-item.selected .source-file-info {
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .history-container .section-header {
+    background: var(--bg-card, #1f2937);
+}
+
+body.dark-theme .history-container .section-header h2 {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .history-count {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .history-song-item {
+    background: var(--bg-card, #1f2937);
+    border-color: var(--border-color, #374151);
+}
+
+body.dark-theme .history-song-item:hover {
+    background: var(--bg-hover, #374151);
+}
+
+body.dark-theme .history-song-item.active {
+    background: linear-gradient(90deg, rgba(96, 165, 250, 0.15) 0%, rgba(59, 130, 246, 0.1) 100%);
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .playlist-panel {
+    background: var(--bg-card, #1f2937);
+    border-color: var(--border-color, #374151);
+}
+
+body.dark-theme .playlist-panel-header {
+    border-bottom-color: var(--border-color, #374151);
+}
+
+body.dark-theme .full-player-progress-fill {
+    background: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .full-player-play-btn {
+    background: var(--primary-color, #60a5fa);
+    color: white;
+}
+
+body.dark-theme .full-player-btn:hover {
+    background: rgba(96, 165, 250, 0.2);
+}
+
 
 
 /* ========== 听歌统计 ========== */
@@ -13871,6 +14694,7 @@ body.dark-theme .stats-container .section-header h2 {
 }
 
 .stats-section-card {
+    border: 1px solid var(--border-color, #e5e7eb);
     background: var(--bg-card, #ffffff);
     border-radius: 12px;
     padding: 20px;
@@ -14151,5 +14975,499 @@ body.dark-theme .stats-container .section-header h2 {
     color: var(--text-tertiary, #9ca3af);
     min-width: 32px;
     text-align: center;
+}
+
+/* 播放列表表头行深色模式 */
+body.dark-theme .playlist-batch-bar {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+/* 任务管理深色模式 */
+body.dark-theme .task-header {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .task-action-btn {
+    background: var(--bg-tertiary, #374151);
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .task-action-btn:hover {
+    background: var(--bg-active, #4b5563);
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .task-action-btn i {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .folder-action-btn {
+    background: var(--bg-tertiary, #374151);
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .folder-action-btn:hover {
+    background: var(--bg-active, #4b5563);
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .btn-primary {
+    background: var(--primary-color, #60a5fa);
+    color: white;
+}
+
+body.dark-theme .btn-primary:hover {
+    background: var(--primary-hover, #3b82f6);
+}
+
+body.dark-theme .control-btn {
+    background: #4b5563;
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .control-btn:hover {
+    background: #6b7280;
+    color: white;
+}
+
+body.dark-theme .play-btn {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    box-shadow: 0 2px 10px rgba(59, 130, 246, 0.4);
+}
+
+body.dark-theme .play-btn:hover {
+    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.6);
+}
+
+body.dark-theme .stats-section-card {
+    background: var(--bg-card, #1f2937);
+    border: 1px solid #4b5563;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-theme .top-songs-list::-webkit-scrollbar-track,
+body.dark-theme .top-artists-list::-webkit-scrollbar-track {
+    background: #1f2937;
+}
+
+body.dark-theme .top-songs-list::-webkit-scrollbar-thumb,
+body.dark-theme .top-artists-list::-webkit-scrollbar-thumb {
+    background: #4b5563;
+}
+
+body.dark-theme .top-songs-list::-webkit-scrollbar-thumb:hover,
+body.dark-theme .top-artists-list::-webkit-scrollbar-thumb:hover {
+    background: #6b7280;
+}
+
+body.dark-theme .stat-item {
+    background: #1f2937;
+    border: 1px solid var(--border-color, #374151);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-theme .stat-value {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .stat-label {
+    color: var(--text-secondary, #9ca3af);
+}
+
+body.dark-theme .task-list-section {
+    background: #1f2937;
+    border: 1px solid var(--border-color, #374151);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-theme .task-list-section .section-header {
+    border-bottom-color: #374151;
+}
+
+body.dark-theme .task-list-section .section-header h2 {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .filter-btn {
+    background: #374151;
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .filter-btn.active,
+body.dark-theme .filter-btn:hover {
+    background: var(--primary-color, #60a5fa);
+    color: white;
+}
+
+body.dark-theme .task-list {
+    background: #1f2937;
+}
+
+body.dark-theme .task-item {
+    border-bottom-color: #374151;
+}
+
+body.dark-theme .task-item:hover {
+    background: #374151;
+}
+
+body.dark-theme .task-list .empty-state {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .task-list .empty-state i {
+    color: #4b5563;
+}
+
+body.dark-theme .task-list .empty-state .empty-hint {
+    color: var(--text-tertiary, #6b7280);
+}
+
+body.dark-theme .convert-hint {
+    background: #374151;
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .task-action:hover {
+    background: #4b5563;
+    color: var(--text-primary, #f9fafb);
+}
+
+/* 文件管理分页栏深色模式 */
+body.dark-theme .folder-pagination {
+    background: #1f2937;
+    border-top-color: #374151;
+}
+
+body.dark-theme .pagination-container {
+    background: #1f2937;
+}
+
+body.dark-theme .pagination-info {
+    color: var(--text-secondary, #9ca3af);
+}
+
+/* 常见问题深色模式 */
+body.dark-theme .faq-view .faq-toc {
+    background: #1f2937;
+    border-color: #374151;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-theme .faq-view .faq-toc h5 {
+    color: var(--primary-color, #818cf8);
+}
+
+body.dark-theme .faq-view .faq-toc a {
+    background: #374151;
+    color: var(--text-secondary, #d1d5db);
+    border-color: #4b5563;
+}
+
+body.dark-theme .faq-view .faq-toc a:hover {
+    background: var(--primary-color, #60a5fa);
+    color: white;
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .faq-view .faq-item {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .faq-view .faq-item:hover {
+    border-color: var(--primary-color, #818cf8);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+}
+
+body.dark-theme .faq-view .faq-item h5 {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .faq-view .faq-item p {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .faq-view .faq-item ul li {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .faq-view .faq-item code {
+    background: #374151;
+    color: #f87171;
+}
+
+body.dark-theme .faq-view .faq-item .tip {
+    background: rgba(245, 158, 11, 0.1);
+    border-left-color: #f59e0b;
+}
+
+body.dark-theme .faq-view .faq-item .tip i {
+    color: #fbbf24;
+}
+
+/* 关于页面补充深色模式 */
+body.dark-theme .about-content .platform-table {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .about-content .platform-table thead {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%);
+}
+
+body.dark-theme .about-content .platform-table th {
+    color: var(--text-primary, #f9fafb);
+    border-bottom-color: #374151;
+}
+
+body.dark-theme .about-content .platform-table td {
+    color: var(--text-secondary, #d1d5db);
+    border-bottom-color: #374151;
+}
+
+body.dark-theme .about-content .platform-table tbody tr:hover {
+    background: rgba(139, 92, 246, 0.1);
+}
+
+body.dark-theme .about-content .tech-architecture {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%);
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+body.dark-theme .about-content .tech-architecture h4 {
+    color: #60a5fa;
+}
+
+body.dark-theme .about-content .tech-table {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .about-content .tech-table td {
+    color: var(--text-secondary, #d1d5db);
+    border-bottom-color: #374151;
+}
+
+body.dark-theme .about-content .tech-table td:first-child {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .about-content .tech-table tbody tr:hover {
+    background: rgba(59, 130, 246, 0.1);
+}
+
+body.dark-theme .about-content .disclaimer-section {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%);
+    border-color: rgba(239, 68, 68, 0.25);
+}
+
+body.dark-theme .about-content .disclaimer-content {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .about-content .disclaimer-content p {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .about-content .lx-music-section {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%);
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+body.dark-theme .about-content .lx-music-section h4 {
+    color: #34d399;
+}
+
+body.dark-theme .about-content .lx-info {
+    background: #1f2937;
+    border-color: #374151;
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .about-content .update-section {
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.15) 0%, rgba(2, 132, 199, 0.15) 100%);
+}
+
+body.dark-theme .about-content .footer {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .about-content .footer p {
+    color: var(--text-secondary, #9ca3af);
+}
+
+body.dark-theme .about-content .footer .license a {
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .about-content .footer .github-link a {
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .update-status-msg.info {
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+}
+
+body.dark-theme .update-status-msg.success {
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
+}
+
+body.dark-theme .update-status-msg.error {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+}
+
+body.dark-theme .about-content .faq-section h4 {
+    color: #60a5fa;
+}
+
+body.dark-theme .about-content .faq-item {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .about-content .faq-item h5 {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .about-content .faq-item p {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .about-content .faq-item code {
+    background: #374151;
+    color: #f87171;
+}
+
+body.dark-theme .about-content .faq-toc {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .about-content .faq-toc h5 {
+    color: #60a5fa;
+}
+
+body.dark-theme .about-content .faq-toc a {
+    background: #374151;
+    color: var(--text-secondary, #d1d5db);
+    border-color: #4b5563;
+}
+
+body.dark-theme .about-content .faq-toc a:hover {
+    background: var(--primary-color, #60a5fa);
+    color: white;
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .about-content .audio-principle {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(124, 58, 237, 0.15) 100%);
+    border-color: rgba(139, 92, 246, 0.3);
+}
+
+body.dark-theme .about-content .principle-section h5 {
+    color: #a78bfa;
+}
+
+body.dark-theme .about-content .principle-section li {
+    background: #1f2937;
+    color: var(--text-secondary, #d1d5db);
+    border-color: #374151;
+}
+
+body.dark-theme .about-content .principle-section li strong {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .about-content .tip {
+    background: rgba(245, 158, 11, 0.1);
+    border-left-color: #f59e0b;
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .about-content .tip i {
+    color: #fbbf24;
+}
+
+body.dark-theme .about-content .flow-diagram {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .about-content .flow-step {
+    background: #374151;
+    border-color: #4b5563;
+}
+
+body.dark-theme .about-content .step-content strong {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .about-content .step-content p {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .about-content .flow-arrow {
+    color: #4b5563;
+}
+
+body.dark-theme .about-content .step-number {
+    background: var(--primary-color, #60a5fa);
+    color: white;
+}
+
+body.dark-theme .about-content .guide-section {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .about-content .guide-section h5 {
+    color: #34d399;
+}
+
+body.dark-theme .about-content .guide-section li {
+    background: #374151;
+    color: var(--text-secondary, #d1d5db);
+    border-color: #4b5563;
+}
+
+body.dark-theme .about-content .guide-section li strong {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .about-content .guide-section li:hover {
+    border-color: #34d399;
+}
+
+body.dark-theme .about-content .features li:hover {
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .about-content .disclaimer-section h4 {
+    color: #f87171;
+}
+
+body.dark-theme .about-content .disclaimer-content p strong {
+    color: #f87171;
+}
+
+body.dark-theme .about-content .lx-info strong {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .about-content .lx-info a {
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .about-content .lx-info code {
+    background: #374151;
+    color: #f87171;
 }
 

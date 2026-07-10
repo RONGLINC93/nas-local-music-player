@@ -7171,6 +7171,36 @@ function initKeyboardShortcuts() {
 // ========== 主题切换相关函数 ==========
 let currentTheme = 'light';
 
+const themeIcons = {
+    light: 'fa-sun',
+    dark: 'fa-moon',
+    auto: 'fa-adjust'
+};
+
+const themeTitles = {
+    light: '浅色模式',
+    dark: '深色模式',
+    auto: '跟随系统'
+};
+
+function cycleTheme() {
+    const themeOrder = ['light', 'dark', 'auto'];
+    const currentIndex = themeOrder.indexOf(currentTheme);
+    const nextIndex = (currentIndex + 1) % themeOrder.length;
+    setTheme(themeOrder[nextIndex]);
+}
+
+function updateThemeIcon(theme) {
+    const btn = document.getElementById('themeToggleBtn');
+    if (btn) {
+        const icon = btn.querySelector('i');
+        if (icon) {
+            icon.className = `fas ${themeIcons[theme]}`;
+        }
+        btn.title = themeTitles[theme];
+    }
+}
+
 function initTheme() {
     const savedTheme = localStorage.getItem('musicPlayerTheme') || 'light';
     setTheme(savedTheme, false);
@@ -7203,6 +7233,7 @@ function setTheme(theme, save = true) {
     
     applyTheme(actualTheme);
     updateThemeRadio(theme);
+    updateThemeIcon(theme);
 }
 
 function applyTheme(theme) {

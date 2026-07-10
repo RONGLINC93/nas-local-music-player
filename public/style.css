@@ -5865,6 +5865,19 @@ font-size: 72px;
     transition: width 0.3s ease;
 }
 
+.update-progress-fill.indeterminate {
+    width: 100% !important;
+    background: linear-gradient(90deg, transparent 0%, #6366f1 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: progressIndeterminate 1.5s linear infinite;
+    transition: none;
+}
+
+@keyframes progressIndeterminate {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
 .update-progress-text {
     margin-top: 6px;
     font-size: 12px;
@@ -5891,6 +5904,13 @@ font-size: 72px;
 .btn-update:hover {
     transform: translateY(-2px);
     box-shadow: 0 5px 20px rgba(59, 130, 246, 0.4);
+}
+
+.btn-update:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
 }
 
 .btn-update i {

@@ -6427,6 +6427,7 @@ function initSidebarNav() {
 // 旧的关于模态框函数保持兼容（用于其他地方的调用）
 function openAboutModal() {
     switchView('about');
+    setTimeout(() => { checkUpdate(); }, 100);
 }
 
 function closeAboutModal() {
@@ -6745,22 +6746,302 @@ async function loadVersion() {
 }
 
 // 检查更新
-async function checkUpdate() {
-    const statusMsg = document.getElementById('updateStatusMsg');
-    const btnCheck = document.getElementById('btnCheckUpdate');
-    
-    if (!statusMsg || !btnCheck) {
-        console.error('检查更新元素未找到');
+const updateState = {
+    phase: 'idle',
+    currentVersion: '',
+    latestVersion: null,
+    hasUpdate: false,
+    downloadUrl: '',
+    zipUrl: '',
+    downloaded: false,
+    downloadedFileSize: 0,
+    progress: { percent: 0, message: '', hasTotal: true },
+    error: null,
+    repairMode: false,
+    _sse: null,
+    _onDownloadComplete: null
+};
+
+function getUpdateEls() {
+    return {
+        statusMsg: document.getElementById('updateStatusMsg'),
+        btnCheck: document.getElementById('btnCheckUpdate'),
+        btnRepair: document.getElementById('btnRepairUpdate')
+    };
+}
+
+function ensureUpdateSSE() {
+    if (updateState._sse) return updateState._sse;
+    const sse = new EventSource('/api/update-progress');
+    sse.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'download_progress' || data.type === 'download_start') {
+            updateState.progress.percent = data.percent || 0;
+            updateState.progress.message = data.message || '';
+            updateState.progress.hasTotal = data.hasTotal !== false;
+            renderUpdateUI();
+        } else if (data.type === 'download_complete') {
+            updateState.progress.message = '下载完成';
+            updateState.downloaded = true;
+            if (updateState._onDownloadComplete) {
+                const cb = updateState._onDownloadComplete;
+                updateState._onDownloadComplete = null;
+                cb();
+            }
+            updateState.phase = 'download_done';
+            renderUpdateUI();
+        } else if (data.type === 'extract_start') {
+            updateState.progress.message = data.message || '解压中...';
+            updateState.progress.percent = 0;
+            updateState.progress.hasTotal = true;
+            updateState.phase = 'installing';
+            renderUpdateUI();
+        } else if (data.type === 'extract_progress') {
+            updateState.progress.percent = data.percent || 0;
+            updateState.progress.message = data.message || '解压中...';
+            updateState.progress.hasTotal = true;
+            renderUpdateUI();
+        } else if (data.type === 'extract_complete') {
+            updateState.progress.message = data.message || '解压完成';
+            updateState.progress.percent = 100;
+            renderUpdateUI();
+        } else if (data.type === 'install_start') {
+            updateState.progress.message = data.message || '安装中...';
+            updateState.progress.percent = 0;
+            renderUpdateUI();
+        } else if (data.type === 'install_progress') {
+            updateState.progress.percent = data.percent || 0;
+            updateState.progress.message = data.message || '安装中...';
+            renderUpdateUI();
+        } else if (data.type === 'install_complete') {
+            updateState.progress.message = '安装完成';
+            updateState.phase = 'install_done';
+            closeUpdateSSE();
+            renderUpdateUI();
+        } else if (data.type === 'error') {
+            updateState.error = data.message || '未知错误';
+            updateState.phase = 'error';
+            closeUpdateSSE();
+            renderUpdateUI();
+        }
+    };
+    sse.onerror = () => {
+        console.warn('更新进度 SSE 连接断开');
+    };
+    updateState._sse = sse;
+    return sse;
+}
+
+function closeUpdateSSE() {
+    if (updateState._sse) {
+        updateState._sse.close();
+        updateState._sse = null;
+    }
+}
+
+function renderProgressBar(fillId, textId) {
+    const { percent, message, hasTotal } = updateState.progress;
+    const fillClass = hasTotal ? '' : 'indeterminate';
+    const fillStyle = hasTotal ? `width: ${percent}%` : '';
+    return `
+        <div class="update-progress-container" style="margin-top: 12px;">
+            <div class="update-progress-bar">
+                <div class="update-progress-fill ${fillClass}" id="${fillId}" style="${fillStyle}"></div>
+            </div>
+            <div class="update-progress-text" id="${textId}">${message || '...'}</div>
+        </div>
+    `;
+}
+
+function renderUpdateUI() {
+    const els = getUpdateEls();
+    if (!els.statusMsg || !els.btnCheck) return;
+
+    const { phase, currentVersion, latestVersion, hasUpdate, downloadUrl, downloaded, downloadedFileSize, error } = updateState;
+
+    if (els.btnCheck) {
+        if (phase === 'checking' || phase === 'downloading' || phase === 'installing') {
+            els.btnCheck.disabled = true;
+            els.btnCheck.innerHTML = '<i class="fas fa-sync"></i> 检查更新';
+        } else {
+            els.btnCheck.disabled = false;
+            els.btnCheck.innerHTML = '<i class="fas fa-sync"></i> 检查更新';
+        }
+    }
+
+    if (els.btnRepair) {
+        if (phase === 'downloading' || phase === 'installing' || phase === 'checking') {
+            els.btnRepair.disabled = true;
+            els.btnRepair.innerHTML = '<i class="fas fa-tools"></i> 修复更新';
+        } else {
+            els.btnRepair.disabled = false;
+            els.btnRepair.innerHTML = '<i class="fas fa-tools"></i> 修复更新';
+        }
+    }
+
+    els.statusMsg.style.display = 'block';
+
+    if (phase === 'checking') {
+        els.statusMsg.className = 'update-status-msg info';
+        els.statusMsg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在检查更新...';
         return;
     }
-    
-    // 检查是否为本地访问（127.0.0.1），如果是则禁用更新功能
+
+    if (phase === 'downloading') {
+        els.statusMsg.className = 'update-status-msg info';
+        els.statusMsg.innerHTML = `
+            <div><i class="fas fa-download"></i> 正在下载更新包...</div>
+            ${renderProgressBar('updateProgressFill', 'updateProgressText')}
+        `;
+        return;
+    }
+
+    if (phase === 'download_done') {
+        const sizeText = downloadedFileSize ? `（${(downloadedFileSize / 1024 / 1024).toFixed(2)} MB）` : '';
+        els.statusMsg.className = 'update-status-msg success';
+        els.statusMsg.innerHTML = `
+            <div><i class="fas fa-check-circle"></i> 更新包已下载到服务器 ${sizeText}</div>
+            <div style="font-size: 12px; margin-top: 6px; opacity: 0.8;">点击下方按钮开始安装</div>
+            <div style="margin-top: 10px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+                <button onclick="confirmInstallUpdate()" class="btn-auto-update">
+                    <i class="fas fa-play"></i> 立即更新
+                </button>
+                <button onclick="startDownloadUpdate(true)" class="btn-github-link">
+                    <i class="fas fa-redo"></i> 重新下载
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    if (phase === 'installing') {
+        els.statusMsg.className = 'update-status-msg info';
+        els.statusMsg.innerHTML = `
+            <div><i class="fas fa-cog fa-spin"></i> 正在安装更新，请稍候...</div>
+            ${renderProgressBar('updateProgressFill', 'updateProgressText')}
+        `;
+        return;
+    }
+
+    if (phase === 'install_done') {
+        els.statusMsg.className = 'update-status-msg success';
+        els.statusMsg.innerHTML = `<i class="fas fa-check-circle"></i> 更新成功！已升级到 ${latestVersion || '最新版本'}，页面将在 5 秒后刷新...`;
+        return;
+    }
+
+    if (phase === 'error') {
+        if (updateState.repairMode) {
+            els.statusMsg.className = 'update-status-msg error';
+            els.statusMsg.innerHTML = `
+                <div><i class="fas fa-exclamation-circle"></i> 检查更新失败：${error || '未知错误'}</div>
+                <div style="margin-top: 10px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+                    <button onclick="repairUpdate()" class="btn-auto-update">
+                        <i class="fas fa-redo"></i> 重新检查
+                    </button>
+                    <button onclick="cancelRepairMode()" class="btn-github-link">
+                        <i class="fas fa-times"></i> 取消
+                    </button>
+                </div>
+            `;
+        } else {
+            els.statusMsg.className = 'update-status-msg error';
+            els.statusMsg.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${error || '发生错误'}`;
+        }
+        return;
+    }
+
+    // idle 状态
+    if (updateState.repairMode) {
+        const versionText = latestVersion ? `最新版本 <strong>${latestVersion}</strong>（当前版本：${currentVersion}）` : `当前版本：${currentVersion}`;
+        const btnText = downloaded ? '<i class="fas fa-redo"></i> 重新修复' : '<i class="fas fa-tools"></i> 立即修复';
+        els.statusMsg.className = 'update-status-msg info';
+        els.statusMsg.innerHTML = `
+            <div><i class="fas fa-info-circle"></i> ${versionText}</div>
+            <div style="font-size: 12px; margin-top: 6px; opacity: 0.8;">修复更新将重新下载并安装最新版本</div>
+            <div style="margin-top: 10px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+                <button onclick="startRepairDownload()" class="btn-auto-update">
+                    ${btnText}
+                </button>
+                <button onclick="cancelRepairMode()" class="btn-github-link">
+                    <i class="fas fa-times"></i> 取消
+                </button>
+            </div>
+        `;
+    } else if (hasUpdate) {
+        els.statusMsg.className = 'update-status-msg warning';
+        els.statusMsg.innerHTML = `
+            <div>发现新版本 <strong>${latestVersion}</strong>（当前版本：${currentVersion}）</div>
+            <div style="margin-top: 10px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+                <button onclick="confirmAutoUpdate()" class="btn-auto-update">
+                    <i class="fas fa-download"></i> 立即更新
+                </button>
+                <a href="${downloadUrl}" target="_blank" class="btn-github-link">
+                    <i class="fab fa-github"></i> GitHub 下载
+                </a>
+            </div>
+        `;
+    } else {
+        els.statusMsg.className = 'update-status-msg success';
+        els.statusMsg.innerHTML = '<i class="fas fa-check-circle"></i> 当前已是最新版本';
+    }
+}
+
+async function checkUpdate(options = {}) {
+    const els = getUpdateEls();
+    if (!els.statusMsg || !els.btnCheck) return;
+
     const currentHost = window.location.hostname;
     if (currentHost === '127.0.0.1' || currentHost === 'localhost') {
-        statusMsg.className = 'update-status-msg info';
-        statusMsg.style.display = 'block';
-        statusMsg.innerHTML = '<i class="fas fa-info-circle"></i> 本地运行时禁用自动更新功能';
+        els.statusMsg.className = 'update-status-msg info';
+        els.statusMsg.style.display = 'block';
+        els.statusMsg.innerHTML = '<i class="fas fa-info-circle"></i> 本地运行时禁用自动更新功能';
         showNotification({ type: 'info', message: '本地运行时禁用自动更新功能' });
+        return;
+    }
+
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
+
+    if (options.resetRepairMode) {
+        updateState.repairMode = false;
+    }
+
+    updateState.phase = 'checking';
+    updateState.error = null;
+    renderUpdateUI();
+
+    try {
+        const result = await apiRequest('/api/check-update');
+        if (!result.success) throw new Error(result.error || '检查更新失败');
+
+        updateState.currentVersion = result.currentVersion || '';
+        updateState.latestVersion = result.latestVersion;
+        updateState.hasUpdate = result.hasUpdate;
+        updateState.downloadUrl = result.downloadUrl || '';
+        updateState.zipUrl = result.zipUrl || '';
+        updateState.downloaded = result.downloaded || false;
+        updateState.downloadedFileSize = result.downloadedFileSize || 0;
+
+        if (result.isDownloading) {
+            updateState.phase = 'downloading';
+            updateState.progress.message = '等待下载进度...';
+            ensureUpdateSSE();
+        } else {
+            updateState.phase = 'idle';
+        }
+        renderUpdateUI();
+    } catch (error) {
+        updateState.phase = 'error';
+        updateState.error = '检查更新失败: ' + error.message;
+        renderUpdateUI();
+    }
+}
+
+async function startDownloadUpdate(force) {
+    if (updateState.phase === 'downloading' || updateState.phase === 'installing') {
         return;
     }
     
@@ -6769,50 +7050,185 @@ async function checkUpdate() {
     } catch (e) {
         return;
     }
-    
-    // 显示加载状态
-    btnCheck.disabled = true;
-    btnCheck.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 检查中...';
-    statusMsg.className = 'update-status-msg info';
-    statusMsg.style.display = 'block';
-    statusMsg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在检查更新...';
-    
+
+    updateState.phase = 'downloading';
+    updateState.progress.message = '准备中...';
+    updateState.progress.percent = 0;
+    renderUpdateUI();
+
+    ensureUpdateSSE();
+
+    const downloadCompletePromise = new Promise((resolve) => {
+        updateState._onDownloadComplete = resolve;
+    });
+
     try {
-        const resp = await fetch('https://api.github.com/repos/RONGLINC93/nas-local-music-player/releases/latest', {
-            headers: { 'User-Agent': 'NAS-Local-Music-Player' }
-        });
-        if (!resp.ok) {
-            throw new Error(`HTTP ${resp.status}`);
+        const body = force ? { force: true } : {};
+        const result = await apiRequest('/api/download-update', 'POST', body);
+        if (!result.success) throw new Error(result.error || '下载失败');
+
+        if (result.fileSize) {
+            updateState.downloadedFileSize = result.fileSize;
         }
-        const releaseData = await resp.json();
-        const latestVersion = releaseData.tag_name.replace(/^v/, '');
-        const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
-        const downloadUrl = releaseData.html_url;
-        
-        if (hasUpdate) {
-            statusMsg.className = 'update-status-msg warning';
-            statusMsg.innerHTML = `
-                <div>发现新版本 <strong>${latestVersion}</strong>（当前版本：${currentVersion}）</div>
-                <div style="margin-top: 10px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
-                    <button onclick="autoUpdate()" class="btn-auto-update" id="btnAutoUpdate">
-                        <i class="fas fa-download"></i> 立即更新
-                    </button>
-                    <a href="${downloadUrl}" target="_blank" class="btn-github-link">
-                        <i class="fab fa-github"></i> GitHub 下载
-                    </a>
-                </div>
-            `;
-        } else {
-            statusMsg.className = 'update-status-msg success';
-            statusMsg.innerHTML = '<i class="fas fa-check-circle"></i> 当前已是最新版本';
+
+        if (result.downloading) {
+            updateState.progress.message = '等待下载完成...';
+            renderUpdateUI();
+        }
+
+        await downloadCompletePromise;
+    } catch (error) {
+        updateState.phase = 'error';
+        updateState.error = '下载失败: ' + error.message;
+        closeUpdateSSE();
+        renderUpdateUI();
+    }
+}
+
+function confirmAutoUpdate() {
+    const modal = document.getElementById('autoUpdateConfirmModal');
+    if (modal) {
+        const titleEl = modal.querySelector('.modal-title');
+        const contentEl = modal.querySelector('.modal-body');
+        const confirmBtn = document.getElementById('btnConfirmAutoUpdate');
+        if (titleEl) titleEl.innerHTML = '<i class="fas fa-download"></i> 确认更新';
+        if (contentEl) contentEl.innerHTML = '确定要下载并安装最新版本吗？<br><br>安装过程中服务会短暂重启，请耐心等待。';
+        if (confirmBtn) {
+            confirmBtn.onclick = doAutoUpdate;
+            confirmBtn.innerHTML = '<i class="fas fa-check"></i> 确认更新';
+        }
+        modal.classList.add('show');
+    }
+}
+
+async function doAutoUpdate() {
+    closeAutoUpdateConfirmModal();
+    await startDownloadUpdate(false);
+    if (updateState.phase === 'download_done') {
+        await startInstallUpdate();
+    }
+}
+
+function confirmInstallUpdate() {
+    const modal = document.getElementById('autoUpdateConfirmModal');
+    if (modal) {
+        const titleEl = modal.querySelector('.modal-title');
+        const contentEl = modal.querySelector('.modal-body');
+        const confirmBtn = document.getElementById('btnConfirmAutoUpdate');
+        if (titleEl) titleEl.innerHTML = '<i class="fas fa-tools"></i> 确认更新';
+        if (contentEl) contentEl.innerHTML = '确定要安装已下载的更新包吗？<br><br>安装过程中服务会短暂重启，请耐心等待。';
+        if (confirmBtn) {
+            confirmBtn.onclick = startInstallUpdate;
+            confirmBtn.innerHTML = '<i class="fas fa-check"></i> 确认安装';
+        }
+        modal.classList.add('show');
+    }
+}
+
+async function startInstallUpdate() {
+    if (updateState.phase === 'installing' || updateState.phase === 'downloading') {
+        return;
+    }
+    
+    closeAutoUpdateConfirmModal();
+
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
+
+    updateState.phase = 'installing';
+    updateState.progress.message = '准备安装...';
+    updateState.progress.percent = 0;
+    renderUpdateUI();
+
+    ensureUpdateSSE();
+
+    try {
+        const result = await apiRequest('/api/apply-update', 'POST');
+        if (!result.success) throw new Error(result.error || '更新失败');
+
+        const installCompletePromise = new Promise((resolve) => {
+            const check = setInterval(() => {
+                if (updateState.phase === 'install_done' || updateState.phase === 'error') {
+                    clearInterval(check);
+                    resolve();
+                }
+            }, 200);
+            setTimeout(() => { clearInterval(check); resolve(); }, 30000);
+        });
+
+        await installCompletePromise;
+
+        if (updateState.phase === 'install_done') {
+            setTimeout(() => { window.location.reload(); }, 5000);
         }
     } catch (error) {
-        statusMsg.className = 'update-status-msg error';
-        statusMsg.innerHTML = `<i class="fas fa-exclamation-circle"></i> 检查更新失败: ${error.message}`;
-    } finally {
-        btnCheck.disabled = false;
-        btnCheck.innerHTML = '<i class="fas fa-sync"></i> 检查更新';
+        updateState.phase = 'error';
+        updateState.error = '更新失败: ' + error.message;
+        closeUpdateSSE();
+        renderUpdateUI();
     }
+}
+
+async function repairUpdate() {
+    const els = getUpdateEls();
+    if (!els.statusMsg || !els.btnRepair) return;
+
+    const currentHost = window.location.hostname;
+    if (currentHost === '127.0.0.1' || currentHost === 'localhost') {
+        els.statusMsg.className = 'update-status-msg info';
+        els.statusMsg.style.display = 'block';
+        els.statusMsg.innerHTML = '<i class="fas fa-info-circle"></i> 本地运行时禁用自动更新功能';
+        showNotification({ type: 'info', message: '本地运行时禁用自动更新功能' });
+        return;
+    }
+
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
+
+    updateState.repairMode = true;
+
+    if (updateState.phase === 'checking' || updateState.phase === 'downloading' || updateState.phase === 'installing') {
+        renderUpdateUI();
+        return;
+    }
+
+    const needCheck = !updateState.latestVersion || updateState.phase === 'error';
+    if (needCheck) {
+        await checkUpdate();
+    }
+    updateState.repairMode = true;
+    renderUpdateUI();
+}
+
+function cancelRepairMode() {
+    updateState.repairMode = false;
+    renderUpdateUI();
+}
+
+async function startRepairDownload() {
+    if (updateState.phase === 'downloading' || updateState.phase === 'installing') {
+        return;
+    }
+    await startDownloadUpdate(true);
+}
+
+// 保留原函数名兼容
+function autoUpdate() {
+    confirmAutoUpdate();
+}
+
+function doRepairApply() {
+    confirmInstallUpdate();
+}
+
+function executeRepairApply() {
+    startInstallUpdate();
 }
 
 // 打开自动更新确认模态框
@@ -6833,447 +7249,6 @@ function closeAutoUpdateConfirmModal() {
     const modal = document.getElementById('autoUpdateConfirmModal');
     if (modal) {
         modal.classList.remove('show');
-    }
-}
-
-// 自动更新
-async function autoUpdate() {
-    const btnAuto = document.getElementById('btnAutoUpdate');
-    const statusMsg = document.getElementById('updateStatusMsg');
-    
-    if (!btnAuto || !statusMsg) return;
-    
-    openAutoUpdateConfirmModal();
-}
-
-// 执行自动更新
-async function doAutoUpdate() {
-    try {
-        await requireLogin();
-    } catch (e) {
-        return;
-    }
-    const btnAuto = document.getElementById('btnAutoUpdate');
-    const statusMsg = document.getElementById('updateStatusMsg');
-    
-    if (!btnAuto || !statusMsg) return;
-    
-    closeAutoUpdateConfirmModal();
-    
-    btnAuto.disabled = true;
-    btnAuto.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 准备中...';
-    statusMsg.className = 'update-status-msg info';
-    
-    let eventSource = null;
-    try {
-        const releaseResp = await fetch('https://api.github.com/repos/RONGLINC93/nas-local-music-player/releases/latest', {
-            headers: { 'User-Agent': 'NAS-Local-Music-Player' }
-        });
-        if (!releaseResp.ok) {
-            throw new Error(`获取版本失败: HTTP ${releaseResp.status}`);
-        }
-        const releaseData = await releaseResp.json();
-        const latestVersion = releaseData.tag_name.replace(/^v/, '');
-        const zipUrl = `https://github.com/RONGLINC93/nas-local-music-player/archive/refs/tags/${releaseData.tag_name}.zip`;
-        const zipFileName = `nas-local-music-player-${latestVersion}.zip`;
-        
-        statusMsg.innerHTML = `
-            <div><i class="fas fa-download"></i> 正在下载更新包 v${latestVersion}...</div>
-            <div class="update-progress-container" style="margin-top: 12px;">
-                <div class="update-progress-bar">
-                    <div class="update-progress-fill" id="updateProgressFill" style="width: 0%"></div>
-                </div>
-                <div class="update-progress-text" id="updateProgressText">0%</div>
-            </div>
-        `;
-        btnAuto.innerHTML = '<i class="fas fa-download"></i> 下载中...';
-        
-        const response = await fetch(zipUrl);
-        if (!response.ok) {
-            throw new Error(`下载失败: HTTP ${response.status}`);
-        }
-        
-        const total = parseInt(response.headers.get('content-length') || '0');
-        const reader = response.body.getReader();
-        let received = 0;
-        const chunks = [];
-        
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            chunks.push(value);
-            received += value.length;
-            const percent = total > 0 ? Math.round((received / total) * 100) : 0;
-            const progressFill = document.getElementById('updateProgressFill');
-            const progressText = document.getElementById('updateProgressText');
-            if (progressFill) progressFill.style.width = `${percent}%`;
-            if (progressText) {
-                const receivedMB = (received / 1024 / 1024).toFixed(2);
-                const totalMB = total > 0 ? (total / 1024 / 1024).toFixed(2) : '?';
-                progressText.textContent = `${percent}% (${receivedMB}MB / ${totalMB}MB)`;
-            }
-        }
-        
-        const blob = new Blob(chunks);
-        const file = new File([blob], zipFileName, { type: 'application/zip' });
-        
-        statusMsg.innerHTML = `
-            <div><i class="fas fa-upload"></i> 正在上传到服务器...</div>
-            <div class="update-progress-container" style="margin-top: 12px;">
-                <div class="update-progress-bar">
-                    <div class="update-progress-fill" id="updateProgressFill" style="width: 30%"></div>
-                </div>
-                <div class="update-progress-text" id="updateProgressText">上传中...</div>
-            </div>
-        `;
-        btnAuto.innerHTML = '<i class="fas fa-upload"></i> 上传中...';
-        
-        const formData = new FormData();
-        formData.append('file', file);
-        
-        const uploadResult = await new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', '/api/upload-update');
-            xhr.upload.onprogress = (e) => {
-                if (e.lengthComputable) {
-                    const percent = Math.round((e.loaded / e.total) * 100);
-                    const progressFill = document.getElementById('updateProgressFill');
-                    const progressText = document.getElementById('updateProgressText');
-                    if (progressFill) progressFill.style.width = `${percent}%`;
-                    if (progressText) progressText.textContent = `上传中... ${percent}%`;
-                }
-            };
-            xhr.onload = () => {
-                try {
-                    resolve(JSON.parse(xhr.responseText));
-                } catch (e) {
-                    reject(new Error('服务器响应解析失败'));
-                }
-            };
-            xhr.onerror = () => reject(new Error('上传失败'));
-            xhr.send(formData);
-        });
-        
-        if (!uploadResult.success) {
-            throw new Error(uploadResult.error || '上传失败');
-        }
-        
-        eventSource = new EventSource('/api/update-progress');
-        
-        eventSource.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            const progressFill = document.getElementById('updateProgressFill');
-            const progressText = document.getElementById('updateProgressText');
-            
-            if (progressFill && progressText) {
-                progressFill.style.width = `${data.percent || 0}%`;
-                progressText.textContent = data.message || '';
-            }
-            
-            if (data.type === 'extract_start') {
-                btnAuto.innerHTML = '<i class="fas fa-file-archive"></i> 解压中...';
-            } else if (data.type === 'extract_complete') {
-                btnAuto.innerHTML = '<i class="fas fa-cog fa-spin"></i> 安装中...';
-            } else if (data.type === 'install_complete') {
-                btnAuto.innerHTML = '<i class="fas fa-check"></i> 完成';
-            }
-        };
-        
-        statusMsg.innerHTML = `
-            <div><i class="fas fa-cog fa-spin"></i> 正在安装更新，请稍候...</div>
-            <div class="update-progress-container" style="margin-top: 12px;">
-                <div class="update-progress-bar">
-                    <div class="update-progress-fill" id="updateProgressFill" style="width: 0%"></div>
-                </div>
-                <div class="update-progress-text" id="updateProgressText">准备中...</div>
-            </div>
-        `;
-        btnAuto.innerHTML = '<i class="fas fa-cog fa-spin"></i> 安装中...';
-        
-        const result = await apiRequest('/api/apply-update', 'POST');
-        
-        if (result.success) {
-            statusMsg.className = 'update-status-msg success';
-            statusMsg.innerHTML = `<i class="fas fa-check-circle"></i> 更新成功！已升级到 ${result.version || latestVersion}，页面将在 5 秒后刷新...`;
-            btnAuto.innerHTML = '<i class="fas fa-check"></i> 更新成功';
-            
-            if (eventSource) {
-                eventSource.close();
-            }
-            
-            setTimeout(() => {
-                window.location.reload();
-            }, 5000);
-        } else {
-            throw new Error(result.error || '更新失败');
-        }
-    } catch (error) {
-        statusMsg.className = 'update-status-msg error';
-        statusMsg.innerHTML = `<i class="fas fa-exclamation-circle"></i> 更新失败: ${error.message}`;
-        btnAuto.disabled = false;
-        btnAuto.innerHTML = '<i class="fas fa-download"></i> 立即更新';
-        
-        if (eventSource) {
-            eventSource.close();
-        }
-    }
-}
-
-// 修复更新：客户端下载最新更新包，上传到服务端，确认后安装
-async function repairUpdate() {
-    const btnRepair = document.getElementById('btnRepairUpdate');
-    const statusMsg = document.getElementById('updateStatusMsg');
-    
-    if (!btnRepair || !statusMsg) return;
-    
-    try {
-        await requireLogin();
-    } catch (e) {
-        return;
-    }
-        // 检查是否为本地访问
-    const currentHost = window.location.hostname;
-    if (currentHost === '127.0.0.1' || currentHost === 'localhost') {
-        statusMsg.className = 'update-status-msg info';
-        statusMsg.style.display = 'block';
-        statusMsg.innerHTML = '<i class="fas fa-info-circle"></i> 本地运行时禁用自动更新功能';
-        showNotification({ type: 'info', message: '本地运行时禁用自动更新功能' });
-        return;
-    }
-    btnRepair.disabled = true;
-    btnRepair.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 获取版本...';
-    statusMsg.className = 'update-status-msg info';
-    statusMsg.style.display = 'block';
-    statusMsg.innerHTML = `
-        <div><i class="fas fa-spinner fa-spin"></i> 正在获取最新版本...</div>
-    `;
-    
-    try {
-        const releaseResp = await fetch('https://api.github.com/repos/RONGLINC93/nas-local-music-player/releases/latest', {
-            headers: { 'User-Agent': 'NAS-Local-Music-Player' }
-        });
-        if (!releaseResp.ok) {
-            throw new Error(`获取版本失败: HTTP ${releaseResp.status}`);
-        }
-        const releaseData = await releaseResp.json();
-        const latestVersion = releaseData.tag_name.replace(/^v/, '');
-        const zipUrl = `https://github.com/RONGLINC93/nas-local-music-player/archive/refs/tags/${releaseData.tag_name}.zip`;
-        const zipFileName = `nas-local-music-player-${latestVersion}.zip`;
-        
-        statusMsg.innerHTML = `
-            <div><i class="fas fa-download"></i> 正在下载更新包 v${latestVersion}...</div>
-            <div class="update-progress-container" style="margin-top: 12px;">
-                <div class="update-progress-bar">
-                    <div class="update-progress-fill" id="repairProgressFill" style="width: 0%"></div>
-                </div>
-                <div class="repair-progress-text" id="repairProgressText">0%</div>
-            </div>
-        `;
-        btnRepair.innerHTML = '<i class="fas fa-download"></i> 下载中...';
-        
-        const response = await fetch(zipUrl);
-        if (!response.ok) {
-            throw new Error(`下载失败: HTTP ${response.status}`);
-        }
-        
-        const total = parseInt(response.headers.get('content-length') || '0');
-        const reader = response.body.getReader();
-        let received = 0;
-        const chunks = [];
-        
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            chunks.push(value);
-            received += value.length;
-            const percent = total > 0 ? Math.round((received / total) * 100) : 0;
-            const progressFill = document.getElementById('repairProgressFill');
-            const progressText = document.getElementById('repairProgressText');
-            if (progressFill) progressFill.style.width = `${percent}%`;
-            if (progressText) {
-                const receivedMB = (received / 1024 / 1024).toFixed(2);
-                const totalMB = total > 0 ? (total / 1024 / 1024).toFixed(2) : '?';
-                progressText.textContent = `${percent}% (${receivedMB}MB / ${totalMB}MB)`;
-            }
-        }
-        
-        const blob = new Blob(chunks);
-        const file = new File([blob], zipFileName, { type: 'application/zip' });
-        
-        statusMsg.innerHTML = `
-            <div><i class="fas fa-upload"></i> 正在上传到服务器...</div>
-            <div class="update-progress-container" style="margin-top: 12px;">
-                <div class="update-progress-bar">
-                    <div class="update-progress-fill" id="repairProgressFill" style="width: 30%"></div>
-                </div>
-                <div class="repair-progress-text" id="repairProgressText">上传中...</div>
-            </div>
-        `;
-        btnRepair.innerHTML = '<i class="fas fa-upload"></i> 上传中...';
-        
-        const formData = new FormData();
-        formData.append('file', file);
-        
-        const uploadResult = await new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', '/api/upload-update');
-            xhr.upload.onprogress = (e) => {
-                if (e.lengthComputable) {
-                    const percent = Math.round((e.loaded / e.total) * 100);
-                    const progressFill = document.getElementById('repairProgressFill');
-                    const progressText = document.getElementById('repairProgressText');
-                    if (progressFill) progressFill.style.width = `${percent}%`;
-                    if (progressText) progressText.textContent = `上传中... ${percent}%`;
-                }
-            };
-            xhr.onload = () => {
-                try {
-                    resolve(JSON.parse(xhr.responseText));
-                } catch (e) {
-                    reject(new Error('服务器响应解析失败'));
-                }
-            };
-            xhr.onerror = () => reject(new Error('上传失败'));
-            xhr.send(formData);
-        });
-        
-        if (uploadResult.success) {
-            const fileSizeText = uploadResult.fileSize 
-                ? `（${(uploadResult.fileSize / 1024 / 1024).toFixed(2)} MB）` 
-                : '';
-            
-            statusMsg.className = 'update-status-msg success';
-            statusMsg.innerHTML = `
-                <div><i class="fas fa-check-circle"></i> 更新包已上传到服务器 ${fileSizeText}</div>
-                <div style="font-size: 12px; margin-top: 6px; opacity: 0.8;">点击下方"立即更新"按钮开始安装</div>
-                <div style="margin-top: 10px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
-                    <button onclick="doRepairApply()" class="btn-auto-update" id="btnRepairApply">
-                        <i class="fas fa-upload"></i> 立即更新
-                    </button>
-                    <button onclick="repairUpdate()" class="btn-github-link" id="btnRepairReDownload">
-                        <i class="fas fa-redo"></i> 重新下载
-                    </button>
-                </div>
-            `;
-            btnRepair.disabled = false;
-            btnRepair.innerHTML = '<i class="fas fa-tools"></i> 修复更新';
-        } else {
-            throw new Error(uploadResult.error || '上传失败');
-        }
-    } catch (error) {
-        statusMsg.className = 'update-status-msg error';
-        statusMsg.innerHTML = `<i class="fas fa-exclamation-circle"></i> 失败: ${error.message}`;
-        btnRepair.disabled = false;
-        btnRepair.innerHTML = '<i class="fas fa-tools"></i> 修复更新';
-    }
-}
-
-// 执行修复更新的安装
-async function doRepairApply() {
-    const btnRepair = document.getElementById('btnRepairUpdate');
-    const btnApply = document.getElementById('btnRepairApply');
-    const statusMsg = document.getElementById('updateStatusMsg');
-    
-    if (!btnApply || !statusMsg) return;
-    
-    try {
-        await requireLogin();
-    } catch (e) {
-        return;
-    }
-    
-    const modal = document.getElementById('autoUpdateConfirmModal');
-    if (modal) {
-        const titleEl = modal.querySelector('.modal-title');
-        const contentEl = modal.querySelector('.modal-body');
-        const confirmBtn = document.getElementById('btnConfirmAutoUpdate');
-        if (titleEl) titleEl.innerHTML = '<i class="fas fa-tools"></i> 确认修复更新';
-        if (contentEl) contentEl.innerHTML = '确定要安装已下载的更新包吗？<br><br>安装过程中服务会短暂重启，请耐心等待。';
-        if (confirmBtn) {
-            confirmBtn.onclick = executeRepairApply;
-            confirmBtn.innerHTML = '<i class="fas fa-check"></i> 确认安装';
-        }
-        modal.classList.add('show');
-    }
-}
-
-async function executeRepairApply() {
-    const btnApply = document.getElementById('btnRepairApply');
-    const statusMsg = document.getElementById('updateStatusMsg');
-    
-    if (!btnApply || !statusMsg) return;
-    
-    closeAutoUpdateConfirmModal();
-    
-    btnApply.disabled = true;
-    btnApply.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 准备中...';
-    statusMsg.className = 'update-status-msg info';
-    statusMsg.innerHTML = `
-        <div><i class="fas fa-spinner fa-spin"></i> 正在安装更新，请稍候...</div>
-        <div class="update-progress-container" style="margin-top: 12px;">
-            <div class="update-progress-bar">
-                <div class="update-progress-fill" id="repairProgressFill" style="width: 0%"></div>
-            </div>
-            <div class="repair-progress-text" id="repairProgressText">准备中...</div>
-        </div>
-    `;
-    
-    let eventSource = null;
-    try {
-        eventSource = new EventSource('/api/update-progress');
-        
-        eventSource.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            const progressFill = document.getElementById('repairProgressFill');
-            const progressText = document.getElementById('repairProgressText');
-            
-            if (progressFill && progressText) {
-                progressFill.style.width = `${data.percent || 0}%`;
-                progressText.textContent = data.message || '';
-            }
-            
-            if (data.type === 'extract_start') {
-                btnApply.innerHTML = '<i class="fas fa-file-archive"></i> 解压中...';
-            } else if (data.type === 'extract_complete') {
-                btnApply.innerHTML = '<i class="fas fa-cog fa-spin"></i> 安装中...';
-            } else if (data.type === 'install_complete') {
-                btnApply.innerHTML = '<i class="fas fa-check"></i> 完成';
-            }
-        };
-        
-        const result = await apiRequest('/api/apply-update', 'POST');
-        
-        if (result.success) {
-            statusMsg.className = 'update-status-msg success';
-            statusMsg.innerHTML = `<i class="fas fa-check-circle"></i> 更新成功！已升级到 ${result.version}，页面将在 5 秒后刷新...`;
-            btnApply.innerHTML = '<i class="fas fa-check"></i> 更新成功';
-            
-            if (eventSource) {
-                eventSource.close();
-            }
-            
-            setTimeout(() => {
-                window.location.reload();
-            }, 5000);
-        } else {
-            statusMsg.className = 'update-status-msg error';
-            statusMsg.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${result.error || '更新失败'}`;
-            btnApply.disabled = false;
-            btnApply.innerHTML = '<i class="fas fa-upload"></i> 立即更新';
-            
-            if (eventSource) {
-                eventSource.close();
-            }
-        }
-    } catch (error) {
-        statusMsg.className = 'update-status-msg error';
-        statusMsg.innerHTML = `<i class="fas fa-exclamation-circle"></i> 更新失败: ${error.message}`;
-        btnApply.disabled = false;
-        btnApply.innerHTML = '<i class="fas fa-upload"></i> 立即更新';
-        
-        if (eventSource) {
-            eventSource.close();
-        }
     }
 }
 

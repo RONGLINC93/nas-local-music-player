@@ -44,6 +44,11 @@ app.get('/api/update-progress', (req, res) => {
     
     updateProgressClients.add(res);
     
+    if (downloadUpdateState.isDownloading && downloadUpdateState.lastProgress) {
+        const msg = `data: ${JSON.stringify(downloadUpdateState.lastProgress)}\n\n`;
+        res.write(msg);
+    }
+    
     req.on('close', () => {
         updateProgressClients.delete(res);
     });
@@ -51,6 +56,7 @@ app.get('/api/update-progress', (req, res) => {
 
 // 推送进度到所有 SSE 客户端
 function broadcastUpdateProgress(data) {
+    downloadUpdateState.lastProgress = data;
     const message = `data: ${JSON.stringify(data)}\n\n`;
     for (const client of updateProgressClients) {
         client.write(message);
@@ -8942,6 +8948,46 @@ app.get('/api/version', (req, res) => {
     }
 });
 
+// 从 GitHub Releases 页面获取最新版本号（通过重定向 URL 解析，不用 API）
+function getLatestVersionFromGithub() {
+    return new Promise((resolve, reject) => {
+        const options = {
+            hostname: 'github.com',
+            path: '/RONGLINC93/nas-local-music-player/releases/latest',
+            method: 'HEAD',
+            headers: {
+                'User-Agent': 'NAS-Local-Music-Player'
+            },
+            followRedirect: false
+        };
+
+        const req = https.request(options, (res) => {
+            if (res.statusCode === 302 || res.statusCode === 301) {
+                const location = res.headers.location;
+                const match = location.match(/\/releases\/tag\/v?([\d.]+)/);
+                if (match) {
+                    resolve({
+                        version: match[1],
+                        tagName: match[1],
+                        htmlUrl: 'https://github.com' + location
+                    });
+                } else {
+                    reject(new Error('无法从重定向 URL 解析版本号: ' + location));
+                }
+            } else {
+                reject(new Error('HTTP ' + res.statusCode));
+            }
+        });
+
+        req.on('error', reject);
+        req.setTimeout(10000, () => {
+            req.destroy();
+            reject(new Error('请求超时'));
+        });
+        req.end();
+    });
+}
+
 // 检查远程更新
 app.get('/api/check-update', (req, res) => {
     try {
@@ -8966,78 +9012,36 @@ app.get('/api/check-update', (req, res) => {
             return { downloaded: false, downloadedVersion: null };
         };
 
-        // 从 GitHub 获取最新版本
-        const options = {
-            hostname: 'api.github.com',
-            path: '/repos/RONGLINC93/nas-local-music-player/releases/latest',
-            method: 'GET',
-            headers: {
-                'User-Agent': 'NAS-Local-Music-Player'
-            }
-        };
-
-        const request = https.request(options, (response) => {
-            let data = '';
-            
-            response.on('data', (chunk) => {
-                data += chunk;
+        getLatestVersionFromGithub()
+            .then((releaseInfo) => {
+                const latestVersion = releaseInfo.version;
+                const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
+                const dlInfo = checkDownloaded(latestVersion);
+                
+                res.json({
+                    success: true,
+                    currentVersion,
+                    latestVersion,
+                    hasUpdate,
+                    downloaded: dlInfo.downloaded,
+                    downloadedVersion: dlInfo.downloadedVersion,
+                    downloadedFileSize: dlInfo.fileSize,
+                    isDownloading: downloadUpdateState.isDownloading,
+                    downloadingVersion: downloadUpdateState.version,
+                    downloadingStartTime: downloadUpdateState.startTime,
+                    releaseNotes: '',
+                    publishedAt: '',
+                    downloadUrl: releaseInfo.htmlUrl,
+                    zipUrl: `https://github.com/RONGLINC93/nas-local-music-player/archive/refs/tags/v${latestVersion}.zip`
+                });
+            })
+            .catch((error) => {
+                res.json({
+                    success: false,
+                    currentVersion,
+                    error: '获取最新版本失败: ' + error.message
+                });
             });
-            
-            response.on('end', () => {
-                try {
-                    if (response.statusCode === 200) {
-                        const release = JSON.parse(data);
-                        const latestVersion = release.tag_name.replace(/^v/, '');
-                        const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
-                        const dlInfo = checkDownloaded(latestVersion);
-                        
-                        res.json({
-                            success: true,
-                            currentVersion,
-                            latestVersion,
-                            hasUpdate,
-                            downloaded: dlInfo.downloaded,
-                            downloadedVersion: dlInfo.downloadedVersion,
-                            downloadedFileSize: dlInfo.fileSize,
-                            releaseNotes: release.body || '',
-                            publishedAt: release.published_at,
-                            downloadUrl: release.html_url
-                        });
-                    } else {
-                        res.json({
-                            success: false,
-                            currentVersion,
-                            error: '无法获取最新版本信息'
-                        });
-                    }
-                } catch (error) {
-                    res.json({
-                        success: false,
-                        currentVersion,
-                        error: '解析版本信息失败: ' + error.message
-                    });
-                }
-            });
-        });
-
-        request.on('error', (error) => {
-            res.json({
-                success: false,
-                currentVersion,
-                error: '网络请求失败: ' + error.message
-            });
-        });
-
-        request.setTimeout(5000, () => {
-            request.destroy();
-            res.json({
-                success: false,
-                currentVersion,
-                error: '请求超时'
-            });
-        });
-
-        request.end();
     } catch (error) {
         res.json({ success: false, error: error.message });
     }
@@ -9065,6 +9069,19 @@ app.post('/api/auto-update', requireAuth, async (req, res) => {
     
     try {
         console.log('===== 开始自动更新 =====');
+        
+        if (downloadUpdateState.isDownloading) {
+            return res.json({
+                success: true,
+                message: '更新包正在下载中...',
+                downloading: true,
+                version: downloadUpdateState.version,
+                startTime: downloadUpdateState.startTime
+            });
+        }
+        
+        downloadUpdateState.isDownloading = true;
+        downloadUpdateState.startTime = Date.now();
 
         // 先获取最新版本信息
         let currentVersion = 'unknown';
@@ -9076,13 +9093,17 @@ app.post('/api/auto-update', requireAuth, async (req, res) => {
         // 获取 GitHub 最新版本
         const releaseInfo = await getLatestRelease();
         if (!releaseInfo) {
+            downloadUpdateState.isDownloading = false;
             return res.status(500).json({ error: '无法获取最新版本信息' });
         }
 
         const latestVersion = releaseInfo.tag_name.replace(/^v/, '');
         const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
         
+        downloadUpdateState.version = latestVersion;
+        
         if (!hasUpdate) {
+            downloadUpdateState.isDownloading = false;
             return res.json({ success: true, message: '当前已是最新版本', currentVersion });
         }
 
@@ -9102,16 +9123,29 @@ app.post('/api/auto-update', requireAuth, async (req, res) => {
         
         broadcastUpdateProgress({ type: 'download_start', message: '开始下载更新包...' });
         
+        downloadUpdateState.isDownloading = true;
+        downloadUpdateState.version = latestVersion;
+        downloadUpdateState.startTime = Date.now();
+        
         await downloadFile(zipUrl, upgradeFilePath, (downloaded, total) => {
-            const percent = Math.round((downloaded / total) * 100);
             const downloadedMB = (downloaded / 1024 / 1024).toFixed(2);
-            const totalMB = (total / 1024 / 1024).toFixed(2);
+            let percent = 0;
+            let message = '';
+            if (total) {
+                percent = Math.round((downloaded / total) * 100);
+                const totalMB = (total / 1024 / 1024).toFixed(2);
+                message = `下载中... ${percent}% (${downloadedMB}MB / ${totalMB}MB)`;
+            } else {
+                percent = 0;
+                message = `下载中... 已下载 ${downloadedMB}MB`;
+            }
             broadcastUpdateProgress({
                 type: 'download_progress',
                 percent,
+                hasTotal: !!total,
                 downloaded: downloadedMB,
-                total: totalMB,
-                message: `下载中... ${percent}% (${downloadedMB}MB / ${totalMB}MB)`
+                total: total ? (total / 1024 / 1024).toFixed(2) : null,
+                message
             });
         });
 
@@ -9345,8 +9379,18 @@ app.post('/api/auto-update', requireAuth, async (req, res) => {
             error: '自动更新失败: ' + error.message,
             details: error.stack ? error.stack.substring(0, 500) : ''
         });
+    } finally {
+        downloadUpdateState.isDownloading = false;
     }
 });
+
+// 下载更新包状态跟踪
+let downloadUpdateState = {
+    isDownloading: false,
+    version: null,
+    startTime: null,
+    lastProgress: null
+};
 
 // 下载更新包（仅下载，不安装）
 app.post('/api/download-update', requireAuth, async (req, res) => {
@@ -9354,6 +9398,21 @@ app.post('/api/download-update', requireAuth, async (req, res) => {
     
     try {
         console.log('===== 开始下载更新包 =====');
+        
+        const force = req.body && req.body.force === true;
+        
+        if (downloadUpdateState.isDownloading) {
+            return res.json({
+                success: true,
+                message: '更新包正在下载中...',
+                downloading: true,
+                version: downloadUpdateState.version,
+                startTime: downloadUpdateState.startTime
+            });
+        }
+        
+        downloadUpdateState.isDownloading = true;
+        downloadUpdateState.startTime = Date.now();
 
         let currentVersion = 'unknown';
         const versionInfo = readVersionInfo();
@@ -9363,14 +9422,33 @@ app.post('/api/download-update', requireAuth, async (req, res) => {
 
         const releaseInfo = await getLatestRelease();
         if (!releaseInfo) {
+            downloadUpdateState.isDownloading = false;
             return res.status(500).json({ error: '无法获取最新版本信息' });
         }
 
         const latestVersion = releaseInfo.tag_name.replace(/^v/, '');
         const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
         
-        if (!hasUpdate) {
-            return res.json({ success: true, message: '当前已是最新版本', currentVersion });
+        downloadUpdateState.version = latestVersion;
+        
+        if (!hasUpdate && !force) {
+            const upgradeDir = path.join(__dirname, 'upgrades');
+            const existingFile = path.join(upgradeDir, `update-${latestVersion}.zip`);
+            if (fs.existsSync(existingFile)) {
+                const validationResult = validateUpdatePackage(existingFile, true);
+                if (validationResult.valid) {
+                    downloadUpdateState.isDownloading = false;
+                    return res.json({
+                        success: true,
+                        message: '当前已是最新版本，更新包已存在',
+                        currentVersion,
+                        latestVersion,
+                        fileSize: fs.statSync(existingFile).size
+                    });
+                }
+            }
+            downloadUpdateState.isDownloading = false;
+            return res.json({ success: true, message: '当前已是最新版本', currentVersion, latestVersion });
         }
 
         const zipUrl = `https://github.com/RONGLINC93/nas-local-music-player/archive/refs/tags/${releaseInfo.tag_name}.zip`;
@@ -9383,10 +9461,11 @@ app.post('/api/download-update', requireAuth, async (req, res) => {
 
         upgradeFilePath = path.join(upgradeDir, zipFileName);
         
-        if (fs.existsSync(upgradeFilePath)) {
+        if (fs.existsSync(upgradeFilePath) && !force) {
             console.log('更新包已存在，跳过下载');
             const validationResult = validateUpdatePackage(upgradeFilePath, true);
             if (validationResult.valid) {
+                downloadUpdateState.isDownloading = false;
                 return res.json({
                     success: true,
                     message: '更新包已下载',
@@ -9400,16 +9479,29 @@ app.post('/api/download-update', requireAuth, async (req, res) => {
         
         broadcastUpdateProgress({ type: 'download_start', message: '开始下载更新包...' });
         
+        downloadUpdateState.isDownloading = true;
+        downloadUpdateState.version = latestVersion;
+        downloadUpdateState.startTime = Date.now();
+        
         await downloadFile(zipUrl, upgradeFilePath, (downloaded, total) => {
-            const percent = Math.round((downloaded / total) * 100);
             const downloadedMB = (downloaded / 1024 / 1024).toFixed(2);
-            const totalMB = (total / 1024 / 1024).toFixed(2);
+            let percent = 0;
+            let message = '';
+            if (total) {
+                percent = Math.round((downloaded / total) * 100);
+                const totalMB = (total / 1024 / 1024).toFixed(2);
+                message = `下载中... ${percent}% (${downloadedMB}MB / ${totalMB}MB)`;
+            } else {
+                percent = 0;
+                message = `下载中... 已下载 ${downloadedMB}MB`;
+            }
             broadcastUpdateProgress({
                 type: 'download_progress',
                 percent,
+                hasTotal: !!total,
                 downloaded: downloadedMB,
-                total: totalMB,
-                message: `下载中... ${percent}% (${downloadedMB}MB / ${totalMB}MB)`
+                total: total ? (total / 1024 / 1024).toFixed(2) : null,
+                message
             });
         });
 
@@ -9453,6 +9545,8 @@ app.post('/api/download-update', requireAuth, async (req, res) => {
             error: '下载更新包失败: ' + error.message,
             details: error.stack ? error.stack.substring(0, 500) : ''
         });
+    } finally {
+        downloadUpdateState.isDownloading = false;
     }
 });
 
@@ -9481,25 +9575,38 @@ app.post('/api/apply-update', requireAuth, async (req, res) => {
             return res.status(400).json({ error: '未找到已下载的更新包，请先下载更新' });
         }
 
+        console.log('找到的 ZIP 文件:', zipFiles);
+        
         let bestFile = null;
         let bestVersion = null;
+        let validationErrors = [];
         for (const f of zipFiles) {
             const match = f.match(/update-([\d.]+)\.zip/);
             if (match) {
                 const ver = match[1];
-                if (!bestVersion || compareVersions(ver, bestVersion) > 0) {
-                    const filePath = path.join(upgradeDir, f);
-                    const validationResult = validateUpdatePackage(filePath, true);
-                    if (validationResult.valid) {
+                const filePath = path.join(upgradeDir, f);
+                const fileSize = fs.existsSync(filePath) ? fs.statSync(filePath).size : 0;
+                console.log(`检查文件: ${f}, 版本: ${ver}, 大小: ${fileSize} bytes`);
+                
+                const validationResult = validateUpdatePackage(filePath, true);
+                console.log(`验证结果: ${validationResult.valid ? '通过' : '失败 - ' + validationResult.message}`);
+                
+                if (validationResult.valid) {
+                    if (!bestVersion || compareVersions(ver, bestVersion) > 0) {
                         bestVersion = ver;
                         bestFile = filePath;
                     }
+                } else {
+                    validationErrors.push(`${f}: ${validationResult.message}`);
                 }
             }
         }
 
         if (!bestFile) {
-            return res.status(400).json({ error: '未找到有效的更新包，请先下载更新' });
+            const errorMsg = validationErrors.length > 0 
+                ? '未找到有效的更新包: ' + validationErrors.join('; ')
+                : '未找到有效的更新包，请先下载更新';
+            return res.status(400).json({ error: errorMsg, validationErrors });
         }
 
         upgradeFilePath = bestFile;
@@ -9722,49 +9829,16 @@ app.post('/api/apply-update', requireAuth, async (req, res) => {
     }
 });
 
-// 获取 GitHub 最新版本
+// 获取 GitHub 最新版本（通过重定向 URL 解析，不用 API）
 function getLatestRelease() {
-    return new Promise((resolve, reject) => {
-        const options = {
-            hostname: 'api.github.com',
-            path: '/repos/RONGLINC93/nas-local-music-player/releases/latest',
-            method: 'GET',
-            headers: {
-                'User-Agent': 'NAS-Local-Music-Player'
-            }
-        };
-
-        const request = https.request(options, (response) => {
-            let data = '';
-            
-            response.on('data', (chunk) => {
-                data += chunk;
-            });
-            
-            response.on('end', () => {
-                try {
-                    if (response.statusCode === 200) {
-                        resolve(JSON.parse(data));
-                    } else {
-                        resolve(null);
-                    }
-                } catch (error) {
-                    resolve(null);
-                }
-            });
-        });
-
-        request.on('error', (error) => {
-            resolve(null);
-        });
-
-        request.setTimeout(10000, () => {
-            request.destroy();
-            resolve(null);
-        });
-
-        request.end();
-    });
+    return getLatestVersionFromGithub()
+        .then((info) => ({
+            tag_name: 'v' + info.version,
+            html_url: info.htmlUrl,
+            body: '',
+            published_at: ''
+        }))
+        .catch(() => null);
 }
 
 // 下载文件
@@ -9792,15 +9866,20 @@ function downloadFile(url, dest, onProgress) {
                 return;
             }
 
-            const totalBytes = parseInt(response.headers['content-length'], 10);
+            const totalBytes = parseInt(response.headers['content-length'], 10) || null;
             let downloadedBytes = 0;
+            let lastProgressTime = 0;
 
             const fileStream = fs.createWriteStream(dest);
             
             response.on('data', (chunk) => {
                 downloadedBytes += chunk.length;
-                if (onProgress && totalBytes) {
-                    onProgress(downloadedBytes, totalBytes);
+                if (onProgress) {
+                    const now = Date.now();
+                    if (now - lastProgressTime >= 500 || !totalBytes) {
+                        onProgress(downloadedBytes, totalBytes);
+                        lastProgressTime = now;
+                    }
                 }
             });
 

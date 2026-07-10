@@ -12162,6 +12162,1572 @@ body.dark-theme .playlist-header {
     border-bottom-color: var(--border-color, #374151);
 }
 
+/* 在线音乐列表深色模式 */
+body.dark-theme .online-music-item {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .online-music-item:hover {
+    background: #374151;
+    border-color: #4b5563;
+}
+
+body.dark-theme .online-music-item.active {
+    background: linear-gradient(90deg, rgba(96, 165, 250, 0.15) 0%, rgba(59, 130, 246, 0.08) 100%);
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .online-music-index {
+    background: #374151;
+    color: #d1d5db;
+}
+
+body.dark-theme .online-music-cover {
+    background-color: #374151;
+}
+
+body.dark-theme .online-music-title {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .online-music-artist {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .online-music-album {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .online-music-duration {
+    color: var(--text-secondary, #9ca3af);
+}
+
+body.dark-theme .online-music-add-btn,
+body.dark-theme .online-music-download-btn,
+body.dark-theme .online-music-play-btn,
+body.dark-theme .online-music-add-songlist-btn {
+    color: #9ca3af;
+}
+
+body.dark-theme .online-music-add-btn:hover,
+body.dark-theme .online-music-download-btn:hover,
+body.dark-theme .online-music-play-btn:hover,
+body.dark-theme .online-music-add-songlist-btn:hover {
+    background: #4b5563;
+    color: var(--text-primary, #f9fafb);
+}
+
+/* 排行榜歌曲项深色模式 */
+body.dark-theme .top-song-item {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .top-song-item:hover {
+    background: #374151;
+}
+
+body.dark-theme .top-song-item.active {
+    background: linear-gradient(90deg, rgba(96, 165, 250, 0.15) 0%, rgba(59, 130, 246, 0.08) 100%);
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .top-song-rank {
+    background: #374151;
+    color: #d1d5db;
+}
+
+body.dark-theme .top-song-title {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .top-song-artist {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .top-song-album {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .top-song-duration {
+    color: var(--text-secondary, #9ca3af);
+}
+
+/* 我的歌单歌曲项深色模式 */
+body.dark-theme .mysonglist-song-item {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .mysonglist-song-item:hover {
+    background: #374151;
+}
+
+body.dark-theme .mysonglist-song-item.active {
+    background: linear-gradient(90deg, rgba(96, 165, 250, 0.15) 0%, rgba(59, 130, 246, 0.08) 100%);
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .mysonglist-song-index {
+    background: #374151;
+    color: #d1d5db;
+}
+
+body.dark-theme .mysonglist-song-title {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .mysonglist-song-artist {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .mysonglist-song-album {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .mysonglist-song-duration {
+    color: var(--text-secondary, #9ca3af);
+}
+
+/* 播放历史歌曲项深色模式 */
+body.dark-theme .history-song-item {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .history-song-item:hover {
+    background: #374151;
+}
+
+body.dark-theme .history-song-item.active {
+    background: linear-gradient(90deg, rgba(96, 165, 250, 0.15) 0%, rgba(59, 130, 246, 0.08) 100%);
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .history-song-index {
+    background: #374151;
+    color: #d1d5db;
+}
+
+body.dark-theme .history-song-title {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .history-song-artist {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .history-song-album {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .history-song-duration {
+    color: var(--text-secondary, #9ca3af);
+}
+
+body.dark-theme .history-song-time {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+/* 排行榜徽章深色模式 */
+body.dark-theme .rank-badge.rank-other {
+    background: #374151;
+    color: #d1d5db;
+}
+
+body.dark-theme .rank-badge.rank-1 {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    color: #78350f;
+}
+
+body.dark-theme .rank-badge.rank-2 {
+    background: linear-gradient(135deg, #9ca3af, #6b7280);
+    color: #1f2937;
+}
+
+body.dark-theme .rank-badge.rank-3 {
+    background: linear-gradient(135deg, #d97706, #b45309);
+    color: white;
+}
+
+/* 在线音乐标签深色模式 */
+body.dark-theme .online-tabs {
+    background: #374151;
+}
+
+body.dark-theme .online-tab {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .online-tab:hover {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .online-tab.active {
+    background: #1f2937;
+    color: var(--primary-color, #60a5fa);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* 排行榜选择器深色模式 */
+body.dark-theme .rank-source-select,
+body.dark-theme .rank-type-select {
+    background: #374151;
+    border-color: #4b5563;
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .rank-source-select:hover,
+body.dark-theme .rank-type-select:hover {
+    border-color: #6b7280;
+}
+
+body.dark-theme .rank-refresh-btn {
+    background: #374151;
+    color: #d1d5db;
+}
+
+body.dark-theme .rank-refresh-btn:hover {
+    background: #4b5563;
+    color: var(--text-primary, #f9fafb);
+}
+
+/* 歌单详情区域深色模式 */
+body.dark-theme .songlist-detail-results {
+    background: #1f2937;
+}
+
+body.dark-theme .songlist-info-text p {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .songlist-info-desc {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+/* 来源标签深色模式 */
+body.dark-theme .source-badge {
+    background: #1e3a5f;
+    color: var(--primary-color, #60a5fa);
+}
+
+/* 分页控件深色模式 */
+body.dark-theme .pagination-btn {
+    background: #374151;
+    border-color: #4b5563;
+    color: #d1d5db;
+}
+
+body.dark-theme .pagination-btn:hover:not(.disabled) {
+    background: #4b5563;
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .pagination-btn.active {
+    background: var(--primary-color, #60a5fa);
+    border-color: var(--primary-color, #60a5fa);
+    color: white;
+}
+
+body.dark-theme .pagination-btn.disabled {
+    background: #1f2937;
+    color: #6b7280;
+    cursor: not-allowed;
+}
+
+body.dark-theme .pagination-ellipsis {
+    color: var(--text-tertiary, #6b7280);
+}
+
+body.dark-theme .pagination-size select {
+    background: #374151;
+    border-color: #4b5563;
+    color: var(--text-primary, #f9fafb);
+}
+
+/* 在线右键菜单深色模式 */
+body.dark-theme .online-context-menu {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .online-context-menu-item {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .online-context-menu-item:hover {
+    background: #374151;
+}
+
+body.dark-theme .online-context-menu-item i {
+    color: var(--text-secondary, #d1d5db);
+}
+
+/* 音源管理按钮深色模式 */
+body.dark-theme .source-refresh-btn {
+    background: #374151;
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .source-refresh-btn:hover {
+    background: #4b5563;
+}
+
+body.dark-theme .source-apply-btn {
+    background: #374151;
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .source-apply-btn:hover {
+    background: #4b5563;
+}
+
+/* 歌单返回按钮深色模式 */
+body.dark-theme .songlist-back-btn {
+    border-color: #374151;
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .songlist-back-btn:hover {
+    border-color: var(--primary-color, #60a5fa);
+    color: var(--primary-color, #60a5fa);
+}
+
+/* 歌单详情空状态深色模式 */
+body.dark-theme .songlist-detail-empty {
+    background: linear-gradient(135deg, #78350f 0%, #92400e 100%);
+    border-color: rgba(251, 191, 36, 0.3);
+}
+
+body.dark-theme .songlist-detail-empty p {
+    color: #fcd34d;
+}
+
+/* 播放器控制栏深色模式 */
+body.dark-theme .player-bar {
+    background: linear-gradient(180deg, #1f2937 0%, #111827 100%);
+    border-top-color: var(--border-color, #374151);
+}
+
+body.dark-theme .track-title {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .track-artist {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .time {
+    color: var(--text-secondary, #9ca3af);
+}
+
+body.dark-theme #progressBarContainer {
+    background: #374151;
+}
+
+body.dark-theme #volumeSlider {
+    background: #374151;
+}
+
+body.dark-theme .volume-value {
+    color: var(--text-secondary, #9ca3af);
+}
+
+body.dark-theme .output-switch-btn {
+    background: #374151;
+    border-color: #4b5563;
+    color: #d1d5db;
+}
+
+body.dark-theme .output-switch-btn:hover {
+    background: #4b5563;
+    color: var(--primary-color, #60a5fa);
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .output-switch-btn.active-client {
+    background: #1e3a5f;
+    border-color: var(--primary-color, #60a5fa);
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .output-switch-btn.active-server {
+    background: #064e3b;
+    border-color: var(--success-color, #34d399);
+    color: var(--success-color, #34d399);
+}
+
+body.dark-theme .speed-btn {
+    background: #374151;
+    border-color: #4b5563;
+    color: #d1d5db;
+}
+
+body.dark-theme .speed-btn:hover {
+    background: #4b5563;
+    color: var(--primary-color, #60a5fa);
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .speed-menu {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .speed-option {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .speed-option:hover {
+    background: #374151;
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .speed-option.active {
+    background: #1e3a5f;
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .sleep-timer-btn {
+    background: #374151;
+    border-color: #4b5563;
+    color: #d1d5db;
+}
+
+body.dark-theme .sleep-timer-btn:hover {
+    background: #4b5563;
+    color: #a78bfa;
+    border-color: #a78bfa;
+}
+
+body.dark-theme .sleep-timer-btn.active {
+    background: #2e1065;
+    border-color: #a78bfa;
+    color: #a78bfa;
+}
+
+body.dark-theme .sleep-timer-menu {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .sleep-timer-title {
+    color: var(--text-primary, #f9fafb);
+    border-bottom-color: #374151;
+}
+
+body.dark-theme .sleep-timer-option {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .sleep-timer-option:hover {
+    background: #374151;
+    color: #a78bfa;
+}
+
+body.dark-theme .sleep-timer-option.active {
+    background: #2e1065;
+    color: #a78bfa;
+}
+
+/* 播放列表深色模式 */
+body.dark-theme .playlist-section {
+    background: #1f2937;
+}
+
+body.dark-theme .playlist-item {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .playlist-item:hover {
+    background: #374151;
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .playlist-item-title {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .playlist-item-artist {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .playlist-item-duration {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .playlist-context-menu {
+    background: #1f2937;
+}
+
+body.dark-theme .playlist-menu-item {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .playlist-menu-item:hover {
+    background: #374151;
+}
+
+body.dark-theme .playlist-menu-item i {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .context-menu-item {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .context-menu-item:hover {
+    background: #2e1065;
+    color: #a78bfa;
+}
+
+body.dark-theme .context-menu-item i {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .context-menu-item:hover i {
+    color: #a78bfa;
+}
+
+body.dark-theme .context-menu-divider {
+    background: #374151;
+}
+
+/* 模态框深色模式 */
+body.dark-theme .modal-header {
+    border-bottom-color: #374151;
+}
+
+body.dark-theme .modal-header h3 {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .close-btn,
+body.dark-theme .modal-close {
+    background: #374151;
+    color: #d1d5db;
+}
+
+body.dark-theme .close-btn:hover,
+body.dark-theme .modal-close:hover {
+    background: var(--primary-color, #60a5fa);
+    color: white;
+}
+
+body.dark-theme .modal-body label {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .modal-body .form-control {
+    background: #374151;
+    border-color: #4b5563;
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .modal-body .form-control:focus {
+    background: #1f2937;
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .form-group label {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .form-group input {
+    background: #374151;
+    border-color: #4b5563;
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .user-info-card {
+    background: #374151;
+}
+
+body.dark-theme .info-label {
+    color: var(--text-secondary, #9ca3af);
+}
+
+body.dark-theme .info-value {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .info-edit-input {
+    background: #1f2937;
+    border-color: #4b5563;
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .login-modal-header h3 {
+    color: var(--text-primary, #f9fafb);
+}
+
+/* 上传区域深色模式 */
+body.dark-theme .upload-dropzone {
+    background: #374151;
+    border-color: #4b5563;
+}
+
+body.dark-theme .upload-text {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .upload-hint {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .file-item {
+    background: #374151;
+}
+
+body.dark-theme .file-item-name {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .file-item-size {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .file-item-remove {
+    background: #4b5563;
+    color: #d1d5db;
+}
+
+/* 声卡设备管理深色模式 */
+body.dark-theme .audio-device-card {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .audio-device-description {
+    color: var(--text-secondary, #9ca3af);
+}
+
+/* 缓存管理深色模式 */
+body.dark-theme .cache-stats {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .cache-item {
+    border-color: #374151;
+}
+
+body.dark-theme .cache-item:hover {
+    background: #374151;
+}
+
+body.dark-theme .cache-item-title {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .cache-item-meta {
+    color: var(--text-secondary, #9ca3af);
+}
+
+body.dark-theme .cache-limit-option {
+    background: #374151;
+    color: #d1d5db;
+}
+
+body.dark-theme .cache-limit-option:hover {
+    background: #4b5563;
+}
+
+body.dark-theme .cache-limit-option:has(input[type="radio"]:checked) {
+    background: #1e3a5f;
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .cache-limit-input {
+    background: #374151;
+    border-color: #4b5563;
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .cache-list {
+    border-top-color: #374151;
+}
+
+/* 播放输出方式深色模式 */
+body.dark-theme .play-output-option {
+    border-color: #374151;
+}
+
+body.dark-theme .play-output-option:hover {
+    background: #374151;
+    border-color: #a5b4fc;
+}
+
+body.dark-theme .play-output-option:has(input[type="radio"]:checked) {
+    background: #1e3a5f;
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .play-output-label span {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .play-output-label small {
+    color: var(--text-secondary, #9ca3af);
+}
+
+/* 设备列表深色模式 */
+body.dark-theme .device-item {
+    border-color: #374151;
+}
+
+body.dark-theme .device-item:hover {
+    background: #374151;
+    border-color: #a5b4fc;
+}
+
+body.dark-theme .device-item.active {
+    background: #1e3a5f;
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .device-item-name {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .device-item-id {
+    color: var(--text-secondary, #9ca3af);
+}
+
+body.dark-theme .device-item-icon {
+    background: #374151;
+}
+
+body.dark-theme .device-list {
+    background: #1f2937;
+}
+
+/* 批量下载卡片深色模式 */
+body.dark-theme .batch-download-float-card {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .batch-download-float-progress-bar {
+    background: #374151;
+}
+
+body.dark-theme .batch-download-float-file {
+    background: #374151;
+    color: var(--text-secondary, #9ca3af);
+}
+
+body.dark-theme .batch-download-float-footer {
+    border-top-color: #374151;
+}
+
+/* 关于页面深色模式 */
+body.dark-theme .about-content {
+    background: #1f2937;
+}
+
+body.dark-theme .about-content h2 {
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .about-content .description {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .about-content .features {
+    background: #374151;
+}
+
+body.dark-theme .about-content .features h4 {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .about-content .features li {
+    background: #1f2937;
+    color: var(--text-secondary, #d1d5db);
+    border-color: #374151;
+}
+
+body.dark-theme .about-content .guide-section li {
+    background: #1f2937;
+    color: var(--text-secondary, #d1d5db);
+    border-color: #374151;
+}
+
+body.dark-theme .about-content .guide-section li strong {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .about-content .usage-guide {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%);
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+body.dark-theme .about-content .usage-guide h4 {
+    color: #34d399;
+}
+
+body.dark-theme .about-content .guide-section h5 {
+    color: #60a5fa;
+}
+
+body.dark-theme .about-content .audio-principle {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(124, 58, 237, 0.1) 100%);
+    border-color: rgba(139, 92, 246, 0.3);
+}
+
+body.dark-theme .about-content .audio-principle h4 {
+    color: #a78bfa;
+}
+
+body.dark-theme .about-content .principle-section h5 {
+    color: #60a5fa;
+}
+
+/* 文件夹相关深色模式 */
+body.dark-theme .folder-header {
+    background: #1f2937;
+    border-bottom-color: #374151;
+}
+
+body.dark-theme .folder-breadcrumb {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .folder-section-title {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .folder-card {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .folder-name {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .folder-meta {
+    color: var(--text-secondary, #9ca3af);
+}
+
+body.dark-theme .folder-music-item {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .folder-music-item:hover {
+    background: #374151;
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .folder-music-title {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .folder-music-artist {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .folder-music-duration {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .folder-search-box {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .folder-search-box:focus-within {
+    background: #374151;
+    border-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .folder-search-input {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .browse-group-card {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .browse-group-card:hover {
+    background: #374151;
+    border-color: #a78bfa;
+}
+
+body.dark-theme .browse-group-name {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .browse-group-btn {
+    background: #374151;
+    color: #d1d5db;
+}
+
+body.dark-theme .browse-group-btn:hover {
+    background: #a78bfa;
+    color: white;
+}
+
+body.dark-theme .duplicate-toolbar {
+    background: #374151;
+    border-color: #4b5563;
+}
+
+body.dark-theme .duplicate-method-select {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .duplicate-method-select select {
+    background: #1f2937;
+    border-color: #4b5563;
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .duplicate-group {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .duplicate-group-header {
+    background: #374151;
+}
+
+body.dark-theme .duplicate-group-header:hover {
+    background: #4b5563;
+}
+
+body.dark-theme .duplicate-group-name {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .duplicate-group-artist {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .duplicate-group-files {
+    border-top-color: #374151;
+}
+
+body.dark-theme .duplicate-file-item:hover {
+    background: #374151;
+}
+
+body.dark-theme .duplicate-file-name {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .duplicate-file-path {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .duplicate-file-meta {
+    color: var(--text-secondary, #9ca3af);
+}
+
+body.dark-theme .dup-file-btn:hover {
+    background: #374151;
+}
+
+body.dark-theme .import-upload-area {
+    background: #374151;
+    border-color: #4b5563;
+}
+
+body.dark-theme .import-upload-area:hover {
+    background: #4b5563;
+    border-color: #a78bfa;
+}
+
+body.dark-theme .import-upload-text {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .match-result-item:hover {
+    background: #374151;
+}
+
+body.dark-theme .match-title {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .match-artist {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .match-album {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .cover-manager-toolbar {
+    background: #374151;
+    border-color: #4b5563;
+}
+
+body.dark-theme .cover-album-card {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .cover-album-name {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .cover-album-artist {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .cover-album-count {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .cover-album-cover {
+    background: #374151;
+}
+
+/* 文件夹更多菜单深色模式 */
+body.dark-theme .folder-more-menu {
+    background: #1f2937;
+}
+
+body.dark-theme .folder-more-menu .folder-menu-item {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .folder-more-menu .folder-menu-item:hover {
+    background: #374151;
+}
+
+body.dark-theme .folder-more-menu .folder-menu-item i {
+    color: var(--text-secondary, #d1d5db);
+}
+
+/* 批量操作菜单深色模式 */
+body.dark-theme .batch-more-menu {
+    background: #1f2937;
+}
+
+body.dark-theme .batch-menu-item {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .batch-menu-item:hover {
+    background: #374151;
+}
+
+body.dark-theme .batch-menu-item i {
+    color: var(--text-secondary, #d1d5db);
+}
+
+/* 右键菜单深色模式 */
+body.dark-theme .folder-file-context-menu {
+    background: #1f2937;
+}
+
+/* 文件夹树深色模式 */
+body.dark-theme .folder-tree {
+    background: #374151;
+}
+
+body.dark-theme .folder-tree .folder-item:hover {
+    background-color: #4b5563;
+}
+
+body.dark-theme .folder-tree .folder-item.selected {
+    background-color: #1e3a5f;
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .move-file-list {
+    background: #374151;
+}
+
+body.dark-theme .move-file-item:hover {
+    background-color: #4b5563;
+}
+
+body.dark-theme .move-divider {
+    background: #4b5563;
+}
+
+body.dark-theme .move-new-folder-input {
+    border-top-color: #4b5563;
+}
+
+body.dark-theme .move-new-folder-input label {
+    color: var(--text-secondary, #9ca3af);
+}
+
+/* 统计页面深色模式 */
+body.dark-theme .stats-content {
+    background: #1f2937;
+}
+
+body.dark-theme .stats-period-tabs {
+    background: #374151;
+}
+
+body.dark-theme .stats-period-tab {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .stats-period-tab:hover {
+    background: #4b5563;
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .stats-period-tab.active {
+    background: var(--primary-color, #60a5fa);
+    color: white;
+}
+
+body.dark-theme .stats-card {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+body.dark-theme .stats-card-title {
+    color: var(--text-secondary, #9ca3af);
+}
+
+body.dark-theme .stats-card-value {
+    color: var(--text-primary, #f9fafb);
+}
+
+/* 通用文本颜色深色模式 */
+body.dark-theme .breadcrumb-current {
+    color: var(--text-secondary, #d1d5db);
+    background: rgba(100, 116, 139, 0.2);
+}
+
+body.dark-theme .breadcrumb-separator {
+    color: var(--text-tertiary, #6b7280);
+}
+
+body.dark-theme .batch-select-all {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .batch-count {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .batch-divider {
+    background: #4b5563;
+}
+
+body.dark-theme .playlist-batch-labels {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .title-select-all {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .cache-time {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .folder-empty {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .folder-empty i {
+    color: var(--text-tertiary, #6b7280);
+}
+
+body.dark-theme .empty-hint {
+    color: var(--text-tertiary, #6b7280);
+}
+
+body.dark-theme .folder-loading p {
+    color: var(--text-secondary, #9ca3af);
+}
+
+body.dark-theme .loading-status {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .loading-spinner {
+    border-color: #374151;
+    border-top-color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .loading-progress {
+    background: #374151;
+}
+
+body.dark-theme .folder-back-btn {
+    background: #374151;
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .folder-back-btn:hover {
+    background: #4b5563;
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .no-search-results {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .search-highlight {
+    background: #78350f;
+    color: #fbbf24;
+}
+
+body.dark-theme .folder-music-index {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .playlist-item-index {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .playlist-item-path {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .playlist-refresh-btn {
+    background: #374151;
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .playlist-refresh-btn:hover {
+    background: #4b5563;
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .folder-icon-btn {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .folder-icon-btn:hover {
+    background: #374151;
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .folder-card-menu-btn {
+    background-color: #374151;
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .folder-card-menu-btn:hover {
+    background-color: #4b5563;
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .browse-tab {
+    color: var(--text-secondary, #9ca3af);
+}
+
+body.dark-theme .browse-tab:hover {
+    color: var(--text-primary, #f3f4f6);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+body.dark-theme .browse-tab.active {
+    background-color: #1f2937;
+    color: var(--primary-color, #818cf8);
+}
+
+body.dark-theme .browse-tabs-wrapper {
+    background: #1f2937;
+    border-bottom-color: #374151;
+}
+
+body.dark-theme .browse-tabs {
+    background: #374151;
+}
+
+body.dark-theme .section-header .rank-type-container {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .section-header .count {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .btn-secondary {
+    background: #374151;
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .upload-limit {
+    background: #78350f;
+    color: #fbbf24;
+}
+
+body.dark-theme .worker-status {
+    background: linear-gradient(135deg, #1e3a5f 0%, #0c4a6e 100%);
+}
+
+body.dark-theme .worker-status p {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .worker-status p:first-child {
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .worker-status span {
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .upload-folder-info {
+    background: #1e3a5f;
+    color: #93c5fd;
+}
+
+body.dark-theme .upload-folder-info span {
+    color: #60a5fa;
+}
+
+body.dark-theme .info-row {
+    border-bottom-color: #374151;
+}
+
+body.dark-theme .cache-limit-label {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .cache-limit-hint {
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .device-status.active {
+    background: #064e3b;
+    color: var(--success-color, #34d399);
+}
+
+body.dark-theme .device-status.inactive {
+    background: #374151;
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .playlist-no-match p:first-of-type {
+    color: #93c5fd;
+}
+
+body.dark-theme .playlist-no-match .empty-hint {
+    color: #60a5fa;
+    background: rgba(96, 165, 250, 0.1);
+    border-color: rgba(96, 165, 250, 0.2);
+}
+
+body.dark-theme .playlist-empty p:first-of-type {
+    color: #93c5fd;
+}
+
+body.dark-theme .playlist-empty .empty-hint {
+    color: #60a5fa;
+    background: rgba(96, 165, 250, 0.1);
+    border-color: rgba(96, 165, 250, 0.2);
+}
+
+body.dark-theme .songlist-empty p:first-of-type {
+    color: #93c5fd;
+}
+
+body.dark-theme .songlist-empty .empty-hint {
+    color: #a78bfa;
+    background: rgba(167, 139, 250, 0.1);
+    border-color: rgba(167, 139, 250, 0.2);
+}
+
+body.dark-theme .songlist-loading {
+    background: linear-gradient(135deg, #2e1065 0%, #4c1d95 100%);
+    border-color: rgba(167, 139, 250, 0.3);
+}
+
+body.dark-theme .songlist-loading p {
+    color: #c4b5fd;
+}
+
+body.dark-theme .songlist-detail-empty {
+    background: linear-gradient(135deg, #78350f 0%, #92400e 100%);
+    border-color: rgba(251, 191, 36, 0.3);
+}
+
+body.dark-theme .songlist-detail-empty p {
+    color: #fcd34d;
+}
+
+body.dark-theme .online-loading p {
+    color: var(--text-secondary, #9ca3af);
+}
+
+body.dark-theme .duplicate-loading p {
+    color: var(--text-secondary, #9ca3af);
+}
+
+body.dark-theme .duplicate-empty p {
+    color: var(--text-secondary, #9ca3af);
+}
+
+body.dark-theme .duplicate-empty .empty-hint {
+    color: var(--text-tertiary, #6b7280);
+}
+
+body.dark-theme .duplicate-stat-value {
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .duplicate-stat-label {
+    color: var(--text-secondary, #9ca3af);
+}
+
+body.dark-theme .duplicate-stat-icon {
+    background: #1f2937;
+}
+
+body.dark-theme .duplicate-stats {
+    background: linear-gradient(135deg, #78350f, #92400e);
+}
+
+body.dark-theme .import-tips {
+    background: #1e3a5f;
+    border-color: #3b82f6;
+}
+
+body.dark-theme .import-upload-hint {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .match-result-item {
+    border-bottom-color: #374151;
+}
+
+body.dark-theme .match-score {
+    background: #1e3a5f;
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .song-source-badge.local {
+    background-color: #064e3b;
+    color: var(--success-color, #34d399);
+}
+
+body.dark-theme .song-source-badge.online {
+    background-color: #1e3a5f;
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .song-missing-badge {
+    background: #7f1d1d;
+    color: var(--danger-color, #f87171);
+}
+
+body.dark-theme .breadcrumb-link {
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .breadcrumb-link:hover {
+    color: var(--primary-hover, #3b82f6);
+    background: rgba(96, 165, 250, 0.1);
+}
+
+body.dark-theme .breadcrumb-item {
+    color: #a78bfa;
+}
+
+body.dark-theme .breadcrumb-item:hover {
+    color: #c4b5fd;
+}
+
+body.dark-theme .breadcrumb-sep {
+    color: var(--text-tertiary, #6b7280);
+}
+
+body.dark-theme .login-tip {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+body.dark-theme .login-footer a {
+    color: #a78bfa;
+}
+
+body.dark-theme .cache-refresh-btn {
+    background: #1e3a5f;
+    color: var(--primary-color, #60a5fa);
+}
+
+body.dark-theme .cache-refresh-btn:hover {
+    background: #1e40af;
+}
+
+body.dark-theme .cache-clear-btn {
+    background: #7f1d1d;
+    color: var(--danger-color, #f87171);
+}
+
+body.dark-theme .cache-clear-btn:hover {
+    background: #991b1b;
+}
+
+body.dark-theme .download-btn {
+    background: #0c4a6e;
+    color: #38bdf8;
+}
+
+body.dark-theme .download-btn:hover {
+    background: #38bdf8 !important;
+    color: white;
+}
+
+body.dark-theme #progressBarContainer:hover #progressBar {
+    height: 6px;
+}
+
+body.dark-theme #progressBarContainer:hover #bufferProgress {
+    height: 6px;
+}
+
+/* 文件管理头部深色模式 */
+body.dark-theme .file-section-header {
+    background: transparent;
+}
+
+body.dark-theme .folder-music-header {
+    border-bottom-color: #374151;
+}
+
+body.dark-theme .folder-music-menu-btn {
+    color: var(--text-secondary, #d1d5db);
+}
+
+body.dark-theme .folder-music-menu-btn:hover {
+    background: #374151;
+    color: var(--text-primary, #f9fafb);
+}
+
+body.dark-theme .folder-music-menu-btn-mobile {
+    color: var(--text-secondary, #d1d5db);
+}
+
+/* 播放列表头部深色模式 */
+body.dark-theme .playlist-header-duration,
+body.dark-theme .playlist-header-artist,
+body.dark-theme .playlist-header-index {
+    color: var(--text-secondary, #9ca3af);
+}
+
+/* 统计视图深色模式 */
+body.dark-theme .stats-view {
+    background: var(--bg-secondary, #1f2937);
+}
+
+body.dark-theme .stats-container .section-header {
+    background: var(--bg-card, #1f2937);
+}
+
+body.dark-theme .stats-container .section-header h2 {
+    color: var(--text-primary, #f9fafb);
+}
+
 
 
 /* ========== 听歌统计 ========== */

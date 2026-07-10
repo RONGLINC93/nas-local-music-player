@@ -8564,6 +8564,58 @@ const updateUpload = multer({
     }
 });
 
+// 上传更新包（仅保存，不安装）
+app.post('/api/upload-update', requireAuth, updateUpload.single('file'), async (req, res) => {
+    try {
+        console.log('===== 上传更新包 =====');
+
+        if (!req.file) {
+            return res.status(400).json({ error: '请选择更新包文件' });
+        }
+
+        const filePath = req.file.path;
+        const fileName = req.file.originalname;
+        const fileSize = req.file.size;
+
+        console.log(`更新包已上传: ${filePath}, 大小: ${fileSize} bytes`);
+
+        const validationResult = validateUpdatePackage(filePath, true);
+        if (!validationResult.valid) {
+            console.error(`更新包验证失败: ${validationResult.message}`);
+            if (filePath && fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+            }
+            return res.status(400).json({ error: validationResult.message });
+        }
+
+        const version = validationResult.version;
+        const finalFileName = `update-${version}.zip`;
+        const finalPath = path.join(path.dirname(filePath), finalFileName);
+
+        if (fs.existsSync(finalPath)) {
+            fs.unlinkSync(finalPath);
+        }
+        fs.renameSync(filePath, finalPath);
+
+        console.log(`更新包保存成功: ${finalFileName}, 版本: ${version}`);
+
+        res.json({
+            success: true,
+            message: '更新包上传成功',
+            version: version,
+            fileSize: fileSize,
+            fileName: finalFileName
+        });
+
+    } catch (error) {
+        console.error('上传更新包失败:', error);
+        if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+        }
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // 系统更新 API - 上传 ZIP 包并解压替换
 app.post('/api/system-update', requireAuth, updateUpload.single('file'), async (req, res) => {
     let upgradeFilePath = null;
@@ -8865,12 +8917,22 @@ function validateUpdatePackage(zipPath, isSourceZip = false) {
     }
 }
 
-// 获取当前版本信息
+function readVersionInfo() {
+    const versionFile = path.join(__dirname, 'version.json');
+    if (fs.existsSync(versionFile)) {
+        let content = fs.readFileSync(versionFile, 'utf8');
+        if (content.charCodeAt(0) === 0xFEFF) {
+            content = content.slice(1);
+        }
+        return JSON.parse(content);
+    }
+    return null;
+}
+
 app.get('/api/version', (req, res) => {
     try {
-        const versionFile = path.join(__dirname, 'version.json');
-        if (fs.existsSync(versionFile)) {
-            const versionInfo = JSON.parse(fs.readFileSync(versionFile, 'utf8'));
+        const versionInfo = readVersionInfo();
+        if (versionInfo) {
             res.json({ success: true, ...versionInfo });
         } else {
             res.json({ success: false, error: '版本文件不存在' });
@@ -8883,13 +8945,26 @@ app.get('/api/version', (req, res) => {
 // 检查远程更新
 app.get('/api/check-update', (req, res) => {
     try {
-        const versionFile = path.join(__dirname, 'version.json');
         let currentVersion = 'unknown';
-        
-        if (fs.existsSync(versionFile)) {
-            const versionInfo = JSON.parse(fs.readFileSync(versionFile, 'utf8'));
+        const versionInfo = readVersionInfo();
+        if (versionInfo) {
             currentVersion = versionInfo.version;
         }
+
+        const checkDownloaded = (latestVer) => {
+            const upgradeDir = path.join(__dirname, 'upgrades');
+            if (!fs.existsSync(upgradeDir)) return { downloaded: false, downloadedVersion: null };
+            const files = fs.readdirSync(upgradeDir).filter(f => f.endsWith('.zip'));
+            for (const f of files) {
+                const match = f.match(/update-([\d.]+)\.zip/);
+                if (match && match[1] === latestVer) {
+                    const filePath = path.join(upgradeDir, f);
+                    const stats = fs.statSync(filePath);
+                    return { downloaded: true, downloadedVersion: latestVer, fileSize: stats.size };
+                }
+            }
+            return { downloaded: false, downloadedVersion: null };
+        };
 
         // 从 GitHub 获取最新版本
         const options = {
@@ -8914,12 +8989,16 @@ app.get('/api/check-update', (req, res) => {
                         const release = JSON.parse(data);
                         const latestVersion = release.tag_name.replace(/^v/, '');
                         const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
+                        const dlInfo = checkDownloaded(latestVersion);
                         
                         res.json({
                             success: true,
                             currentVersion,
                             latestVersion,
                             hasUpdate,
+                            downloaded: dlInfo.downloaded,
+                            downloadedVersion: dlInfo.downloadedVersion,
+                            downloadedFileSize: dlInfo.fileSize,
                             releaseNotes: release.body || '',
                             publishedAt: release.published_at,
                             downloadUrl: release.html_url
@@ -8988,10 +9067,9 @@ app.post('/api/auto-update', requireAuth, async (req, res) => {
         console.log('===== 开始自动更新 =====');
 
         // 先获取最新版本信息
-        const versionFile = path.join(__dirname, 'version.json');
         let currentVersion = 'unknown';
-        if (fs.existsSync(versionFile)) {
-            const versionInfo = JSON.parse(fs.readFileSync(versionFile, 'utf8'));
+        const versionInfo = readVersionInfo();
+        if (versionInfo) {
             currentVersion = versionInfo.version;
         }
 
@@ -9265,6 +9343,380 @@ app.post('/api/auto-update', requireAuth, async (req, res) => {
         
         res.status(500).json({ 
             error: '自动更新失败: ' + error.message,
+            details: error.stack ? error.stack.substring(0, 500) : ''
+        });
+    }
+});
+
+// 下载更新包（仅下载，不安装）
+app.post('/api/download-update', requireAuth, async (req, res) => {
+    let upgradeFilePath = null;
+    
+    try {
+        console.log('===== 开始下载更新包 =====');
+
+        let currentVersion = 'unknown';
+        const versionInfo = readVersionInfo();
+        if (versionInfo) {
+            currentVersion = versionInfo.version;
+        }
+
+        const releaseInfo = await getLatestRelease();
+        if (!releaseInfo) {
+            return res.status(500).json({ error: '无法获取最新版本信息' });
+        }
+
+        const latestVersion = releaseInfo.tag_name.replace(/^v/, '');
+        const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
+        
+        if (!hasUpdate) {
+            return res.json({ success: true, message: '当前已是最新版本', currentVersion });
+        }
+
+        const zipUrl = `https://github.com/RONGLINC93/nas-local-music-player/archive/refs/tags/${releaseInfo.tag_name}.zip`;
+        const zipFileName = `update-${latestVersion}.zip`;
+
+        const upgradeDir = path.join(__dirname, 'upgrades');
+        if (!fs.existsSync(upgradeDir)) {
+            fs.mkdirSync(upgradeDir, { recursive: true });
+        }
+
+        upgradeFilePath = path.join(upgradeDir, zipFileName);
+        
+        if (fs.existsSync(upgradeFilePath)) {
+            console.log('更新包已存在，跳过下载');
+            const validationResult = validateUpdatePackage(upgradeFilePath, true);
+            if (validationResult.valid) {
+                return res.json({
+                    success: true,
+                    message: '更新包已下载',
+                    version: latestVersion,
+                    fileSize: fs.statSync(upgradeFilePath).size
+                });
+            } else {
+                fs.unlinkSync(upgradeFilePath);
+            }
+        }
+        
+        broadcastUpdateProgress({ type: 'download_start', message: '开始下载更新包...' });
+        
+        await downloadFile(zipUrl, upgradeFilePath, (downloaded, total) => {
+            const percent = Math.round((downloaded / total) * 100);
+            const downloadedMB = (downloaded / 1024 / 1024).toFixed(2);
+            const totalMB = (total / 1024 / 1024).toFixed(2);
+            broadcastUpdateProgress({
+                type: 'download_progress',
+                percent,
+                downloaded: downloadedMB,
+                total: totalMB,
+                message: `下载中... ${percent}% (${downloadedMB}MB / ${totalMB}MB)`
+            });
+        });
+
+        broadcastUpdateProgress({ type: 'download_complete', message: '下载完成，正在验证...' });
+
+        console.log('正在验证更新包...');
+        const validationResult = validateUpdatePackage(upgradeFilePath, true);
+        if (!validationResult.valid) {
+            console.error(`更新包验证失败: ${validationResult.message}`);
+            if (upgradeFilePath && fs.existsSync(upgradeFilePath)) {
+                fs.unlinkSync(upgradeFilePath);
+            }
+            return res.status(400).json({ error: validationResult.message });
+        }
+        console.log('更新包验证通过:', validationResult.version);
+
+        const fileSize = fs.statSync(upgradeFilePath).size;
+
+        console.log(`===== 更新包下载完成 (版本: ${latestVersion}, 大小: ${(fileSize / 1024 / 1024).toFixed(2)}MB) =====`);
+        
+        res.json({
+            success: true,
+            message: '更新包下载完成',
+            version: latestVersion,
+            fileSize: fileSize
+        });
+
+    } catch (error) {
+        console.error('===== 下载更新包失败 =====');
+        console.error('错误信息:', error.message);
+        
+        try {
+            if (upgradeFilePath && fs.existsSync(upgradeFilePath)) {
+                fs.unlinkSync(upgradeFilePath);
+            }
+        } catch (cleanupError) {
+            console.error('清理失败文件失败:', cleanupError.message);
+        }
+        
+        res.status(500).json({ 
+            error: '下载更新包失败: ' + error.message,
+            details: error.stack ? error.stack.substring(0, 500) : ''
+        });
+    }
+});
+
+// 应用更新（解压已下载的更新包并安装）
+app.post('/api/apply-update', requireAuth, async (req, res) => {
+    let upgradeFilePath = null;
+    let tempExtractDir = null;
+    let latestVersion = null;
+    
+    try {
+        console.log('===== 开始应用更新 =====');
+
+        let currentVersion = 'unknown';
+        const versionInfo = readVersionInfo();
+        if (versionInfo) {
+            currentVersion = versionInfo.version;
+        }
+
+        const upgradeDir = path.join(__dirname, 'upgrades');
+        if (!fs.existsSync(upgradeDir)) {
+            return res.status(400).json({ error: '未找到已下载的更新包，请先下载更新' });
+        }
+
+        const zipFiles = fs.readdirSync(upgradeDir).filter(f => f.endsWith('.zip'));
+        if (zipFiles.length === 0) {
+            return res.status(400).json({ error: '未找到已下载的更新包，请先下载更新' });
+        }
+
+        let bestFile = null;
+        let bestVersion = null;
+        for (const f of zipFiles) {
+            const match = f.match(/update-([\d.]+)\.zip/);
+            if (match) {
+                const ver = match[1];
+                if (!bestVersion || compareVersions(ver, bestVersion) > 0) {
+                    const filePath = path.join(upgradeDir, f);
+                    const validationResult = validateUpdatePackage(filePath, true);
+                    if (validationResult.valid) {
+                        bestVersion = ver;
+                        bestFile = filePath;
+                    }
+                }
+            }
+        }
+
+        if (!bestFile) {
+            return res.status(400).json({ error: '未找到有效的更新包，请先下载更新' });
+        }
+
+        upgradeFilePath = bestFile;
+        latestVersion = bestVersion;
+
+        tempExtractDir = path.join(__dirname, 'temp', 'extract');
+        if (fs.existsSync(tempExtractDir)) {
+            fs.rmSync(tempExtractDir, { recursive: true, force: true });
+        }
+        fs.mkdirSync(tempExtractDir, { recursive: true });
+
+        broadcastUpdateProgress({ type: 'extract_start', message: '正在解压更新包...' });
+        console.log('正在解压更新包...');
+        const zip = new AdmZip(upgradeFilePath);
+        const zipEntries = zip.getEntries();
+
+        for (let i = 0; i < zipEntries.length; i++) {
+            const entry = zipEntries[i];
+            const entryName = entry.entryName;
+            const filePath = path.join(tempExtractDir, entryName);
+
+            if (entry.isDirectory) {
+                if (!fs.existsSync(filePath)) {
+                    fs.mkdirSync(filePath, { recursive: true });
+                }
+            } else {
+                const fileDir = path.dirname(filePath);
+                if (!fs.existsSync(fileDir)) {
+                    fs.mkdirSync(fileDir, { recursive: true });
+                }
+                fs.writeFileSync(filePath, entry.getData());
+            }
+            
+            if (i % 50 === 0) {
+                const percent = Math.round((i / zipEntries.length) * 100);
+                broadcastUpdateProgress({
+                    type: 'extract_progress',
+                    percent,
+                    message: `解压中... ${percent}% (${i}/${zipEntries.length} 文件)`
+                });
+            }
+        }
+        broadcastUpdateProgress({ type: 'extract_complete', message: '解压完成，正在安装更新...' });
+        console.log(`解压完成，共 ${zipEntries.length} 个文件`);
+
+        const extractedItems = fs.readdirSync(tempExtractDir);
+        let sourceDir = tempExtractDir;
+        
+        if (extractedItems.length === 1) {
+            const singleItem = path.join(tempExtractDir, extractedItems[0]);
+            if (fs.statSync(singleItem).isDirectory()) {
+                sourceDir = singleItem;
+                console.log(`检测到嵌套目录，使用: ${sourceDir}`);
+            }
+        }
+
+        console.log('正在清理旧文件...');
+        const protectedItems = ['music', 'upgrades', 'temp', '.git', 'node_modules', 'data'];
+
+        const rootItems = fs.readdirSync(__dirname);
+        for (const item of rootItems) {
+            if (protectedItems.includes(item)) continue;
+            const itemPath = path.join(__dirname, item);
+            try {
+                const stat = fs.statSync(itemPath);
+                if (stat.isDirectory()) {
+                    fs.rmSync(itemPath, { recursive: true, force: true });
+                } else {
+                    fs.unlinkSync(itemPath);
+                }
+                console.log(`删除: ${item}`);
+            } catch (e) {
+                console.error(`删除失败: ${item}, ${e.message}`);
+            }
+        }
+
+        const publicDir = path.join(__dirname, 'public');
+        if (fs.existsSync(publicDir)) {
+            const publicItems = fs.readdirSync(publicDir);
+            for (const item of publicItems) {
+                if (protectedItems.includes(item)) continue;
+                const itemPath = path.join(publicDir, item);
+                try {
+                    const stat = fs.statSync(itemPath);
+                    if (stat.isDirectory()) {
+                        fs.rmSync(itemPath, { recursive: true, force: true });
+                    } else {
+                        fs.unlinkSync(itemPath);
+                    }
+                    console.log(`删除 public/${item}`);
+                } catch (e) {
+                    console.error(`删除失败: public/${item}, ${e.message}`);
+                }
+            }
+        }
+
+        broadcastUpdateProgress({ type: 'install_start', message: '正在安装更新...' });
+        console.log('正在复制新文件...');
+        let copiedCount = 0;
+        let totalFiles = 0;
+        
+        function countFiles(srcDir) {
+            if (!fs.existsSync(srcDir)) return 0;
+            let count = 0;
+            const items = fs.readdirSync(srcDir);
+            for (const item of items) {
+                if (item === 'music' || item === 'upgrades' || item === 'temp' || item === '.git' || item === 'data' || item === 'node_modules') continue;
+                const srcPath = path.join(srcDir, item);
+                const stat = fs.statSync(srcPath);
+                if (stat.isDirectory()) {
+                    count += countFiles(srcPath);
+                } else {
+                    count++;
+                }
+            }
+            return count;
+        }
+        
+        totalFiles = countFiles(sourceDir);
+        let processedFiles = 0;
+        
+        function copyFiles(srcDir, destDir) {
+            if (!fs.existsSync(srcDir)) return;
+            const items = fs.readdirSync(srcDir);
+            for (const item of items) {
+                const srcPath = path.join(srcDir, item);
+                const destPath = path.join(destDir, item);
+                
+                if (item === 'music' || item === 'upgrades' || item === 'temp' || item === '.git' || item === 'data' || item === 'node_modules') continue;
+                
+                try {
+                    const stat = fs.statSync(srcPath);
+                    if (stat.isDirectory()) {
+                        if (!fs.existsSync(destPath)) {
+                            fs.mkdirSync(destPath, { recursive: true });
+                        }
+                        copyFiles(srcPath, destPath);
+                    } else {
+                        const fileDir = path.dirname(destPath);
+                        if (!fs.existsSync(fileDir)) {
+                            fs.mkdirSync(fileDir, { recursive: true });
+                        }
+                        fs.copyFileSync(srcPath, destPath);
+                        copiedCount++;
+                        processedFiles++;
+                        
+                        if (processedFiles % 20 === 0 || processedFiles === totalFiles) {
+                            const percent = Math.round((processedFiles / totalFiles) * 100);
+                            broadcastUpdateProgress({
+                                type: 'install_progress',
+                                percent,
+                                message: `安装中... ${percent}% (${processedFiles}/${totalFiles} 文件)`
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.error(`复制失败: ${item}, ${e.message}`);
+                }
+            }
+        }
+
+        copyFiles(sourceDir, __dirname);
+        broadcastUpdateProgress({ type: 'install_complete', message: '更新安装完成，正在重启服务...' });
+        console.log(`复制完成，共复制 ${copiedCount} 个文件`);
+
+        try {
+            fs.rmSync(tempExtractDir, { recursive: true, force: true });
+            console.log('临时目录已清理');
+        } catch (e) {
+            console.warn('清理临时目录失败:', e.message);
+        }
+
+        console.log(`===== 更新应用完成 (版本: ${latestVersion}) =====`);
+        
+        res.json({ success: true, message: '更新成功，服务器正在重启', version: latestVersion });
+
+        setTimeout(() => {
+            try {
+                if (IS_DOCKER) {
+                    console.log('Docker环境：退出进程，容器将自动重启');
+                    stopMusic();
+                    process.exit(0);
+                } else {
+                    console.log('非Docker环境：尝试重启进程');
+                    const child = spawn(process.execPath, [path.join(__dirname, 'server.js')], {
+                        detached: true,
+                        stdio: ['ignore', 'inherit', 'inherit']
+                    });
+
+                    child.unref();
+
+                    setTimeout(() => {
+                        stopMusic();
+                        process.exit(0);
+                    }, 1000);
+                }
+            } catch (exitError) {
+                console.error('重启过程中发生错误:', exitError);
+                process.exit(1);
+            }
+        }, 1000);
+
+    } catch (error) {
+        console.error('===== 应用更新失败 =====');
+        console.error('错误信息:', error.message);
+        console.error('错误堆栈:', error.stack);
+        
+        try {
+            if (tempExtractDir && fs.existsSync(tempExtractDir)) {
+                fs.rmSync(tempExtractDir, { recursive: true, force: true });
+            }
+        } catch (cleanupError) {
+            console.error('清理临时文件失败:', cleanupError.message);
+        }
+        
+        res.status(500).json({ 
+            error: '应用更新失败: ' + error.message,
             details: error.stack ? error.stack.substring(0, 500) : ''
         });
     }

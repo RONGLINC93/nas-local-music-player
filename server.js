@@ -5117,6 +5117,11 @@ async function downloadOnlineMusic(res, playUrl, title, artist) {
 app.get('/api/download', (req, res) => {
     const filePath = decodeURIComponent(req.query.path);
     
+    // 在线音乐路径不支持此接口
+    if (filePath.startsWith('online://')) {
+        return res.status(400).json({ success: false, error: '在线音乐请使用下载到本地或下载到服务器功能' });
+    }
+    
     // 安全检查：确保路径在允许的目录内
     if (!filePath.startsWith(MUSIC_DIR)) {
         return res.status(403).json({ success: false, error: '访问被拒绝' });

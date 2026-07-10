@@ -2005,14 +2005,22 @@ body {
 }
 
 .folder-music-index {
-    width: 24px;
-    text-align: center;
-    font-size: 12px;
-    color: #999;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f3f4f6;
+    border-radius: 50%;
+    font-size: 13px;
     font-weight: 500;
+    color: #6b7280;
+    margin-right: 8px;
+    flex-shrink: 0;
 }
 
 .folder-music-item.active .folder-music-index {
+    background: #eff6ff;
     color: #3b82f6;
     font-weight: 600;
 }
@@ -2370,7 +2378,8 @@ body {
     }
     
     .folder-music-index {
-        width: 25px;
+        width: 26px;
+        height: 26px;
         font-size: 12px;
     }
     
@@ -3473,15 +3482,22 @@ font-size: 72px;
 }
 
 .playlist-item-index {
-    width: 36px;
-    text-align: center;
-    font-size: 12px;
-    color: #999;
+ width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f3f4f6;
+    border-radius: 50%;
+    font-size: 13px;
     font-weight: 500;
+    color: #6b7280;
+    margin-right: 8px;
     flex-shrink: 0;
 }
 
 .playlist-item.active .playlist-item-index {
+    background: #eff6ff;
     color: #3b82f6;
     font-weight: 600;
 }
@@ -4563,6 +4579,20 @@ font-size: 72px;
     background-color: #e5e7eb;
 }
 
+.cache-item-index {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f3f4f6;
+    border-radius: 50%;
+    font-size: 13px;
+    font-weight: 500;
+    color: #6b7280;
+    flex-shrink: 0;
+}
+
 .cache-item-cover-placeholder {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     display: flex;
@@ -4611,7 +4641,7 @@ font-size: 72px;
 }
 
 .cache-item-delete:hover {
-    background: #f3f4f6;
+     background: #f3f4f6;
     color: #374151;
     transform: scale(1.05);
 }
@@ -6441,10 +6471,10 @@ font-size: 72px;
 
 .delete-track-name {
     font-weight: 600;
-    color: #1e3a8a !important;
+    color: var(--text-primary,#000);
     font-size: 16px;
     padding: 15px;
-    background: #f8fafc;
+    background: var(--bg-active, #ffffff);
     border-radius: 8px;
     word-break: break-all;
 }
@@ -6462,10 +6492,10 @@ font-size: 72px;
 
 .download-choice-song {
     font-weight: 600;
-    color: #1e3a8a !important;
+    color: var(--text-primary,#000);
     font-size: 16px;
     padding: 15px;
-    background: #f8fafc;
+    background: var(--bg-active, #ffffff);
     border-radius: 8px;
     word-break: break-all;
     margin-bottom: 20px;
@@ -6482,7 +6512,7 @@ font-size: 72px;
     align-items: center;
     gap: 15px;
     padding: 16px;
-    border: 2px solid #e2e8f0;
+    border: 2px solid var(--border-color,#a78bfa);
     border-radius: 10px;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -6490,8 +6520,7 @@ font-size: 72px;
 }
 
 .download-choice-option:hover {
-    border-color: #a78bfa;
-    background: #faf5ff;
+    background: var(--border-color , #fff);
 }
 
 .download-choice-option:active {
@@ -6518,7 +6547,7 @@ font-size: 72px;
 .download-choice-title {
     font-size: 15px;
     font-weight: 600;
-    color: #1e293b;
+    color: var(--text-primary,#000);
     margin-bottom: 4px;
 }
 
@@ -6530,10 +6559,10 @@ font-size: 72px;
 .save-folder-tree {
     max-height: 250px;
     overflow-y: auto;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color,#a78bfa);
     border-radius: 8px;
     padding: 8px;
-    background: #f8fafc;
+    background: var(--bg-active, #ffffff);
 }
 
 .save-folder-tree ul {
@@ -6556,17 +6585,17 @@ font-size: 72px;
 }
 
 .save-folder-tree .folder-item:hover {
-    background-color: #e2e8f0;
+    background-color: var(--border-color , #fff);
 }
 
 .save-folder-tree .folder-item.selected {
-    background-color: #ede9fe;
-    color: #6d28d9;
+    background-color: var(--border-color , #fff);
+    color: var(--text-primary,#000);
 }
 
 .save-folder-tree .folder-item i {
     margin-right: 8px;
-    color: #8b5cf6;
+    color: var(--text-primary,#000);
 }
 
 .save-folder-tree .folder-item span {
@@ -8054,7 +8083,8 @@ font-size: 72px;
     }
 
     .playlist-item-index {
-        width: 24px;
+        width: 26px;
+        height: 26px;
         font-size: 12px;
         flex-shrink: 0;
     }
@@ -10045,7 +10075,7 @@ font-size: 72px;
 .online-setting-card h4 {
     padding: 10px 20px;
     font-size: 16px;
-    color: #1e3a8a;
+    color: var(--primary-color,#1e3a8a);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -10218,7 +10248,7 @@ font-size: 72px;
 }
 
 .source-file-delete-btn:hover {
-    background: #f3f4f6;
+     background: #f3f4f6;
     color: #374151;
     transform: scale(1.05);
 }
@@ -10978,10 +11008,18 @@ font-size: 72px;
 }
 
 .mysonglist-song-index {
-    width: 30px;
-    text-align: center;
-    color: #9ca3af;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f3f4f6;
+    border-radius: 50%;
     font-size: 13px;
+    font-weight: 500;
+    color: #6b7280;
+    margin-right: 8px;
+    flex-shrink: 0;
 }
 
 .mysonglist-song-cover {
@@ -11141,10 +11179,17 @@ font-size: 72px;
 }
 
 .history-song-index {
-    width: 30px;
-    text-align: center;
-    color: #9ca3af;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f3f4f6;
+    border-radius: 50%;
     font-size: 13px;
+    font-weight: 500;
+    color: #6b7280;
+    margin-right: 8px;
     flex-shrink: 0;
 }
 
@@ -11461,15 +11506,23 @@ font-size: 72px;
 }
 
 .playlist-panel-item-index {
-    width: 24px;
-    text-align: center;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f3f4f6;
+    border-radius: 6px;
     font-size: 13px;
-    color: #9ca3af;
+    font-weight: 500;
+    color: #6b7280;
     flex-shrink: 0;
 }
 
 .playlist-panel-item.active .playlist-panel-item-index {
+    background: #eef2ff;
     color: #667eea;
+    font-weight: 600;
 }
 
 .playlist-panel-item.active .playlist-panel-item-index i {
@@ -11552,10 +11605,12 @@ font-size: 72px;
 }
 
 .playlist-panel.dark .playlist-panel-item-index {
-    color: rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.7);
 }
 
 .playlist-panel.dark .playlist-panel-item.active .playlist-panel-item-index {
+    background: rgba(167, 139, 250, 0.2);
     color: #a78bfa;
 }
 
@@ -12140,6 +12195,7 @@ body.dark-theme .playlist-batch-btn,
 body.dark-theme .playlist-menu-btn,
 body.dark-theme .history-song-actions button,
 body.dark-theme .cache-item-delete,
+body.dark-theme .source-file-delete-btn,
 body.dark-theme .online-play-btn,
 body.dark-theme .online-add-btn,
 body.dark-theme .online-download-btn,
@@ -12158,6 +12214,8 @@ body.dark-theme .playlist-action-btn:hover,
 body.dark-theme .playlist-batch-btn:hover,
 body.dark-theme .playlist-menu-btn:hover,
 body.dark-theme .history-song-actions button:hover,
+body.dark-theme .cache-item-delete:hover,
+body.dark-theme .source-file-delete-btn:hover,
 body.dark-theme .online-play-btn:hover,
 body.dark-theme .online-add-btn:hover,
 body.dark-theme .online-download-btn:hover,
@@ -12894,6 +12952,11 @@ body.dark-theme .cache-item-meta {
     color: var(--text-secondary, #9ca3af);
 }
 
+body.dark-theme .cache-item-index {
+    background: #374151 !important;
+    color: #d1d5db !important;
+}
+
 body.dark-theme .cache-limit-option {
     background: #374151;
     color: #d1d5db;
@@ -13449,11 +13512,23 @@ body.dark-theme .search-highlight {
 }
 
 body.dark-theme .folder-music-index {
-    color: var(--text-tertiary, #9ca3af);
+    background: #374151 !important;
+    color: #d1d5db !important;
+}
+
+body.dark-theme .folder-music-item.active .folder-music-index {
+    background: rgba(59, 130, 246, 0.2) !important;
+    color: #60a5fa !important;
 }
 
 body.dark-theme .playlist-item-index {
-    color: var(--text-tertiary, #9ca3af);
+    background: #374151;
+    color: #d1d5db;
+}
+
+body.dark-theme .playlist-item.active .playlist-item-index {
+    background: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
 }
 
 body.dark-theme .playlist-item-path {
@@ -14736,16 +14811,15 @@ body.dark-theme .full-player-btn:hover {
 }
 
 .top-song-rank {
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
-    background: var(--bg-tertiary, #f9fafb);
-    color: var(--text-secondary, #6b7280);
+ width: 24px;
+    height: 24px;
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: bold;
+    margin-right: 8px;
     flex-shrink: 0;
 }
 
@@ -14824,16 +14898,15 @@ body.dark-theme .full-player-btn:hover {
 }
 
 .top-artist-rank {
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
-    background: var(--bg-tertiary, #f9fafb);
-    color: var(--text-secondary, #6b7280);
+ width: 24px;
+    height: 24px;
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: bold;
+    margin-right: 8px;
     flex-shrink: 0;
 }
 

@@ -2386,7 +2386,7 @@ async function refreshCacheList() {
                 return;
             }
             
-            cacheListEl.innerHTML = result.cacheList.map(item => {
+            cacheListEl.innerHTML = result.cacheList.map((item, index) => {
                 const sourceColor = getSourceColor(item.source);
                 const sourceName = getSourceName(item.source);
                 let coverHtml;
@@ -2399,6 +2399,7 @@ async function refreshCacheList() {
                 }
                 return `
                 <div class="cache-item">
+                    <div class="cache-item-index">${index + 1}</div>
                     ${coverHtml}
                     <div class="cache-item-info">
                         <div class="cache-item-title">${escapeHtml(item.title || '未知歌曲')}</div>
@@ -5254,14 +5255,16 @@ function downloadUserSonglistSong(index) {
     const song = currentSonglist.songs[index];
     if (!song) return;
     
-    if (song.path) {
+    const isOnline = song.isOnline || song.path?.startsWith('online://');
+    
+    if (!isOnline && song.path) {
         const filePath = encodeURIComponent(song.path);
         window.open(`/api/download?path=${filePath}`, '_blank');
         return;
     }
     
-    const songId = song.songId || song.id;
-    const source = song.source || 'qq';
+    const songId = song.songId || song.id || (song.path?.startsWith('online://') ? song.path.split('/')[2] : null);
+    const source = song.source || (song.path?.startsWith('online://') ? song.path.split('/')[1] : 'qq');
     const name = song.title || song.name || '未知歌曲';
     const singer = song.artist || '';
     const albumName = song.album || '';

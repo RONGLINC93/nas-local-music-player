@@ -7645,40 +7645,42 @@ function setupAudioContext() {
             } catch (e) {}
         });
         
-        if (!eqEnabled) {
-            // 不启用均衡器，直接连接到 destination
-            return;
+        if (!sourceNode) {
+            sourceNode = audioContext.createMediaElementSource(clientAudio);
         }
-        
-        // 创建 source
-        sourceNode = audioContext.createMediaElementSource(clientAudio);
-        
-        // 创建 10 段均衡滤波器
-        eqFilters = EQ_BANDS.map((band, index) => {
-            const filter = audioContext.createBiquadFilter();
-            filter.type = index === 0 ? 'lowshelf' : (index === EQ_BANDS.length - 1 ? 'highshelf' : 'peaking');
-            filter.frequency.value = band.freq;
-            filter.Q.value = 1;
-            
-            // 读取保存的增益值
-            const savedGains = localStorage.getItem('eqGains');
-            const gains = savedGains ? JSON.parse(savedGains) : EQ_PRESETS[currentEqPreset];
-            filter.gain.value = gains[index] || 0;
-            
-            return filter;
-        });
-        
-        // 串联滤波器
-        let prevNode = sourceNode;
-        eqFilters.forEach(filter => {
-            prevNode.connect(filter);
-            prevNode = filter;
-        });
-        
-        // 连接到输出
-        prevNode.connect(audioContext.destination);
-        
-        // 恢复 AudioContext（浏览器自动暂停策略）
+
+        if (!eqEnabled) {
+            sourceNode.connect(audioContext.destination);
+        } else {
+            if (eqFilters.length === 0) {
+                eqFilters = EQ_BANDS.map((band, index) => {
+                    const filter = audioContext.createBiquadFilter();
+                    filter.type = index === 0 ? 'lowshelf' : (index === EQ_BANDS.length - 1 ? 'highshelf' : 'peaking');
+                    filter.frequency.value = band.freq;
+                    filter.Q.value = 1;
+
+                    const savedGains = localStorage.getItem('eqGains');
+                    const gains = savedGains ? JSON.parse(savedGains) : EQ_PRESETS[currentEqPreset];
+                    filter.gain.value = gains[index] || 0;
+
+                    return filter;
+                });
+            } else {
+                const savedGains = localStorage.getItem('eqGains');
+                const gains = savedGains ? JSON.parse(savedGains) : EQ_PRESETS[currentEqPreset];
+                eqFilters.forEach((filter, index) => {
+                    filter.gain.value = gains[index] || 0;
+                });
+            }
+
+            let prevNode = sourceNode;
+            eqFilters.forEach(filter => {
+                prevNode.connect(filter);
+                prevNode = filter;
+            });
+            prevNode.connect(audioContext.destination);
+        }
+
         if (audioContext.state === 'suspended') {
             audioContext.resume();
         }

@@ -1196,7 +1196,7 @@ body {
     overflow-x: auto;
     max-width: 100%;
     scrollbar-width: thin;
-    scrollbar-color: #cbd5e1 transparent;
+    scrollbar-color: #6b7280 transparent;
 }
 
 .browse-tabs::-webkit-scrollbar {
@@ -1208,12 +1208,12 @@ body {
 }
 
 .browse-tabs::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
+    background: #6b7280;
     border-radius: 2px;
 }
 
 .browse-tabs::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
+    background: #4b5563;
 }
 
 .browse-tab {
@@ -2479,7 +2479,7 @@ body {
         max-width: 100%;
         padding: 3px;
         scrollbar-width: thin;
-        scrollbar-color: #cbd5e1 transparent;
+        scrollbar-color: #6b7280 transparent;
     }
     
     .browse-tabs::-webkit-scrollbar {
@@ -7654,12 +7654,12 @@ font-size: 72px;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #3b82f6;
+    background: #6b7280;
     border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #2563eb;
+    background: #4b5563;
 }
 
 /* 响应式设计 */
@@ -12327,8 +12327,9 @@ body.dark-theme .playlist-header {
 
 .top-songs-list,
 .top-artists-list {
-    max-height: 500px;
+    max-height: calc(100vh - 365px);
     overflow-y: auto;
+    padding: 10px;
 }
 
 .top-song-item {

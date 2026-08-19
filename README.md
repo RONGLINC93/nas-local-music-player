@@ -21,6 +21,9 @@
 ### 播放历史
 ![播放历史](screenshots/stats.png)
 
+### 系统设置
+![系统设置](screenshots/settings.png)
+
 ---
 
 ## 功能特性

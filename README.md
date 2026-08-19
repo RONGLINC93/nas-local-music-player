@@ -4,6 +4,25 @@
 
 ---
 
+## 界面预览
+
+### 主播放界面
+![主播放界面](screenshots/player.png)
+
+### 文件管理
+![文件管理](screenshots/folders.png)
+
+### 我的歌单
+![我的歌单](screenshots/playlists.png)
+
+### 在线音乐
+![在线音乐](screenshots/online-music.png)
+
+### 播放历史
+![播放历史](screenshots/stats.png)
+
+---
+
 ## 功能特性
 
 ### 🎵 播放控制

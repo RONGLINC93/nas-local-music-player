@@ -1,5 +1,5 @@
 appname               = nasmp
-version               = 1.2.2
+version               = 1.2.6
 display_name          = NAS本地音乐播放器
 desc                  = 轻量级 NAS 本地音乐播放器：网页远程控制播放，支持服务端声卡与浏览器客户端两种输出方式，内置在线音乐与缓存、播放历史与听歌统计、多用户登录，音乐与数据本地持久化，开箱即用。
 platform              = all

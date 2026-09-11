@@ -27,6 +27,11 @@ if errorlevel 1 goto fail
 copy /y "%PROJ%package.json" "%SERVER%\package.json" >nul
 if errorlevel 1 goto fail
 if exist "%PROJ%version.json" copy /y "%PROJ%version.json" "%SERVER%\version.json" >nul
+rem     server.js does require('./server/...'): the helpers live in the project's
+rem     own "server" folder and MUST ship inside the package, otherwise the
+rem     service dies with "Cannot find module './server/userApi'".
+xcopy "%PROJ%server" "%SERVER%\server" /e /i /y /q >nul
+if errorlevel 1 goto fail
 xcopy "%PROJ%public" "%SERVER%\public" /e /i /y /q >nul
 if errorlevel 1 goto fail
 if exist "%PROJ%online_sources" xcopy "%PROJ%online_sources" "%SERVER%\online_sources" /e /i /y /q >nul

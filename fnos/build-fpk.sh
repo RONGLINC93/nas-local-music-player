@@ -19,6 +19,8 @@ rm -rf "${SERVER}"
 mkdir -p "${SERVER}"
 cp "${PROJ}/server.js" "${PROJ}/package.json" "${SERVER}/"
 [ -f "${PROJ}/version.json" ] && cp "${PROJ}/version.json" "${SERVER}/"
+# server.js 里 require('./server/...')，这些辅助模块在项目自身的 server 目录下，必须一并打包
+cp -r "${PROJ}/server" "${SERVER}/server"
 cp -r "${PROJ}/public" "${SERVER}/public"
 [ -d "${PROJ}/online_sources" ] && cp -r "${PROJ}/online_sources" "${SERVER}/online_sources"
 

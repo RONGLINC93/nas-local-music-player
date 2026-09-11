@@ -1,0 +1,159 @@
+/* ========== 系统设置 · 文件管理路径 ========== */
+
+.storage-current {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    background: var(--bg-tertiary, #f9fafb);
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 8px;
+}
+
+.storage-current-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 260px;
+    min-width: 0;
+}
+
+.storage-current-label {
+    flex: none;
+    font-size: 13px;
+    color: var(--text-secondary, #6b7280);
+}
+
+.storage-path-code {
+    padding: 2px 8px;
+    background: var(--bg-active, #e5e7eb);
+    border-radius: 4px;
+    font-family: Consolas, Monaco, 'Courier New', monospace;
+    font-size: 12px;
+    color: var(--text-primary, #1f2937);
+    word-break: break-all;
+}
+
+.storage-status {
+    font-size: 13px;
+    color: var(--text-secondary, #6b7280);
+}
+
+.storage-status.ok {
+    color: var(--success-color, #10b981);
+}
+
+.storage-status.warn {
+    color: var(--warning-color, #f59e0b);
+}
+
+.storage-status.error {
+    color: var(--danger-color, #ef4444);
+}
+
+.storage-path-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.storage-path-input {
+    flex: 1 1 320px;
+    min-width: 0;
+    padding: 9px 12px;
+    background: var(--bg-primary, #ffffff);
+    border: 1px solid var(--border-color, #d1d5db);
+    border-radius: 6px;
+    font-family: Consolas, Monaco, 'Courier New', monospace;
+    font-size: 14px;
+    color: var(--text-primary, #1f2937);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.storage-path-input::placeholder {
+    color: var(--text-tertiary, #9ca3af);
+}
+
+.storage-path-input:focus {
+    border-color: var(--primary-color, #3b82f6);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.storage-path-btn {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 16px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.storage-path-save-btn {
+    background: var(--primary-color, #3b82f6);
+    color: #ffffff;
+}
+
+.storage-path-save-btn:hover {
+    background: var(--primary-hover, #2563eb);
+}
+
+.storage-path-reset-btn {
+    background: var(--bg-card, #ffffff);
+    border-color: var(--border-color, #d1d5db);
+    color: var(--text-secondary, #6b7280);
+}
+
+.storage-path-reset-btn:hover {
+    background: var(--bg-hover, #f3f4f6);
+    color: var(--text-primary, #1f2937);
+}
+
+.storage-path-tips {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--border-color, #e5e7eb);
+}
+
+.storage-path-tips p {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0 0 8px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-secondary, #6b7280);
+}
+
+.storage-path-tips p:last-child {
+    margin-bottom: 0;
+}
+
+.storage-path-tips p i {
+    flex: none;
+    margin-top: 3px;
+}
+
+@media (max-width: 768px) {
+    .storage-current-item {
+        flex: 1 1 100%;
+    }
+
+    .storage-path-input {
+        flex: 1 1 100%;
+        font-size: 13px;
+    }
+
+    .storage-path-btn {
+        flex: 1 1 auto;
+        justify-content: center;
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+}

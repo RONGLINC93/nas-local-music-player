@@ -290,8 +290,9 @@ function saveTaskData() {
 // 初始化时加载任务数据
 loadTaskData();
 
-// 全局音乐目录
-const MUSIC_DIR = path.join(__dirname, 'music');
+// 全局音乐目录（默认为包内目录，fnOS 上指向共享目录；可在“系统设置 → 文件管理”中修改）
+const DEFAULT_MUSIC_DIR = path.join(__dirname, 'music');
+let MUSIC_DIR = DEFAULT_MUSIC_DIR;
 const APP_CONFIG_FILE = path.join(__dirname, 'data', 'config.json'); // 应用配置文件
 const FOLDER_CACHE_FILE = path.join(__dirname, 'data', 'folder_cache.json'); // 文件夹缓存文件
 const PLAYLIST_CACHE_FILE = path.join(__dirname, 'data', 'playlist_cache.json');
@@ -639,6 +640,19 @@ function loadConfig() {
                 cacheLimitSize = Math.max(0, parseInt(config.cacheLimitSize, 10) || 0);
                 console.log(`📦 已加载配置，缓存大小限制：${cacheLimitSize === 0 ? '不限制' : cacheLimitSize + ' MB'}`);
             }
+            if (typeof config.musicPath === 'string' && config.musicPath.trim()) {
+                // 自定义音乐目录不存在时尝试创建，失败则回退默认目录
+                const configuredDir = path.resolve(config.musicPath.trim());
+                try {
+                    if (!fs.existsSync(configuredDir)) {
+                        fs.mkdirSync(configuredDir, { recursive: true });
+                    }
+                    MUSIC_DIR = configuredDir;
+                    console.log(`📁 已加载配置，音乐目录：${MUSIC_DIR}`);
+                } catch (err2) {
+                    console.log(`⚠️ 配置的音乐目录不可用，回退默认目录：${configuredDir}（${err2.message}）`);
+                }
+            }
         }
     } catch (err) {
         console.log('加载配置文件失败，使用默认配置:', err.message);
@@ -654,7 +668,8 @@ function saveConfig() {
             maxConvertWorkers: maxConvertWorkers,
             maxUploadWorkers: maxUploadWorkers,
             onlineSource: onlineSource,
-            cacheLimitSize: cacheLimitSize
+            cacheLimitSize: cacheLimitSize,
+            musicPath: MUSIC_DIR === DEFAULT_MUSIC_DIR ? '' : MUSIC_DIR
         };
         fs.writeFileSync(APP_CONFIG_FILE, JSON.stringify(config, null, 4), 'utf8');
     } catch (err) {
@@ -735,7 +750,7 @@ async function loadMusicLibrary() {
 
 async function scanMusicLibrary() {
     // 完整扫描并更新缓存（供刷新按钮调用）
-    const musicDir = path.join(__dirname, 'music');
+    const musicDir = MUSIC_DIR;
     const files = scanMusicFiles(musicDir);
     currentPlaylist = [];
 
@@ -2145,7 +2160,7 @@ app.post('/api/upload-music', requireAuth, (req, res, next) => {
         console.log('📄 上传文件数量:', req.files.length);
 
         const folderPath = req.body.folderPath || '';
-        const destDir = path.join(__dirname, 'music', folderPath);
+        const destDir = path.join(MUSIC_DIR, folderPath);
         
         // 确保目标目录存在
         if (!fs.existsSync(destDir)) {
@@ -2279,7 +2294,7 @@ async function processUploadQueue() {
         // 添加到进行中任务列表
         activeUploadTasks.push(task);
         
-        const destDir = path.join(__dirname, 'music', task.folderPath);
+        const destDir = path.join(MUSIC_DIR, task.folderPath);
         
         // 确保目标目录存在
         if (!fs.existsSync(destDir)) {
@@ -2403,7 +2418,7 @@ app.get('/api/refresh', async (req, res) => {
 // 扫描文件夹并生成JSON缓存
 app.post('/api/scan-folders', requireAuth, async (req, res) => {
     try {
-        const musicDir = path.join(__dirname, 'music');
+        const musicDir = MUSIC_DIR;
         
         if (!fs.existsSync(musicDir)) {
             return res.json({ success: true, message: '音乐文件夹不存在', folders: [], files: [], totalScanned: 0 });
@@ -3327,7 +3342,7 @@ app.get('/api/folder-cache', async (req, res) => {
             });
         } else {
             // 如果没有缓存文件，自动扫描生成
-            const musicDir = path.join(__dirname, 'music');
+            const musicDir = MUSIC_DIR;
             
             if (!fs.existsSync(musicDir)) {
                 // 音乐文件夹不存在，返回空数据
@@ -3380,7 +3395,7 @@ app.get('/api/folder-cache', async (req, res) => {
 // 获取文件夹和文件列表
 app.get('/api/folders', async (req, res) => {
     try {
-        const musicDir = path.join(__dirname, 'music');
+        const musicDir = MUSIC_DIR;
         const folderPath = req.query.path ? decodeURIComponent(req.query.path) : '';
         const page = parseInt(req.query.page) || 1;
         const pageSize = parseInt(req.query.pageSize) || 20;
@@ -3534,7 +3549,7 @@ app.get('/api/folder/:folderPath', async (req, res) => {
         // 将正斜杠转换为系统路径分隔符
         folderPath = folderPath.replace(/\//g, path.sep);
         
-        const musicDir = path.join(__dirname, 'music');
+        const musicDir = MUSIC_DIR;
         const fullPath = path.join(musicDir, folderPath);
 
         console.log(' 请求文件夹路径:', folderPath);
@@ -3935,7 +3950,7 @@ app.get('/api/duplicates', async (req, res) => {
 app.post('/api/folder-play', async (req, res) => {
     try {
         const { folderPath, playMode: folderPlayMode } = req.body;
-        const musicDir = path.join(__dirname, 'music');
+        const musicDir = MUSIC_DIR;
         const fullPath = path.join(musicDir, folderPath);
 
         if (!fs.existsSync(fullPath)) {
@@ -4085,7 +4100,7 @@ async function loadMetadataInBackground(musicFiles, folderPath) {
         }
 
         // 更新缓存
-        const folderStat = fs.statSync(path.join(__dirname, 'music', folderPath));
+        const folderStat = fs.statSync(path.join(MUSIC_DIR, folderPath));
         folderCache.set(folderPath, {
             files: updatedTracks,
             lastModified: folderStat.mtimeMs
@@ -4205,7 +4220,7 @@ app.delete('/api/delete-folder', requireAuth, async (req, res) => {
             return res.status(400).json({ success: false, error: '缺少文件夹路径' });
         }
         
-        const musicDir = path.join(__dirname, 'music');
+        const musicDir = MUSIC_DIR;
         const normalizedPath = folderPath.replace(/\//g, path.sep);
         const fullPath = path.join(musicDir, normalizedPath);
         
@@ -4274,7 +4289,7 @@ app.post('/api/dissolve-folder', requireAuth, async (req, res) => {
             return res.status(400).json({ success: false, error: '缺少文件夹路径' });
         }
         
-        const musicDir = path.join(__dirname, 'music');
+        const musicDir = MUSIC_DIR;
         const normalizedPath = folderPath.replace(/\//g, path.sep);
         const fullPath = path.join(musicDir, normalizedPath);
         
@@ -4384,7 +4399,7 @@ app.post('/api/rename-folder', requireAuth, async (req, res) => {
             return res.status(400).json({ success: false, error: '文件夹名称包含非法字符' });
         }
         
-        const musicDir = path.join(__dirname, 'music');
+        const musicDir = MUSIC_DIR;
         const normalizedPath = folderPath.replace(/\//g, path.sep);
         const oldFullPath = path.join(musicDir, normalizedPath);
         
@@ -4484,7 +4499,7 @@ app.post('/api/move-folder', requireAuth, async (req, res) => {
             return res.status(400).json({ success: false, error: '缺少参数' });
         }
         
-        const musicDir = path.join(__dirname, 'music');
+        const musicDir = MUSIC_DIR;
         const normalizedPath = folderPath.replace(/\//g, path.sep);
         const oldFullPath = path.join(musicDir, normalizedPath);
         
@@ -4586,7 +4601,7 @@ app.post('/api/batch-convert-folder-mp3', requireAuth, async (req, res) => {
             return res.status(400).json({ success: false, error: '缺少文件夹路径' });
         }
         
-        const musicDir = path.join(__dirname, 'music');
+        const musicDir = MUSIC_DIR;
         
         // 处理路径：如果以 /music 开头，去掉前缀
         let normalizedPath = folderPath.replace(/\//g, path.sep);
@@ -4969,7 +4984,7 @@ app.post('/api/add-folder-to-playlist', async (req, res) => {
             return res.status(400).json({ success: false, error: '缺少文件夹路径' });
         }
         
-        const musicDir = path.join(__dirname, 'music');
+        const musicDir = MUSIC_DIR;
         const normalizedPath = folderPath.replace(/\//g, path.sep);
         const fullPath = path.join(musicDir, normalizedPath);
         
@@ -5141,7 +5156,7 @@ app.get('/api/download-folder', (req, res) => {
     try {
         const folderPath = decodeURIComponent(req.query.path);
         
-        const musicDir = path.join(__dirname, 'music');
+        const musicDir = MUSIC_DIR;
         const normalizedPath = folderPath.replace(/\//g, path.sep);
         const fullPath = path.join(musicDir, normalizedPath);
         
@@ -10578,6 +10593,139 @@ app.post('/api/upload-source', requireAuth, (req, res) => {
         
         res.json({ success: true, message: '文件上传成功' });
     } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ==================== 文件管理路径设置 ====================
+
+// 采集音乐目录的当前状态，供设置页面展示
+function buildMusicPathInfo() {
+    const exists = fs.existsSync(MUSIC_DIR);
+    let writable = false;
+    if (exists) {
+        try {
+            fs.accessSync(MUSIC_DIR, fs.constants.W_OK);
+            writable = true;
+        } catch (e) {
+            writable = false;
+        }
+    }
+    return {
+        musicPath: MUSIC_DIR,
+        defaultMusicPath: DEFAULT_MUSIC_DIR,
+        isCustom: MUSIC_DIR !== DEFAULT_MUSIC_DIR,
+        exists,
+        writable,
+        trackCount: Array.isArray(currentPlaylist) ? currentPlaylist.length : 0
+    };
+}
+
+// 解析用户输入的音乐目录（空值表示使用默认目录）
+function resolveMusicPathInput(input) {
+    const raw = input === undefined || input === null ? '' : String(input).trim();
+    if (!raw) {
+        return { path: DEFAULT_MUSIC_DIR, error: null };
+    }
+    if (raw.indexOf('\0') !== -1) {
+        return { path: null, error: '路径包含非法字符' };
+    }
+    const resolved = path.resolve(path.isAbsolute(raw) ? raw : path.join(__dirname, raw));
+    return { path: resolved, error: null };
+}
+
+// 清理与音乐目录绑定的缓存文件（路径变更后旧缓存全部失效）
+function clearMusicDirCaches() {
+    [FOLDER_CACHE_FILE, PLAYLIST_CACHE_FILE].forEach(file => {
+        try {
+            if (fs.existsSync(file)) fs.unlinkSync(file);
+        } catch (e) {
+            console.error(`清理缓存文件失败 ${file}:`, e.message);
+        }
+    });
+    try {
+        folderCache.clear();
+    } catch (e) {}
+}
+
+// 切换目录后在后台重建播放列表与文件夹缓存
+let musicRescanTimer = null;
+function scheduleMusicDirRescan() {
+    if (musicRescanTimer) clearTimeout(musicRescanTimer);
+    musicRescanTimer = setTimeout(async () => {
+        musicRescanTimer = null;
+        try {
+            await scanMusicLibrary();
+        } catch (e) {
+            console.error('重新扫描播放列表失败:', e.message);
+        }
+        try {
+            if (!fs.existsSync(MUSIC_DIR)) return;
+            const scanResult = await scanFolderRecursive(MUSIC_DIR, '');
+            await fs.promises.writeFile(FOLDER_CACHE_FILE, JSON.stringify({ timestamp: Date.now(), ...scanResult }, null, 2));
+            console.log(`✅ 已重新扫描音乐目录：${scanResult.totalFiles} 个文件，${scanResult.totalFolders} 个文件夹`);
+        } catch (e) {
+            console.error('重新扫描文件夹缓存失败:', e.message);
+        }
+    }, 300);
+}
+
+// 获取文件管理路径设置
+app.get('/api/storage-paths', (req, res) => {
+    try {
+        res.json({ success: true, ...buildMusicPathInfo() });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 保存文件管理路径设置（musicPath 传空字符串或 reset=true 即恢复默认目录）
+app.post('/api/storage-paths', requireAuth, async (req, res) => {
+    try {
+        const body = req.body || {};
+        const wantReset = body.reset === true || body.reset === 'true';
+        const { path: targetPath, error } = resolveMusicPathInput(wantReset ? '' : body.musicPath);
+
+        if (error) {
+            return res.status(400).json({ success: false, error });
+        }
+
+        if (!fs.existsSync(targetPath)) {
+            try {
+                fs.mkdirSync(targetPath, { recursive: true });
+            } catch (e) {
+                return res.status(400).json({ success: false, error: `目录不存在且无法创建：${e.message}` });
+            }
+        }
+
+        try {
+            fs.accessSync(targetPath, fs.constants.W_OK);
+        } catch (e) {
+            return res.status(400).json({ success: false, error: '目录没有写入权限' });
+        }
+
+        const oldPath = MUSIC_DIR;
+        const changed = oldPath !== targetPath;
+        MUSIC_DIR = targetPath;
+        saveConfig();
+        console.log(`📁 音乐目录：${oldPath}${changed ? ' -> ' + MUSIC_DIR : '（未变化）'}`);
+
+        if (changed) {
+            currentPlaylist = [];
+            currentIndex = -1;
+            isPlaying = false;
+            clearMusicDirCaches();
+            scheduleMusicDirRescan();
+        }
+
+        res.json({
+            success: true,
+            changed,
+            message: changed ? '路径已更新，正在后台重新扫描音乐库' : '路径未发生变化',
+            ...buildMusicPathInfo()
+        });
+    } catch (error) {
+        console.error('保存文件管理路径失败:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });

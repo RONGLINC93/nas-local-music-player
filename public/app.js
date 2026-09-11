@@ -14160,6 +14160,106 @@ async function confirmDeleteSourceFile() {
     }
 }
 
+// ==================== 文件管理路径设置 ====================
+
+// 渲染音乐目录状态
+function renderStoragePathInfo(info) {
+    const currentEl = document.getElementById('musicPathCurrent');
+    const statusEl = document.getElementById('musicPathStatus');
+    const defaultEl = document.getElementById('musicPathDefault');
+    const inputEl = document.getElementById('musicPathInput');
+    if (!currentEl || !statusEl || !defaultEl || !inputEl) return;
+
+    currentEl.textContent = info.musicPath || '-';
+    defaultEl.textContent = info.defaultMusicPath || '-';
+    inputEl.placeholder = info.defaultMusicPath
+        ? `留空使用默认目录：${info.defaultMusicPath}`
+        : '留空使用默认目录';
+    // 使用默认目录时输入框留空，自定义时回填当前值
+    inputEl.value = info.isCustom ? (info.musicPath || '') : '';
+
+    let statusText = '';
+    let statusClass = '';
+    if (!info.exists) {
+        statusText = '目录不存在（保存时会自动创建）';
+        statusClass = 'warn';
+    } else if (!info.writable) {
+        statusText = '目录不可写，请检查权限';
+        statusClass = 'error';
+    } else {
+        statusText = `可用 · 已收录 ${info.trackCount || 0} 首`;
+        statusClass = 'ok';
+    }
+    statusEl.textContent = statusText;
+    statusEl.className = 'storage-status ' + statusClass;
+}
+
+// 加载文件管理路径设置
+async function loadStoragePaths() {
+    try {
+        const response = await fetch('/api/storage-paths');
+        const result = await response.json();
+        if (result.success) {
+            renderStoragePathInfo(result);
+        }
+    } catch (error) {
+        console.error('获取文件管理路径失败:', error);
+    }
+}
+
+// 保存文件管理路径设置
+async function saveMusicPath() {
+    const inputEl = document.getElementById('musicPathInput');
+    if (!inputEl) return;
+
+    try {
+        await requireLogin();
+    } catch (e) {
+        return;
+    }
+
+    const musicPath = inputEl.value.trim();
+    const confirmMessage = (musicPath ? `新目录: ${musicPath}` : '将恢复为默认目录')
+        + '\n切换后会清空缓存并重新扫描，原有音乐文件不会被移动或删除。';
+    const confirmed = typeof showConfirmModal === 'function'
+        ? await showConfirmModal(musicPath ? '确定切换音乐库目录吗？' : '确定恢复默认音乐目录吗？', confirmMessage)
+        : window.confirm(confirmMessage);
+    if (!confirmed) return;
+
+    try {
+        const response = await fetch('/api/storage-paths', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ musicPath })
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+            showNotification({ type: 'error', message: result.error || '保存失败' });
+            return;
+        }
+
+        renderStoragePathInfo(result);
+        showNotification({ type: 'success', message: result.message || '设置已保存' });
+
+        // 目录已切换：等待后台重建缓存后刷新文件管理页数据
+        if (result.changed && typeof refreshFolders === 'function') {
+            setTimeout(() => refreshFolders(), 2000);
+        }
+    } catch (error) {
+        console.error('保存文件管理路径失败:', error);
+        showNotification({ type: 'error', message: '保存失败' });
+    }
+}
+
+// 恢复默认音乐目录
+async function resetMusicPath() {
+    const inputEl = document.getElementById('musicPathInput');
+    if (!inputEl) return;
+    inputEl.value = '';
+    await saveMusicPath();
+}
+
 // 获取在线设置
 async function loadOnlineSettings() {
     try {
@@ -14290,6 +14390,7 @@ switchView = function(viewName) {
         loadAudioDevices();
         refreshCacheList();
         loadCacheLimit();
+        loadStoragePaths();
         // 先加载设置（获取 activeSources），再刷新文件列表（使用 activeSources 显示选中状态）
         loadOnlineSettings().then(() => {
             refreshSourceFiles();

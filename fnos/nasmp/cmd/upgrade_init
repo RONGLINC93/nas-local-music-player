@@ -1,0 +1,4 @@
+#!/bin/bash
+# 升级前：记录日志（数据目录位于 var 中，不受升级影响）
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] upgrade_init ${TRIM_OLD_APPVER:-unknown} -> ${TRIM_APPVER:-unknown}" >> "${TRIM_PKGVAR:-/tmp}/install.log" 2>/dev/null
+exit 0

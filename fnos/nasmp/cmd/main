@@ -1,0 +1,180 @@
+#!/bin/bash
+# ============================================================================
+# NAS本地音乐播放器 · 生命周期脚本
+#   start  : 启动服务（成功返回 0，失败返回 1 并写入 TRIM_TEMP_LOGFILE）
+#   stop   : 停止服务（成功返回 0）
+#   status : 运行中返回 0，未运行返回 3
+# ============================================================================
+set -u
+
+# 程序本体：app/server/ 会被解压到 TRIM_APPDEST 下
+APP_DIR="${TRIM_APPDEST}/server"
+ENTRY="${APP_DIR}/server.js"
+
+# 持久化目录：var 在升级 / 卸载时都会被保留
+PKG_VAR="${TRIM_PKGVAR}"
+DATA_DIR="${PKG_VAR}/data"
+LOG_FILE="${PKG_VAR}/app.log"
+PID_FILE="${PKG_VAR}/app.pid"
+
+# 服务端口：来自 manifest 的 service_port
+PORT="${TRIM_SERVICE_PORT:-9524}"
+
+# Node.js 运行时由 install_dep_apps = nodejs_v20 提供
+NODE_DIR="/var/apps/nodejs_v20/target/bin"
+NODE_BIN="${NODE_DIR}/node"
+export PATH="${NODE_DIR}:${PATH}"
+export TZ="${TZ:-Asia/Shanghai}"
+
+# 音乐库根目录：优先使用安装时选择的共享文件夹，其次退回应用数据目录
+SHARE_DIR="${TRIM_DATA_SHARE_PATHS%%:*}"
+if [ -z "${SHARE_DIR}" ]; then
+  SHARE_DIR="${PKG_VAR}"
+fi
+MUSIC_DIR="${SHARE_DIR}/music"
+
+# 需要在升级 / 卸载时保留的入口：程序目录里的这些名字全部软链到持久化目录
+PERSIST_NAMES="data music temp_uploads temp upgrades online_sources"
+
+log() {
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "${LOG_FILE}" 2>/dev/null
+}
+
+fail() {
+  # V1.1.8+ 会把该文件内容弹窗展示给用户
+  if [ -n "${TRIM_TEMP_LOGFILE:-}" ]; then
+    echo "$*" > "${TRIM_TEMP_LOGFILE}" 2>/dev/null
+  fi
+  log "ERROR: $*"
+  exit 1
+}
+
+# 通过完整命令行匹配进程：无论是本脚本启动的，还是应用内「重启服务」自拉起的新进程
+list_pids() {
+  pgrep -f "${ENTRY}" 2>/dev/null
+}
+
+is_running() {
+  [ -n "$(list_pids)" ]
+}
+
+target_of() {
+  case "$1" in
+    data)  echo "${DATA_DIR}" ;;
+    music) echo "${MUSIC_DIR}" ;;
+    *)     echo "${PKG_VAR}/$1" ;;
+  esac
+}
+
+# 把程序目录中的运行期目录指向持久化目录（程序目录在升级时会被覆盖）
+prepare_persist() {
+  mkdir -p "${DATA_DIR}" "${MUSIC_DIR}" "${PKG_VAR}/temp_uploads" \
+           "${PKG_VAR}/temp" "${PKG_VAR}/upgrades" "${PKG_VAR}/online_sources" || return 1
+
+  local name link target
+  for name in ${PERSIST_NAMES}; do
+    link="${APP_DIR}/${name}"
+    target="$(target_of "${name}")"
+
+    [ -L "${link}" ] && continue
+
+    if [ -d "${link}" ]; then
+      # 兼容旧版本把内容直接写在程序目录的情况：先迁移（不覆盖已有文件）再建软链
+      cp -rn "${link}/." "${target}/" 2>/dev/null
+      rm -rf "${link}"
+    fi
+
+    mkdir -p "${target}" 2>/dev/null
+    ln -s "${target}" "${link}" 2>/dev/null || log "警告：软链创建失败 ${name} -> ${target}"
+  done
+  return 0
+}
+
+start_process() {
+  if is_running; then
+    log "服务已在运行，忽略本次启动请求"
+    return 0
+  fi
+
+  [ -x "${NODE_BIN}" ] || NODE_BIN="$(command -v node 2>/dev/null || true)"
+  [ -n "${NODE_BIN}" ] && [ -x "${NODE_BIN}" ] || fail "未找到 Node.js 运行时（nodejs_v20），请先在应用中心安装"
+  [ -f "${ENTRY}" ] || fail "程序文件缺失：${ENTRY}"
+
+  prepare_persist || fail "无法初始化数据目录 ${PKG_VAR}"
+
+  cd "${APP_DIR}" || fail "无法进入程序目录 ${APP_DIR}"
+
+  # 服务端声卡播放依赖 aplay / ffmpeg，缺失不阻塞启动：应用内可切换为浏览器客户端播放
+  command -v aplay  >/dev/null 2>&1 || log "提示：未找到 aplay，服务端声卡播放不可用，可在应用内切换为客户端浏览器播放"
+  command -v ffmpeg >/dev/null 2>&1 || log "提示：未找到 ffmpeg，标签写入 / 格式转换等高级功能不可用"
+
+  PORT="${PORT}" nohup "${NODE_BIN}" "${ENTRY}" >> "${LOG_FILE}" 2>&1 &
+  local pid=$!
+  echo "${pid}" > "${PID_FILE}"
+
+  # 等待服务起来（最多 15 秒）
+  local i=0
+  while [ ${i} -lt 15 ]; do
+    sleep 1
+    if is_running; then
+      log "启动成功：http://127.0.0.1:${PORT}"
+      return 0
+    fi
+    if ! kill -0 "${pid}" 2>/dev/null; then
+      fail "服务启动后立即退出，请查看日志：${LOG_FILE}"
+    fi
+    i=$((i + 1))
+  done
+  fail "服务启动超时，请查看日志：${LOG_FILE}"
+}
+
+stop_process() {
+  local pids i
+  pids="$(list_pids)"
+  if [ -z "${pids}" ]; then
+    rm -f "${PID_FILE}"
+    return 0
+  fi
+
+  log "正在停止服务：${pids}"
+  kill -TERM ${pids} 2>/dev/null
+
+  i=0
+  while [ ${i} -lt 10 ]; do
+    is_running || break
+    sleep 1
+    i=$((i + 1))
+  done
+
+  if is_running; then
+    log "优雅停止超时，强制结束"
+    kill -KILL $(list_pids) 2>/dev/null
+    sleep 1
+  fi
+
+  rm -f "${PID_FILE}"
+  log "服务已停止"
+  return 0
+}
+
+case "$1" in
+  start)
+    start_process
+    exit $?
+    ;;
+  stop)
+    stop_process
+    exit $?
+    ;;
+  status)
+    if is_running; then
+      exit 0
+    else
+      exit 3
+    fi
+    ;;
+  *)
+    echo "用法: $0 {start|stop|status}" >&2
+    exit 1
+    ;;
+esac

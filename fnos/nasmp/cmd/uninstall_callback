@@ -1,0 +1,48 @@
+#!/bin/bash
+# 卸载后：程序文件（target）已被移除，var 目录由飞牛默认保留。
+# 是否清理由卸载向导 wizard/uninstall 的 wizard_data_action 决定：
+#   keep（默认） = 保留应用数据，重新安装后继续使用
+#   delete       = 删除应用数据（登录信息、缓存、任务、音源）
+# 注意：音乐文件存放在共享文件夹中，属于用户资产，本脚本任何情况下都只读不删。
+set -u
+
+PKG_VAR="${TRIM_PKGVAR:-}"
+APP="${TRIM_APPNAME:-nasmp}"
+ACTION="${wizard_data_action:-keep}"
+LOG_FILE="${PKG_VAR:-/tmp}/install.log"
+
+log() {
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "${LOG_FILE}" 2>/dev/null
+}
+
+# 二次确认路径确实是本应用的数据目录：绝对路径、至少三层、且路径中含应用名。
+# 这样即使向导变量异常或 TRIM_PKGVAR 被污染，也不可能误删 / 、/vol1 或别人的目录。
+is_own_data_dir() {
+  case "${PKG_VAR}" in
+    /*/*/*"${APP}"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+case "${ACTION}" in
+  delete)
+    if ! is_own_data_dir; then
+      log "拒绝删除：${PKG_VAR:-空} 不像是本应用的数据目录，数据已保留"
+      if [ -n "${TRIM_TEMP_LOGFILE:-}" ]; then
+        echo "未删除数据：${PKG_VAR:-空} 不是预期的应用数据目录，请手动检查。" > "${TRIM_TEMP_LOGFILE}" 2>/dev/null
+      fi
+      exit 1
+    fi
+    log "用户选择删除数据，正在清除 ${PKG_VAR}（音乐文件不在此目录，不会被删除）"
+    if ! rm -rf "${PKG_VAR}"; then
+      if [ -n "${TRIM_TEMP_LOGFILE:-}" ]; then
+        echo "删除数据失败，请手动删除 ${PKG_VAR}" > "${TRIM_TEMP_LOGFILE}" 2>/dev/null
+      fi
+      exit 1
+    fi
+    ;;
+  *)
+    log "用户选择保留数据，未做删除（数据仍在 ${PKG_VAR:-unknown}）"
+    ;;
+esac
+exit 0

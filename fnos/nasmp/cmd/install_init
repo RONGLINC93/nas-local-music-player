@@ -1,0 +1,4 @@
+#!/bin/bash
+# 安装前：仅记录日志，不做破坏性操作
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] install_init ${TRIM_APPNAME:-unknown} ${TRIM_APPVER:-unknown}" >> "${TRIM_PKGVAR:-/tmp}/install.log" 2>/dev/null
+exit 0

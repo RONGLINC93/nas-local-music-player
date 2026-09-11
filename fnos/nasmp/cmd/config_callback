@@ -1,0 +1,8 @@
+#!/bin/bash
+# 应用设置变更后：若服务正在运行则重启一次，使配置生效
+MAIN="${TRIM_APPDEST}/cmd/main"
+if "${MAIN}" status >/dev/null 2>&1; then
+  "${MAIN}" stop >/dev/null 2>&1
+  "${MAIN}" start >/dev/null 2>&1
+fi
+exit 0

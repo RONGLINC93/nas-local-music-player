@@ -1,0 +1,39 @@
+#!/bin/bash
+# 升级后：程序目录被重新解压，重新建立持久化软链，数据本身保留
+set -u
+
+LOG_FILE="${TRIM_PKGVAR:-/tmp}/install.log"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] upgrade_callback ${TRIM_OLD_APPVER:-unknown} -> ${TRIM_APPVER:-unknown}" >> "${LOG_FILE}" 2>/dev/null
+
+APP_DIR="${TRIM_APPDEST}/server"
+PKG_VAR="${TRIM_PKGVAR}"
+DATA_DIR="${PKG_VAR}/data"
+
+SHARE_DIR="${TRIM_DATA_SHARE_PATHS%%:*}"
+if [ -z "${SHARE_DIR}" ]; then
+  SHARE_DIR="${PKG_VAR}"
+fi
+MUSIC_DIR="${SHARE_DIR}/music"
+
+mkdir -p "${DATA_DIR}" "${MUSIC_DIR}" "${PKG_VAR}/temp_uploads" \
+         "${PKG_VAR}/temp" "${PKG_VAR}/upgrades" "${PKG_VAR}/online_sources"
+
+for name in data music temp_uploads temp upgrades online_sources; do
+  LINK="${APP_DIR}/${name}"
+  case "${name}" in
+    data)  TARGET="${DATA_DIR}" ;;
+    music) TARGET="${MUSIC_DIR}" ;;
+    *)     TARGET="${PKG_VAR}/${name}" ;;
+  esac
+
+  [ -L "${LINK}" ] && continue
+  if [ -d "${LINK}" ]; then
+    cp -rn "${LINK}/." "${TARGET}/" 2>/dev/null
+    rm -rf "${LINK}"
+  fi
+  mkdir -p "${TARGET}"
+  ln -s "${TARGET}" "${LINK}" 2>/dev/null
+done
+
+chown -R "${TRIM_USERNAME:-}:${TRIM_GROUPNAME:-}" "${PKG_VAR}" 2>/dev/null
+exit 0

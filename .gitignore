@@ -11,3 +11,7 @@ temp_uploads/
 lx-music-sync-server/
 .git/
 .github/
+
+# 飞牛 fpk 打包产物（输出到 fpk/）与构建生成的包内程序目录
+fpk/
+fnos/nasmp/app/server/

@@ -1,0 +1,30 @@
+[
+  {
+    "stepTitle": "卸载 NAS本地音乐播放器",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "卸载会移除程序文件。应用数据（登录信息、缓存、任务、音源等）存放在应用数据目录中；音乐文件存放在共享文件夹 nasmp/music 中，任何时候都不会被删除。请选择应用数据的处理方式："
+      },
+      {
+        "type": "radio",
+        "field": "wizard_data_action",
+        "label": "数据处理",
+        "initValue": "keep",
+        "options": [
+          {
+            "label": "保留数据（推荐）—— 重新安装后可直接继续使用",
+            "value": "keep"
+          },
+          {
+            "label": "删除应用数据 —— 登录信息、缓存、任务与音源一并清除，不可恢复（音乐文件仍保留）",
+            "value": "delete"
+          }
+        ],
+        "rules": [
+          { "required": true, "message": "请选择数据处理方式" }
+        ]
+      }
+    ]
+  }
+]

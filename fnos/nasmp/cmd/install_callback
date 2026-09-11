@@ -1,0 +1,49 @@
+#!/bin/bash
+# 安装后：初始化持久化目录，把程序目录中的运行期目录软链过去，并播种默认音源
+set -u
+
+LOG_FILE="${TRIM_PKGVAR:-/tmp}/install.log"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] install_callback ${TRIM_APPNAME:-unknown} ${TRIM_APPVER:-unknown}" >> "${LOG_FILE}" 2>/dev/null
+
+APP_DIR="${TRIM_APPDEST}/server"
+PKG_VAR="${TRIM_PKGVAR}"
+DATA_DIR="${PKG_VAR}/data"
+
+# 音乐库：优先使用安装时选定的共享文件夹
+SHARE_DIR="${TRIM_DATA_SHARE_PATHS%%:*}"
+if [ -z "${SHARE_DIR}" ]; then
+  SHARE_DIR="${PKG_VAR}"
+fi
+MUSIC_DIR="${SHARE_DIR}/music"
+
+mkdir -p "${DATA_DIR}" "${MUSIC_DIR}" "${PKG_VAR}/temp_uploads" \
+         "${PKG_VAR}/temp" "${PKG_VAR}/upgrades" "${PKG_VAR}/online_sources"
+
+# 默认音源：仅当持久化目录为空时，用随包音源作为初始值（不覆盖用户已有音源）
+SRC="${APP_DIR}/online_sources"
+DST="${PKG_VAR}/online_sources"
+if [ -d "${SRC}" ] && [ -z "$(ls -A "${DST}" 2>/dev/null)" ]; then
+  cp -rf "${SRC}/." "${DST}/" 2>/dev/null
+fi
+
+# 建立软链：升级时程序目录会被覆盖，数据必须落在持久化目录
+for name in data music temp_uploads temp upgrades online_sources; do
+  LINK="${APP_DIR}/${name}"
+  case "${name}" in
+    data)  TARGET="${DATA_DIR}" ;;
+    music) TARGET="${MUSIC_DIR}" ;;
+    *)     TARGET="${PKG_VAR}/${name}" ;;
+  esac
+
+  [ -L "${LINK}" ] && continue
+  if [ -d "${LINK}" ]; then
+    cp -rn "${LINK}/." "${TARGET}/" 2>/dev/null
+    rm -rf "${LINK}"
+  fi
+  mkdir -p "${TARGET}"
+  ln -s "${TARGET}" "${LINK}" 2>/dev/null
+done
+
+chown -R "${TRIM_USERNAME:-}:${TRIM_GROUPNAME:-}" "${PKG_VAR}" 2>/dev/null
+chown -R "${TRIM_USERNAME:-}:${TRIM_GROUPNAME:-}" "${MUSIC_DIR}" 2>/dev/null
+exit 0

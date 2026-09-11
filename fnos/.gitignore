@@ -1,0 +1,10 @@
+# 构建时由 build-fpk 脚本从项目根目录复制进来，不入库
+nasmp/app/server/
+
+# 打包产物（生成在仓库根目录 fpk/ 下，打包源目录里不留）
+*.fpk
+
+# 本地下载的打包工具
+fnpack
+fnpack.exe
+*.rar

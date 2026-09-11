@@ -1,0 +1,13 @@
+{
+    ".url": {
+        "nasmp.main": {
+            "title": "NAS本地音乐播放器",
+            "icon": "images/icon_{0}.png",
+            "type": "iframe",
+            "protocol": "http",
+            "port": "9524",
+            "url": "/",
+            "allUsers": true
+        }
+    }
+}

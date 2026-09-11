@@ -281,6 +281,7 @@ NAS本地音乐播放器/
 - `volume`：默认音量（0-100）
 - `theme`：主题模式（light/dark/auto）
 - `clientPlayback`：是否启用客户端播放模式
+- `musicPath`：自定义音乐库目录（绝对路径；留空表示使用默认的 `music/` 目录，可在「系统设置 → 文件管理」页面修改）
 
 ---
 
